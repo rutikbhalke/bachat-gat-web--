@@ -5,99 +5,56 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function profile() {
+    function currentUser() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function hasRole(role) {
-      return signedIn() && profile().role == role;
-    }
-
     function isAdmin() {
-      return hasRole('admin');
-    }
-
-    function managesMembers() {
-      return isAdmin() || hasRole('secretary');
+      return signedIn() && (currentUser().role == 'admin' || currentUser().role_name == 'ADMIN');
     }
 
     function managesMoney() {
-      return isAdmin() || hasRole('treasurer');
-    }
-
-    match /users/{userId} {
-      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
-      allow create: if signedIn() && (
-        isAdmin() ||
-        (request.auth.uid == userId && request.resource.data.role == 'member')
-      );
-      allow update: if signedIn() && (
-        isAdmin() ||
-        (request.auth.uid == userId && request.resource.data.role == resource.data.role)
-      );
-      allow delete: if isAdmin();
+      return isAdmin() || (signedIn() && (currentUser().role == 'treasurer' || currentUser().role_name == 'TREASURER'));
     }
 
     match /groups/{groupId} {
       allow read: if signedIn();
-      allow create, update, delete: if isAdmin();
-
-      match /members/{memberId} {
-        allow read: if signedIn();
-        allow create: if managesMembers() || (
-          signedIn() && request.resource.data.authUid == request.auth.uid
-        );
-        allow update: if managesMembers() || (
-          signedIn() && resource.data.authUid == request.auth.uid
-        );
-        allow delete: if managesMembers();
-      }
-
-      match /monthly_contributions/{contributionId} {
-        allow read: if signedIn();
-        allow write: if managesMoney();
-      }
-
-      match /loans/{loanId} {
-        allow read: if signedIn();
-        allow write: if managesMoney();
-      }
-
-      match /repayments/{repaymentId} {
-        allow read: if signedIn();
-        allow write: if managesMoney();
-      }
-
-      match /activities/{activityId} {
-        allow read: if signedIn();
-        allow write: if managesMembers() || managesMoney();
-      }
-
-      match /notifications/{notificationId} {
-        allow read: if signedIn();
-        allow write: if isAdmin();
-      }
-
-      match /system/member_counter {
-        allow read: if signedIn();
-        allow write: if managesMembers();
-      }
-
-      match /system/{documentId} {
-        allow read: if signedIn();
-        allow write: if isAdmin();
-      }
+      allow write: if isAdmin();
     }
 
-    match /{legacyCollection}/{documentId} {
-      allow read: if signedIn() && legacyCollection in [
-        'members', 'savings', 'loans', 'repayments',
-        'notifications', 'activities', 'activityLogs'
-      ];
-      allow write: if isAdmin() && legacyCollection in [
-        'members', 'savings', 'loans', 'repayments',
-        'notifications', 'activities', 'activityLogs'
-      ];
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || (
+        signedIn() && request.auth.uid == uid &&
+        request.resource.data.role == 'member'
+      );
+      allow update: if isAdmin() || (
+        signedIn() && request.auth.uid == uid &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.role_name == resource.data.role_name
+      );
+      allow delete: if isAdmin() && request.auth.uid != uid;
+    }
+
+    match /monthlyContributions/{contributionId} {
+      allow read: if signedIn();
+      allow write: if managesMoney();
+    }
+
+    match /loans/{loanId} {
+      allow read: if signedIn();
+      allow write: if managesMoney();
+    }
+
+    match /repayments/{repaymentId} {
+      allow read: if signedIn();
+      allow write: if managesMoney();
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || managesMoney();
+      allow update, delete: if isAdmin();
     }
   }
 }

@@ -25,6 +25,7 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { auth, db, firebaseConfig } from '../config/firebase';
+import { groupQuery } from './dataContract';
 import { groupService } from './groupService';
 
 /**
@@ -130,12 +131,12 @@ export const authService = {
       // 2. Update Firebase Auth display name
       await updateFirebaseProfile(user, { displayName: cleanName });
 
-      // 3. Search for existing member document in Firestore groups/shivshahi_group_001/members
+      // 3. Search for an existing member in the shared root users collection.
       let existingMember = null;
       let existingMemberId = null;
 
       try {
-        const membersSnap = await getDocs(collection(db, 'groups', 'shivshahi_group_001', 'members'));
+        const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001'));
         const found = membersSnap.docs.find((d) => {
           const m = d.data();
           return (
@@ -150,13 +151,13 @@ export const authService = {
           existingMemberId = found.id;
         }
       } catch (err) {
-        console.warn('Notice: Unable to query existing members in subcollection:', err);
+        console.warn('Notice: Unable to query existing members:', err);
       }
 
       // Fetch active group details
       const defaultGroup = await groupService.getGroupDetails('shivshahi_group_001');
       const groupId = 'shivshahi_group_001';
-      const groupName = defaultGroup.group?.groupName || defaultGroup.group?.name || 'Chhatrapati Bachat Gat, Ghargaon Stand';
+      const groupName = defaultGroup.group?.groupName || defaultGroup.group?.name || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
       const monthlyContribution = defaultGroup.group?.monthlyContribution || 1000;
 
       let memberId = existingMemberId;
@@ -164,7 +165,7 @@ export const authService = {
 
       if (existingMemberId) {
         // Link the existing member document to the newly created Firebase Auth UID
-        const memberDocRef = doc(db, 'groups', 'shivshahi_group_001', 'members', existingMemberId);
+        const memberDocRef = doc(db, 'users', existingMemberId);
         await setDoc(memberDocRef, {
           userId: user.uid,
           authUid: user.uid,
@@ -174,17 +175,17 @@ export const authService = {
           updatedAt: new Date().toISOString(),
         }, { merge: true });
       } else {
-        // Create new member document in 'groups/shivshahi_group_001/members' if none existed
-        const membersSnap = await getDocs(collection(db, 'groups', 'shivshahi_group_001', 'members')).catch(() => ({ docs: [] }));
+        // Create a new member profile at users/{uid}, matching the Flutter app.
+        const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001')).catch(() => ({ docs: [] }));
         let maxNum = 0;
         membersSnap.docs.forEach((d) => {
           const num = parseInt(d.id.replace(/\D/g, ''), 10);
           if (!isNaN(num) && num > maxNum) maxNum = num;
         });
-        memberId = `M_${maxNum + 1}`;
-        memberCode = memberId;
+        memberId = user.uid;
+        memberCode = `M-${maxNum + 1}`;
 
-        const newMemberDocRef = doc(db, 'groups', 'shivshahi_group_001', 'members', memberId);
+        const newMemberDocRef = doc(db, 'users', memberId);
         await setDoc(newMemberDocRef, {
           id: memberId,
           userId: user.uid,
@@ -282,7 +283,7 @@ export const authService = {
       let linkedMemberId = userData?.memberId || null;
 
       if (linkedMemberId) {
-        const memDoc = await getDoc(doc(db, 'groups', 'shivshahi_group_001', 'members', linkedMemberId));
+        const memDoc = await getDoc(doc(db, 'users', linkedMemberId));
         if (memDoc.exists()) {
           linkedMember = memDoc.data();
         }
@@ -290,7 +291,7 @@ export const authService = {
 
       if (!linkedMember) {
         try {
-          const membersSnap = await getDocs(collection(db, 'groups', 'shivshahi_group_001', 'members'));
+          const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001'));
           const found = membersSnap.docs.find((d) => {
             const m = d.data();
             return (
@@ -308,7 +309,7 @@ export const authService = {
             linkedMemberId = found.id;
 
             // Link member document with this Firebase Auth UID
-            await setDoc(doc(db, 'groups', 'shivshahi_group_001', 'members', linkedMemberId), {
+            await setDoc(doc(db, 'users', linkedMemberId), {
               userId: user.uid,
               authUid: user.uid,
               firebaseUid: user.uid,
@@ -317,7 +318,7 @@ export const authService = {
             }, { merge: true });
           }
         } catch (e) {
-          console.warn('Notice: Subcollection member lookup:', e);
+          console.warn('Notice: Member lookup:', e);
         }
       }
 
@@ -340,16 +341,16 @@ export const authService = {
       const resolvedFullName = userData?.fullName || userData?.name || linkedMember?.fullName || linkedMember?.name || user.displayName || (user.email ? user.email.split('@')[0] : 'Member');
       const resolvedPhone = userData?.phone || linkedMember?.phone || '';
 
-      // If member record still doesn't exist, auto-create one under groups/shivshahi_group_001/members
+      // If the profile still does not exist, create it at users/{uid}.
       if (!linkedMember) {
         try {
-          const membersSnap = await getDocs(collection(db, 'groups', 'shivshahi_group_001', 'members')).catch(() => ({ docs: [] }));
+          const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001')).catch(() => ({ docs: [] }));
           let maxNum = 0;
           membersSnap.docs.forEach((d) => {
             const num = parseInt(d.id.replace(/\D/g, ''), 10);
             if (!isNaN(num) && num > maxNum) maxNum = num;
           });
-          linkedMemberId = `M_${maxNum + 1}`;
+          linkedMemberId = user.uid;
           const newMemberPayload = {
             id: linkedMemberId,
             userId: user.uid,
@@ -370,7 +371,7 @@ export const authService = {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
-          await setDoc(doc(db, 'groups', 'shivshahi_group_001', 'members', linkedMemberId), newMemberPayload, { merge: true });
+          await setDoc(doc(db, 'users', linkedMemberId), newMemberPayload, { merge: true });
           linkedMember = newMemberPayload;
         } catch (err) {
           console.warn('Notice: Member auto-creation on login:', err);
@@ -392,7 +393,7 @@ export const authService = {
           memberId: linkedMemberId || '',
           memberCode: linkedMember?.memberCode || linkedMemberId || '',
           groupId: 'shivshahi_group_001',
-          groupName: 'Chhatrapati Bachat Gat, Ghargaon Stand',
+          groupName: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
           createdAt: userData?.createdAt || serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
@@ -416,7 +417,7 @@ export const authService = {
 
       // 7. Retrieve dynamic group details
       const groupData = await groupService.getGroupDetails(userData.groupId || 'shivshahi_group_001');
-      const liveGroupName = groupData.group?.groupName || groupData.group?.name || userData.groupName || 'Chhatrapati Bachat Gat, Ghargaon Stand';
+      const liveGroupName = groupData.group?.groupName || groupData.group?.name || userData.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
 
       const resolvedUser = {
         ...userData,
@@ -479,7 +480,7 @@ export const authService = {
 
     const userData = userDoc.data();
     const groupData = await groupService.getGroupDetails(userData.groupId || 'shivshahi_group_001');
-    const liveGroupName = groupData.group?.groupName || userData.groupName || 'Chhatrapati Bachat Gat';
+    const liveGroupName = groupData.group?.groupName || userData.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
     const userRole = (userData.role || 'member').toLowerCase();
 
     return {

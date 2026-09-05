@@ -5,7 +5,6 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  deleteDoc,
   query,
   where,
   orderBy,
@@ -25,7 +24,9 @@ import {
   signOut,
   updateProfile,
 } from 'firebase/auth';
-import { db, firebaseConfig } from '../config/firebase';
+import { auth, db, firebaseConfig } from '../config/firebase';
+import api from './api';
+import { groupQuery } from './dataContract';
 import {
   normalizeMember,
   normalizeSavings,
@@ -86,10 +87,10 @@ export const memberService = {
   getNextMemberCode: async (groupId = DEFAULT_GROUP_ID) => {
     const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
     const [membersSnap, counterSnap] = await Promise.all([
-      getDocs(collection(db, 'groups', targetGroupId, 'members')).catch(() => ({ docs: [] })),
-      getDoc(doc(db, 'groups', targetGroupId, 'system', 'member_counter')).catch(() => null),
+      getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
+      getDoc(doc(db, 'groups', targetGroupId)).catch(() => null),
     ]);
-    let maxNumber = Number(counterSnap?.data()?.lastNumber || 0);
+    let maxNumber = Number(counterSnap?.data()?.lastMemberNumber || 0);
     membersSnap.docs.forEach((memberDoc) => {
       const data = memberDoc.data();
       const candidates = [memberDoc.id, data.memberCode, data.member_code];
@@ -102,7 +103,7 @@ export const memberService = {
   },
 
   /**
-   * Get all members with aggregated savings and loan data from Flutter subcollections
+   * Get all members with aggregated savings and loan data from the shared root collections.
    */
   getAllMembers: async (params = {}, groupId = DEFAULT_GROUP_ID) => {
     try {
@@ -112,9 +113,9 @@ export const memberService = {
 
       // Read collections directly for target group
       const [membersSnap, contributionsSnap, loansSnap, groupDocSnap] = await Promise.all([
-        getDocs(collection(db, 'groups', targetGroupId, 'members')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'monthly_contributions')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'loans')).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
         getDoc(doc(db, 'groups', targetGroupId)).catch(() => null),
       ]);
 
@@ -235,7 +236,7 @@ export const memberService = {
     try {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
 
-      let memberDocRef = doc(db, 'groups', targetGroupId, 'members', memberId);
+      let memberDocRef = doc(db, 'users', memberId);
       let memberDocSnap = await getDoc(memberDocRef);
       let actualMemberId = memberId;
       let rawData = null;
@@ -245,7 +246,7 @@ export const memberService = {
       } else {
         // Search by userId or authUid or email
         try {
-          const membersSnap = await getDocs(collection(db, 'groups', targetGroupId, 'members'));
+          const membersSnap = await getDocs(groupQuery('users', targetGroupId));
           const found = membersSnap.docs.find((d) => {
             const data = d.data();
             return (
@@ -271,11 +272,31 @@ export const memberService = {
         throw new Error('Member profile not found in active Bachat Gat.');
       }
 
+      // Older imported members may keep their member record and Firebase login
+      // profile in two different users documents. Merge the linked login profile
+      // so the edit screen always receives the saved email and role.
+      const linkedProfileUid = rawData.authUid || rawData.firebaseUid || rawData.userId;
+      if (linkedProfileUid && linkedProfileUid !== actualMemberId) {
+        const linkedProfileSnap = await getDoc(doc(db, 'users', linkedProfileUid)).catch(() => null);
+        if (linkedProfileSnap?.exists()) {
+          rawData = {
+            ...rawData,
+            ...linkedProfileSnap.data(),
+            id: actualMemberId,
+            memberId: actualMemberId,
+            member_id: actualMemberId,
+            authUid: linkedProfileUid,
+            firebaseUid: linkedProfileUid,
+            userId: linkedProfileUid,
+          };
+        }
+      }
+
       const normalized = normalizeMember(actualMemberId, rawData);
 
       // Fetch member monthly contributions
       const contributionsSnap = await getDocs(
-        collection(db, 'groups', targetGroupId, 'monthly_contributions')
+        groupQuery('monthlyContributions', targetGroupId)
       ).catch(() => ({ docs: [] }));
 
       const memberSavings = contributionsSnap.docs
@@ -285,7 +306,7 @@ export const memberService = {
 
       // Fetch member loans
       const loansSnap = await getDocs(
-        collection(db, 'groups', targetGroupId, 'loans')
+        groupQuery('loans', targetGroupId)
       ).catch(() => ({ docs: [] }));
 
       const memberLoans = loansSnap.docs
@@ -334,17 +355,17 @@ export const memberService = {
       const normalizedName = cleanName.toLowerCase().replace(/\s+/g, ' ');
       const password = memberData.password || '';
       const requestedRole = (memberData.role_name || 'MEMBER').trim().toUpperCase();
-      const allowedRoles = ['MEMBER', 'TREASURER', 'SECRETARY'];
+      const allowedRoles = ['ADMIN', 'MEMBER', 'TREASURER', 'SECRETARY'];
 
       if (!cleanName || !cleanEmail || password.length < 6) {
         throw new Error('Name, email, and a password of at least 6 characters are required.');
       }
       if (!allowedRoles.includes(requestedRole)) {
-        throw new Error('Only Member, Treasurer, or Secretary roles can be assigned here.');
+        throw new Error('Only Admin, Member, Treasurer, or Secretary roles can be assigned here.');
       }
 
       // Read the customer list once for duplicate checks and counter migration.
-      const membersSnap = await getDocs(collection(db, 'groups', targetGroupId, 'members')).catch(() => ({ docs: [] }));
+      const membersSnap = await getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] }));
       const duplicateMember = membersSnap.docs.find((memberDoc) => {
         const data = memberDoc.data();
         const existingName = (data.name || data.fullName || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -379,19 +400,18 @@ export const memberService = {
       await updateProfile(createdAuthUser, { displayName: cleanName });
 
       // Allocate the serial atomically so two admins cannot receive the same code.
-      const counterRef = doc(db, 'groups', targetGroupId, 'system', 'member_counter');
+      const counterRef = doc(db, 'groups', targetGroupId);
       const nextNumber = await runTransaction(db, async (transaction) => {
         const counterSnap = await transaction.get(counterRef);
-        const lastNumber = Math.max(Number(counterSnap.data()?.lastNumber || 0), observedMax);
+        const lastNumber = Math.max(Number(counterSnap.data()?.lastMemberNumber || 0), observedMax);
         const allocatedNumber = lastNumber + 1;
         transaction.set(counterRef, {
-          lastNumber: allocatedNumber,
-          format: 'M-{number}',
+          lastMemberNumber: allocatedNumber,
           updatedAt: serverTimestamp(),
         }, { merge: true });
         return allocatedNumber;
       });
-      const newMemberId = `M_${nextNumber}`;
+      const newMemberId = createdAuthUser.uid;
       const newMemberCode = `M-${nextNumber}`;
 
       const newMemberPayload = {
@@ -427,8 +447,8 @@ export const memberService = {
 
       const actId = `ACT_${Date.now()}_add`;
       const batch = writeBatch(db);
-      batch.set(doc(db, 'groups', targetGroupId, 'members', newMemberId), newMemberPayload);
       batch.set(doc(db, 'users', createdAuthUser.uid), {
+        ...newMemberPayload,
         uid: createdAuthUser.uid,
         fullName: cleanName,
         name: cleanName,
@@ -440,8 +460,8 @@ export const memberService = {
         role_name: requestedRole,
         isActive: true,
         is_active: true,
-        memberId: newMemberId,
-        member_id: newMemberId,
+        memberId: createdAuthUser.uid,
+        member_id: createdAuthUser.uid,
         memberCode: newMemberPayload.memberCode,
         member_code: newMemberPayload.memberCode,
         groupId: targetGroupId,
@@ -449,8 +469,9 @@ export const memberService = {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      batch.set(doc(db, 'groups', targetGroupId, 'activities', actId), {
+      batch.set(doc(db, 'transactions', actId), {
         id: actId,
+        groupId: targetGroupId,
         type: 'adjustment',
         amount: newMemberPayload.monthlyContribution,
         description: `Member added: ${cleanName} (Shares: ${newMemberPayload.shares}, Hafta: ₹${newMemberPayload.monthlyContribution})`,
@@ -511,7 +532,7 @@ export const memberService = {
   updateMember: async (memberId, updateData, groupId = DEFAULT_GROUP_ID) => {
     try {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-      const memberDocRef = doc(db, 'groups', targetGroupId, 'members', memberId);
+      const memberDocRef = doc(db, 'users', memberId);
 
       const payload = {
         updatedAt: new Date().toISOString(),
@@ -535,7 +556,7 @@ export const memberService = {
       }
       if (updateData.role_name || updateData.role) {
         const roleName = (updateData.role_name || updateData.role).trim().toUpperCase();
-        if (!['MEMBER', 'TREASURER', 'SECRETARY'].includes(roleName)) {
+        if (!['ADMIN', 'MEMBER', 'TREASURER', 'SECRETARY'].includes(roleName)) {
           throw new Error('Invalid member role.');
         }
         payload.role = roleName.toLowerCase();
@@ -583,7 +604,7 @@ export const memberService = {
         throw new Error('Password must be at least 6 characters.');
       }
 
-      const memberRef = doc(db, 'groups', targetGroupId, 'members', memberId);
+      const memberRef = doc(db, 'users', memberId);
       const memberSnap = await getDoc(memberRef);
       if (!memberSnap.exists()) throw new Error('Member record not found.');
 
@@ -592,7 +613,7 @@ export const memberService = {
         throw new Error('Login is already enabled for this member.');
       }
 
-      const membersSnap = await getDocs(collection(db, 'groups', targetGroupId, 'members'));
+      const membersSnap = await getDocs(groupQuery('users', targetGroupId));
       const emailOwner = membersSnap.docs.find((memberDoc) => {
         if (memberDoc.id === memberId) return false;
         return (memberDoc.data().email || '').trim().toLowerCase() === cleanEmail &&
@@ -654,8 +675,9 @@ export const memberService = {
         updatedAt: serverTimestamp(),
       }, { merge: true });
       const activityId = `ACT_${Date.now()}_login`;
-      batch.set(doc(db, 'groups', targetGroupId, 'activities', activityId), {
+      batch.set(doc(db, 'transactions', activityId), {
         id: activityId,
+        groupId: targetGroupId,
         type: 'member_login_assigned',
         memberId,
         memberName,
@@ -686,46 +708,98 @@ export const memberService = {
     }
   },
 
+  /** Admin-only profile, login, password and role management. */
+  manageMemberAccess: async (memberId, values) => {
+    try {
+      const response = await api.put(`/members/${encodeURIComponent(memberId)}/access`, values);
+      return response.data;
+    } catch (error) {
+      const responseStatus = error.response?.status;
+      if (responseStatus && responseStatus !== 503) {
+        throw new Error(error.response?.data?.message || error.message || 'Failed to update member access.');
+      }
+
+      // The server is required for changing a different Firebase Auth account,
+      // but ordinary profile and role fields can still be saved to Firestore by
+      // the currently authenticated admin.
+      const memberRef = doc(db, 'users', memberId);
+      const snapshot = await getDoc(memberRef);
+      if (!snapshot.exists()) {
+        throw new Error(error.response?.data?.message || 'Member record not found.');
+      }
+
+      const current = snapshot.data();
+      const roleName = String(values.role || values.role_name || current.role || 'MEMBER').toUpperCase();
+      if (!['ADMIN', 'MEMBER', 'TREASURER', 'SECRETARY'].includes(roleName)) {
+        throw new Error('Invalid member role.');
+      }
+
+      const linkedUid = current.authUid || current.firebaseUid || current.userId;
+      if (linkedUid === auth.currentUser?.uid && roleName !== 'ADMIN') {
+        throw new Error('You cannot remove your own admin access.');
+      }
+      const fallbackPayload = {
+        name: String(values.name || values.fullName || current.name || current.fullName || 'Member').trim(),
+        fullName: String(values.name || values.fullName || current.name || current.fullName || 'Member').trim(),
+        phone: String(values.phone ?? current.phone ?? '').trim(),
+        memberCode: String(values.memberCode || values.member_code || current.memberCode || current.member_code || memberId).trim(),
+        member_code: String(values.memberCode || values.member_code || current.memberCode || current.member_code || memberId).trim(),
+        role: roleName.toLowerCase(),
+        roleName,
+        role_name: roleName,
+        isActive: values.isActive === undefined ? current.isActive !== false : Boolean(values.isActive),
+        is_active: values.isActive === undefined ? current.isActive !== false : Boolean(values.isActive),
+        updatedAt: serverTimestamp(),
+      };
+
+      const batch = writeBatch(db);
+      batch.set(memberRef, fallbackPayload, { merge: true });
+      if (linkedUid && linkedUid !== memberId) {
+        batch.set(doc(db, 'users', linkedUid), {
+          ...fallbackPayload,
+          memberId,
+          member_id: memberId,
+        }, { merge: true });
+      }
+      await batch.commit();
+
+      const requestedEmail = String(values.email || '').trim().toLowerCase();
+      if (!linkedUid && requestedEmail && values.password) {
+        const loginResult = await memberService.assignMemberLogin(memberId, {
+          email: requestedEmail,
+          password: values.password,
+        });
+        return {
+          success: true,
+          partial: false,
+          email: loginResult.email,
+          message: 'Member details, role, login email, and temporary password saved successfully.',
+        };
+      }
+
+      const authChangeRequested = Boolean(values.password) ||
+        (requestedEmail && requestedEmail !== String(current.email || '').trim().toLowerCase());
+
+      return {
+        success: true,
+        partial: authChangeRequested,
+        message: authChangeRequested
+          ? 'Member fields and role were saved. Login email/password still require the Firebase Admin service account.'
+          : 'Member fields and role updated successfully in Firebase.',
+      };
+    }
+  },
+
   /**
    * Delete a member from Firestore
    */
   deleteMember: async (memberId, groupId = DEFAULT_GROUP_ID) => {
     try {
-      const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-      const memberDocRef = doc(db, 'groups', targetGroupId, 'members', memberId);
-      const memberSnap = await getDoc(memberDocRef);
-      if (!memberSnap.exists()) throw new Error('Member record not found.');
-
-      const linkedUid = memberSnap.data().authUid || memberSnap.data().userId || memberSnap.data().firebaseUid;
-      const collectionNames = ['monthly_contributions', 'loans', 'repayments', 'activities', 'notifications'];
-      const relatedRefs = new Map();
-
-      for (const collectionName of collectionNames) {
-        const collectionRef = collection(db, 'groups', targetGroupId, collectionName);
-        const snapshots = await Promise.all([
-          getDocs(query(collectionRef, where('memberId', '==', memberId))).catch(() => ({ docs: [] })),
-          getDocs(query(collectionRef, where('member_id', '==', memberId))).catch(() => ({ docs: [] })),
-        ]);
-        snapshots.flatMap((snapshot) => snapshot.docs).forEach((documentSnap) => {
-          relatedRefs.set(documentSnap.ref.path, documentSnap.ref);
-        });
-      }
-
-      const refsToDelete = [memberDocRef, ...relatedRefs.values()];
-      if (linkedUid) refsToDelete.push(doc(db, 'users', linkedUid));
-      for (let start = 0; start < refsToDelete.length; start += 450) {
-        const batch = writeBatch(db);
-        refsToDelete.slice(start, start + 450).forEach((reference) => batch.delete(reference));
-        await batch.commit();
-      }
-
-      return {
-        success: true,
-        message: 'Member and linked Firestore records deleted successfully',
-      };
+      const response = await api.delete(`/members/${encodeURIComponent(memberId)}`);
+      return response.data;
     } catch (err) {
       console.error('Failed to delete member:', err);
-      throw new Error(err.message || 'Failed to delete member.');
+      throw new Error(err.response?.data?.message || err.message || 'Failed to delete member.');
     }
   },
 
@@ -734,7 +808,7 @@ export const memberService = {
    */
   subscribeToMembers: (callback, groupId = DEFAULT_GROUP_ID) => {
     const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-    return onSnapshot(collection(db, 'groups', targetGroupId, 'members'), () => {
+    return onSnapshot(groupQuery('users', targetGroupId), () => {
       memberService.getAllMembers({}, targetGroupId).then((res) => {
         if (res.success) callback(res);
       });

@@ -5,6 +5,7 @@ import {
   getDoc,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { groupQuery } from './dataContract';
 import { groupService } from './groupService';
 import {
   normalizeSavings,
@@ -24,9 +25,9 @@ export const reportService = {
       const y = parseInt(year, 10) || new Date().getFullYear();
 
       const [contributionsSnap, loansSnap, membersSnap, groupRes] = await Promise.all([
-        getDocs(collection(db, 'groups', targetGroupId, 'monthly_contributions')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'loans')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'members')).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
         groupService.getGroupDetails(targetGroupId).catch(() => ({ group: {} })),
       ]);
 
@@ -172,9 +173,9 @@ export const reportService = {
       const y = parseInt(year, 10) || new Date().getFullYear();
 
       const [contributionsSnap, loansSnap, membersSnap] = await Promise.all([
-        getDocs(collection(db, 'groups', targetGroupId, 'monthly_contributions')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'loans')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'members')).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
       ]);
 
       const monthContributions = contributionsSnap.docs
@@ -264,8 +265,8 @@ export const reportService = {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
 
       const [loansSnap, membersSnap] = await Promise.all([
-        getDocs(collection(db, 'groups', targetGroupId, 'loans')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'members')).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
       ]);
 
       const membersMap = {};

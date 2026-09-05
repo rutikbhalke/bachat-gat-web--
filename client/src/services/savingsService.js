@@ -10,6 +10,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { groupQuery } from './dataContract';
 import {
   normalizeSavings,
   normalizeMember,
@@ -25,8 +26,8 @@ export const savingsService = {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
 
       const [contributionsSnap, membersSnap] = await Promise.all([
-        getDocs(collection(db, 'groups', targetGroupId, 'monthly_contributions')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'members')).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
       ]);
 
       const membersMap = {};
@@ -101,7 +102,7 @@ export const savingsService = {
       const notes = data.remarks || data.notes || '';
 
       const docId = `C_${memberId}_${year}_${String(month).padStart(2, '0')}`;
-      const docRef = doc(db, 'groups', targetGroupId, 'monthly_contributions', docId);
+      const docRef = doc(db, 'monthlyContributions', docId);
       const existingContribution = await getDoc(docRef);
       if (existingContribution.exists()) {
         const existingData = existingContribution.data();
@@ -152,16 +153,17 @@ export const savingsService = {
       // Fetch member name for logging
       let memberName = 'Member';
       try {
-        const memSnap = await getDoc(doc(db, 'groups', targetGroupId, 'members', memberId));
+        const memSnap = await getDoc(doc(db, 'users', memberId));
         if (memSnap.exists()) memberName = memSnap.data().name || memSnap.data().fullName || 'Member';
       } catch (e) {
         // fallback
       }
 
-      // Log activity in Flutter activities subcollection
+      // Log activity in the shared root transactions collection.
       const actId = `ACT_${Date.now()}_saving`;
-      await setDoc(doc(db, 'groups', targetGroupId, 'activities', actId), {
+      await setDoc(doc(db, 'transactions', actId), {
         id: actId,
+        groupId: targetGroupId,
         type: 'saving',
         amount,
         description: `Monthly savings ₹${amount} received from ${memberName}`,
@@ -212,7 +214,7 @@ export const savingsService = {
   updateSavings: async (id, data, groupId = DEFAULT_GROUP_ID) => {
     try {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-      const docRef = doc(db, 'groups', targetGroupId, 'monthly_contributions', id);
+      const docRef = doc(db, 'monthlyContributions', id);
       const payload = {
         updatedAt: new Date().toISOString(),
       };
@@ -239,7 +241,7 @@ export const savingsService = {
    */
   subscribeToSavings: (callback, groupId = DEFAULT_GROUP_ID) => {
     const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-    return onSnapshot(collection(db, 'groups', targetGroupId, 'monthly_contributions'), () => {
+    return onSnapshot(groupQuery('monthlyContributions', targetGroupId), () => {
       savingsService.getAllSavings({}, targetGroupId).then((res) => {
         if (res.success) callback(res);
       });

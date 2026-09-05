@@ -2,11 +2,15 @@ import React, { useEffect, useState } from 'react';
 import Modal from '../common/Modal';
 import { memberService } from '../../services/memberService';
 import { formatCurrency } from '../../utils/formatters';
+import { useAuth } from '../../context/AuthContext';
 import {
   AlertCircle,
   CheckCircle2,
   User,
   Phone,
+  Mail,
+  KeyRound,
+  Shield,
   Layers,
   Coins,
   Calculator,
@@ -14,12 +18,16 @@ import {
 } from 'lucide-react';
 
 const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
+  const { isAdmin } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
     shares: '1',
     perShare: '1000',
     member_code: '',
+    email: '',
+    password: '',
+    role_name: 'MEMBER',
   });
 
   const [loading, setLoading] = useState(false);
@@ -70,6 +78,9 @@ const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
       shares: '1',
       perShare: '1000',
       member_code: '',
+      email: '',
+      password: '',
+      role_name: 'MEMBER',
     });
     setError('');
     setSuccess('');
@@ -84,6 +95,7 @@ const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
     e.preventDefault();
     const cleanName = formData.name.trim();
     const cleanPhone = formData.phone.trim();
+    const cleanEmail = formData.email.trim().toLowerCase();
 
     // 1. Validation
     if (!cleanName || cleanName.length < 2) {
@@ -93,6 +105,16 @@ const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
 
     if (!cleanPhone || cleanPhone.length < 10) {
       setError('Please enter a valid 10-digit mobile phone number.');
+      return;
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      setError('Please enter a valid member login email ID.');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Temporary password must be at least 6 characters.');
       return;
     }
 
@@ -110,24 +132,18 @@ const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
       setLoading(true);
       setError('');
 
-      // Auto-generate standard credentials for the member
-      const cleanDigits = cleanPhone.replace(/\D/g, '');
-      const standardEmail = `${cleanDigits}@bachatgat.local`;
-      const standardPassword = `Pass@${cleanDigits.slice(-4) || '1234'}`;
-
-      // Call existing member creation service without changing backend/schema
       const res = await memberService.createMember({
         name: cleanName,
         fullName: cleanName,
         phone: cleanPhone,
-        email: standardEmail,
-        password: standardPassword,
+        email: cleanEmail,
+        password: formData.password,
         shares: numShares,
         shareCount: numShares,
         monthlyContribution: calculatedMonthlyContribution,
         monthly_contribution: calculatedMonthlyContribution,
         monthlyContributionPerShare: numPerShare,
-        role_name: 'MEMBER',
+        role_name: isAdmin ? formData.role_name : 'MEMBER',
         joined_date: new Date().toISOString().split('T')[0],
       });
 
@@ -227,6 +243,51 @@ const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
             Enter 10 digit Indian mobile number (e.g. 9822012345)
           </span>
+        </div>
+
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Mail size={15} color="var(--primary)" /> Member Login ID (Email) *
+          </label>
+          <input
+            type="email"
+            name="email"
+            className="form-input"
+            placeholder="member@example.com"
+            value={formData.email}
+            onChange={handleChange}
+            disabled={loading}
+            autoComplete="off"
+            required
+          />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <KeyRound size={15} color="var(--primary)" /> Temporary Password *
+            </label>
+            <input
+              type="password"
+              name="password"
+              className="form-input"
+              minLength="6"
+              value={formData.password}
+              onChange={handleChange}
+              disabled={loading}
+              autoComplete="new-password"
+              required
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Shield size={15} color="var(--primary)" /> Account Role *
+            </label>
+            <select name="role_name" className="form-input" value={formData.role_name} onChange={handleChange} disabled={loading}>
+              <option value="MEMBER">Member</option>
+              {isAdmin && <option value="ADMIN">Admin</option>}
+            </select>
+          </div>
         </div>
 
         {/* 3 & 4. Shares Count and Per Share Grid */}

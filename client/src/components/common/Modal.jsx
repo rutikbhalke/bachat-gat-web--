@@ -59,16 +59,18 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px' }) => {
         backgroundColor: 'rgba(15, 23, 42, 0.65)',
         backdropFilter: 'blur(4px)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
         zIndex: 1000,
         padding: '16px',
+        overflowY: 'auto',
+        overscrollBehavior: 'contain',
       }}
       onClick={onClose}
     >
       <div
         ref={dialogRef}
-        className="fade-in"
+        className="fade-in app-modal"
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -77,12 +79,14 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px' }) => {
           borderRadius: 'var(--radius-xl)',
           width: '100%',
           maxWidth,
-          maxHeight: '90vh',
-          overflowY: 'auto',
+          maxHeight: 'calc(100dvh - 32px)',
+          overflow: 'hidden',
           boxShadow: 'var(--shadow-lg)',
           border: '1px solid var(--border-color)',
           display: 'flex',
           flexDirection: 'column',
+          margin: 'auto 0',
+          minHeight: 0,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -95,6 +99,7 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px' }) => {
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--primary-gradient-subtle)',
+            flexShrink: 0,
           }}
         >
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{title}</h2>
@@ -116,7 +121,19 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px' }) => {
         </div>
 
         {/* Modal Body */}
-        <div ref={bodyRef} style={{ padding: '24px' }}>{children}</div>
+        <div
+          ref={bodyRef}
+          className="app-modal-body"
+          style={{
+            padding: '24px',
+            overflowY: 'auto',
+            minHeight: 0,
+            overscrollBehavior: 'contain',
+            scrollbarGutter: 'stable',
+          }}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 const { db } = require('../config/firebaseAdmin');
 
-const DEFAULT_GROUP_ID = 'group_001';
+const DEFAULT_GROUP_ID = 'shivshahi_group_001';
 
 function value(data, ...keys) {
   return keys.map((key) => data[key]).find((item) => item !== undefined && item !== null);

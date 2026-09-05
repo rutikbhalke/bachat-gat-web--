@@ -8,6 +8,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { groupQuery } from './dataContract';
 import { loanService } from './loanService';
 import { DEFAULT_GROUP_ID } from '../utils/formatters';
 
@@ -19,9 +20,9 @@ export const repaymentService = {
     try {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
       const [repaymentsSnap, membersSnap, loansSnap] = await Promise.all([
-        getDocs(collection(db, 'groups', targetGroupId, 'repayments')),
-        getDocs(collection(db, 'groups', targetGroupId, 'members')),
-        getDocs(collection(db, 'groups', targetGroupId, 'loans')),
+        getDocs(groupQuery('repayments', targetGroupId)),
+        getDocs(groupQuery('users', targetGroupId)),
+        getDocs(groupQuery('loans', targetGroupId)),
       ]);
 
       const membersMap = {};
@@ -88,7 +89,7 @@ export const repaymentService = {
    */
   subscribeToRepayments: (callback, groupId = DEFAULT_GROUP_ID) => {
     const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-    return onSnapshot(collection(db, 'groups', targetGroupId, 'repayments'), () => {
+    return onSnapshot(groupQuery('repayments', targetGroupId), () => {
       repaymentService.getAllRepayments(targetGroupId).then((res) => {
         if (res.success) callback(res.repayments);
       });

@@ -507,6 +507,15 @@ textarea:focus-visible,
   .progress-members-grid {
     grid-template-columns: 1fr;
   }
+
+  .app-modal {
+    max-height: calc(100dvh - 16px) !important;
+    border-radius: var(--radius-md) !important;
+  }
+
+  .app-modal-body {
+    padding: 18px 16px 24px !important;
+  }
 }
 
 @media (max-width: 900px) {

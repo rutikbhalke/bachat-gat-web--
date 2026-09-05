@@ -37,13 +37,13 @@ function loadEnv() {
 loadEnv();
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAfSLqG3mqeWxnhk_gBUPkDK9Y4Y17GeFU",
-  authDomain: "bachat-gat-app-9e38e.firebaseapp.com",
-  projectId: "bachat-gat-app-9e38e",
-  storageBucket: "bachat-gat-app-9e38e.firebasestorage.app",
-  messagingSenderId: "1038306626235",
-  appId: "1:1038306626235:web:eb1da740ae33c09ad3b79e",
-  measurementId: "G-DJ20C3JZH8"
+  apiKey: "AIzaSyBJyKRv81qV_tmnmcYF76Dx0JLxGKvK_7I",
+  authDomain: "bachat-gat-32ffe.firebaseapp.com",
+  projectId: "bachat-gat-32ffe",
+  storageBucket: "bachat-gat-32ffe.firebasestorage.app",
+  messagingSenderId: "215206829034",
+  appId: "1:215206829034:web:63a0816174e77792427093",
+  measurementId: "G-NP2QYVL1XK"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -54,12 +54,13 @@ async function seedFirebase() {
 
   try {
     // 1. Seed Group Document
-    const groupId = 'group_001';
-    console.log('📌 Seeding Group [group_001]...');
+    const groupId = 'shivshahi_group_001';
+    console.log('📌 Seeding Group [shivshahi_group_001]...');
     await setDoc(doc(db, 'groups', groupId), {
       groupId,
-      groupName: 'Chhatrapati Bachat Gat',
-      group_name: 'Chhatrapati Bachat Gat',
+      name: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
+      groupName: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
+      group_name: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
       groupCode: 'shivshahi_group_001',
       group_code: 'shivshahi_group_001',
       monthlyContribution: 1000,
@@ -132,8 +133,10 @@ async function seedFirebase() {
 
     console.log('📌 Seeding Members...');
     for (const mem of membersData) {
-      await setDoc(doc(db, 'members', mem.id), {
+      await setDoc(doc(db, 'users', mem.id), {
         ...mem,
+        uid: mem.id,
+        name: mem.fullName,
         groupId,
         isActive: true,
         createdAt: serverTimestamp(),
@@ -150,9 +153,16 @@ async function seedFirebase() {
       { id: 'sav_005', memberId: 'mem_005', amount: 1000, month: 8, year: 2026, paymentMode: 'BANK_TRANSFER', paymentDate: '2026-08-20' },
     ];
     for (const s of savings) {
-      await setDoc(doc(db, 'savings', s.id), {
+      await setDoc(doc(db, 'monthlyContributions', s.id), {
         ...s,
         groupId,
+        expectedAmount: s.amount,
+        regularHaftaAmount: s.amount,
+        paidAmount: s.amount,
+        totalPaid: s.amount,
+        interestAmount: 0,
+        loanPrincipalPaid: 0,
+        status: 'PAID',
         createdAt: serverTimestamp(),
       }, { merge: true });
     }
@@ -197,8 +207,16 @@ async function seedFirebase() {
       groupId,
       amount: 5500,
       principalAmount: 5000,
+      principalRepaid: 5000,
       interestAmount: 500,
       regularHaftaAmount: 0,
+      regularContribution: 0,
+      totalPaid: 5500,
+      openingPrincipal: 25000,
+      closingPrincipal: 20000,
+      interestRate: 2.0,
+      month: 8,
+      year: 2026,
       paymentMonth: 8,
       paymentYear: 2026,
       paymentMode: 'UPI',

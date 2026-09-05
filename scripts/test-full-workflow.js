@@ -46,12 +46,12 @@ function loadEnv() {
 loadEnv();
 
 const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || 'AIzaSyAfSLqG3mqeWxnhk_gBUPkDK9Y4Y17GeFU',
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || 'bachat-gat-app-9e38e.firebaseapp.com',
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'bachat-gat-app-9e38e',
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || 'bachat-gat-app-9e38e.firebasestorage.app',
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1038306626235',
-  appId: process.env.VITE_FIREBASE_APP_ID || '1:1038306626235:web:eb1da740ae33c09ad3b79e',
+  apiKey: process.env.VITE_FIREBASE_API_KEY || 'AIzaSyBJyKRv81qV_tmnmcYF76Dx0JLxGKvK_7I',
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || 'bachat-gat-32ffe.firebaseapp.com',
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'bachat-gat-32ffe',
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || 'bachat-gat-32ffe.firebasestorage.app',
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '215206829034',
+  appId: process.env.VITE_FIREBASE_APP_ID || '1:215206829034:web:63a0816174e77792427093',
 };
 
 const stamp = Date.now();
@@ -77,12 +77,11 @@ const memberDb = getFirestore(memberApp);
 let testUser = null;
 
 const paths = [
-  ['groups', GROUP_ID, 'members', ids.member],
-  ['groups', GROUP_ID, 'monthly_contributions', ids.contribution],
-  ['groups', GROUP_ID, 'loans', ids.loan],
-  ['groups', GROUP_ID, 'repayments', ids.repayment],
-  ['groups', GROUP_ID, 'activities', ids.activity],
-  ['groups', GROUP_ID, 'notifications', ids.notification],
+  ['users', ids.member],
+  ['monthlyContributions', ids.contribution],
+  ['loans', ids.loan],
+  ['repayments', ids.repayment],
+  ['transactions', ids.activity],
 ];
 
 async function removeTemporaryData(uid) {
@@ -132,12 +131,6 @@ async function run() {
       groupName: 'Chhatrapati Bachat Gat',
       updatedAt: serverTimestamp(),
     }, { merge: true });
-    await setDoc(doc(adminDb, 'groups', GROUP_ID, 'system', 'schema_v1'), {
-      version: 1,
-      collections: ['members', 'monthly_contributions', 'loans', 'repayments', 'activities', 'notifications'],
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-
     const batch = writeBatch(adminDb);
     batch.set(doc(adminDb, 'users', testUser.uid), {
       uid: testUser.uid,
@@ -170,7 +163,6 @@ async function run() {
     batch.set(doc(adminDb, ...paths[2]), { id: ids.loan, memberId: ids.member, principalAmount: 5000, pendingPrincipal: 4000, status: 'active', groupId: GROUP_ID });
     batch.set(doc(adminDb, ...paths[3]), { id: ids.repayment, loanId: ids.loan, memberId: ids.member, principalAmount: 1000, interestAmount: 100, amount: 1100, groupId: GROUP_ID });
     batch.set(doc(adminDb, ...paths[4]), { id: ids.activity, memberId: ids.member, type: 'repayment', amount: 1100, groupId: GROUP_ID });
-    batch.set(doc(adminDb, ...paths[5]), { id: ids.notification, userId: testUser.uid, title: 'Workflow verified', isRead: false, groupId: GROUP_ID });
     await batch.commit();
 
     const checks = [
@@ -180,7 +172,6 @@ async function run() {
       ['loan', doc(memberDb, ...paths[2])],
       ['repayment ledger', doc(memberDb, ...paths[3])],
       ['activity', doc(memberDb, ...paths[4])],
-      ['notification', doc(memberDb, ...paths[5])],
     ];
 
     for (const [label, reference] of checks) {

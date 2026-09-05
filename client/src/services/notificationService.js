@@ -1,91 +1,76 @@
-import {
-  collection,
-  doc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  onSnapshot,
-} from 'firebase/firestore';
-import { db, auth } from '../config/firebase';
+import { getDocs, onSnapshot } from 'firebase/firestore';
+import { groupQuery } from './dataContract';
+import { DEFAULT_GROUP_ID } from '../utils/formatters';
+
+const READ_KEY = 'bachat_read_activity_ids';
+
+function getReadIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(READ_KEY) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveReadIds(ids) {
+  localStorage.setItem(READ_KEY, JSON.stringify([...ids]));
+}
+
+async function loadActivities() {
+  const snapshot = await getDocs(groupQuery('transactions', DEFAULT_GROUP_ID));
+  const readIds = getReadIds();
+  const notifications = snapshot.docs.map((documentSnap) => {
+    const data = documentSnap.data();
+    const rawDate = data.createdAt || data.date || data.updatedAt;
+    const createdAt = rawDate?.toDate
+      ? rawDate.toDate().toISOString()
+      : rawDate || new Date().toISOString();
+
+    return {
+      id: documentSnap.id,
+      ...data,
+      title: data.title || 'Group activity',
+      message: data.message || data.description || 'A group record was updated.',
+      type: (data.type || 'INFO').toUpperCase(),
+      is_read: readIds.has(documentSnap.id) ? 1 : 0,
+      created_at: createdAt,
+    };
+  });
+
+  notifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return notifications.slice(0, 30);
+}
 
 export const notificationService = {
-  /**
-   * Get all notifications
-   */
   getNotifications: async () => {
     try {
-      const snap = await getDocs(collection(db, 'notifications'));
-      const notifications = snap.docs.map((docSnap) => {
-        const d = docSnap.data();
-        return {
-          id: docSnap.id,
-          ...d,
-          title: d.title || 'Notification',
-          message: d.message || '',
-          type: d.type || 'INFO',
-          is_read: d.isRead ? 1 : 0,
-          created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : new Date().toISOString(),
-        };
-      });
-
-      // Sort by date desc
-      notifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      const unreadCount = notifications.filter((n) => !n.is_read).length;
-
+      const notifications = await loadActivities();
       return {
         success: true,
-        unreadCount,
+        unreadCount: notifications.filter((item) => !item.is_read).length,
         notifications,
       };
-    } catch (err) {
-      console.error('Failed to get notifications:', err);
+    } catch (error) {
+      console.error('Failed to load group activity:', error);
       return { success: true, unreadCount: 0, notifications: [] };
     }
   },
 
-  /**
-   * Mark single notification as read
-   */
   markAsRead: async (id) => {
-    try {
-      const docRef = doc(db, 'notifications', id);
-      await updateDoc(docRef, { isRead: true, updatedAt: serverTimestamp() });
-      return { success: true };
-    } catch (err) {
-      console.error('Failed to mark notification read:', err);
-      return { success: true };
-    }
+    const readIds = getReadIds();
+    readIds.add(id);
+    saveReadIds(readIds);
+    return { success: true };
   },
 
-  /**
-   * Mark all notifications as read
-   */
   markAllAsRead: async () => {
-    try {
-      const snap = await getDocs(collection(db, 'notifications'));
-      const promises = snap.docs.map((d) =>
-        updateDoc(doc(db, 'notifications', d.id), { isRead: true, updatedAt: serverTimestamp() })
-      );
-      await Promise.all(promises);
-      return { success: true };
-    } catch (err) {
-      console.error('Failed to mark all notifications read:', err);
-      return { success: true };
-    }
+    const notifications = await loadActivities();
+    saveReadIds(new Set(notifications.map((item) => item.id)));
+    return { success: true };
   },
 
-  /**
-   * Subscribe to notifications in real-time
-   */
-  subscribeToNotifications: (callback) => {
-    return onSnapshot(collection(db, 'notifications'), () => {
-      notificationService.getNotifications().then((res) => {
-        if (res.success) callback(res);
-      });
-    });
-  },
+  subscribeToNotifications: (callback) =>
+    onSnapshot(groupQuery('transactions', DEFAULT_GROUP_ID), () => {
+      notificationService.getNotifications().then(callback);
+    }),
 };

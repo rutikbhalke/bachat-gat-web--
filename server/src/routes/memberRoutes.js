@@ -8,6 +8,7 @@ router.get('/', authenticateToken, memberController.getAllMembers);
 router.get('/:id', authenticateToken, memberController.getMemberById);
 router.post('/', authenticateToken, authorizeRoles('ADMIN', 'SECRETARY'), memberController.createMember);
 router.put('/:id', authenticateToken, authorizeRoles('ADMIN', 'SECRETARY'), memberController.updateMember);
+router.put('/:id/access', authenticateToken, authorizeRoles('ADMIN'), memberController.manageMemberAccess);
 router.delete('/:id', authenticateToken, authorizeRoles('ADMIN'), memberController.deleteMember);
 
 module.exports = router;

@@ -8,6 +8,7 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { groupQuery } from './dataContract';
 import { normalizeGroup, DEFAULT_GROUP_ID } from '../utils/formatters';
 
 export const groupService = {
@@ -32,11 +33,11 @@ export const groupService = {
       const rawData = groupDoc.exists() ? groupDoc.data() : {};
       const normalized = normalizeGroup(groupDoc.id || targetGroupId, rawData);
 
-      // Query subcollections for accurate counts
+      // Query the shared users collection for accurate member counts.
       let memberCount = 0;
       let activeCount = 0;
       try {
-        const membersSnap = await getDocs(collection(db, 'groups', targetGroupId, 'members'));
+        const membersSnap = await getDocs(groupQuery('users', targetGroupId));
         memberCount = membersSnap.size;
         activeCount = membersSnap.docs.filter((d) => (d.data().status || 'active').toLowerCase() === 'active').length;
       } catch (e) {
@@ -58,7 +59,7 @@ export const groupService = {
       return {
         success: true,
         group: normalizeGroup(DEFAULT_GROUP_ID, {
-          name: 'Chhatrapati Bachat Gat, Ghargaon Stand',
+          name: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
           totalSavings: 3000,
           totalOutstandingLoans: 1710,
           totalFund: 1290,

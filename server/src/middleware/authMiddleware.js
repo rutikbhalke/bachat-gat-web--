@@ -27,13 +27,22 @@ async function authenticateToken(req, res, next) {
       name: data.fullName || data.name || decoded.name || decoded.email,
       role,
       role_name: role,
-      groupId: data.groupId || 'group_001',
+      groupId: data.groupId || 'shivshahi_group_001',
       memberId: data.memberId || null,
     };
     return next();
   } catch (err) {
-    const message = err.code === 'auth/id-token-expired' ? 'Token has expired. Please login again.' : 'Invalid Firebase ID token.';
-    return res.status(401).json({ success: false, message });
+    if (err.code === 'auth/id-token-expired' || err.code === 'auth/id-token-revoked') {
+      return res.status(401).json({ success: false, message: 'Token has expired. Please login again.' });
+    }
+    if (err.code === 'auth/argument-error' || err.code === 'auth/invalid-id-token') {
+      return res.status(401).json({ success: false, message: 'Invalid Firebase ID token.' });
+    }
+    console.error('Firebase Admin authentication is unavailable:', err.message || err);
+    return res.status(503).json({
+      success: false,
+      message: 'Admin service is not configured. Member profile fields can still be saved, but login password/account changes require the Firebase service account.',
+    });
   }
 }
 

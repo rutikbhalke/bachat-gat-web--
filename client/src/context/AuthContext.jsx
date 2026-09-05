@@ -14,6 +14,7 @@ import {
 import { auth, db } from '../config/firebase';
 import { authService } from '../services/authService';
 import { groupService } from '../services/groupService';
+import { groupQuery } from '../services/dataContract';
 
 const AuthContext = createContext(null);
 
@@ -35,16 +36,17 @@ async function resolveUserProfile(currentFirebaseUser) {
     const userDocSnap = await getDoc(userDocRef);
     if (userDocSnap.exists()) {
       userData = userDocSnap.data();
-      memberId = userData?.memberId || null;
+      memberData = userData;
+      memberId = userDocSnap.id;
     }
   } catch (err) {
     console.warn('Notice: Failed reading users/{uid}:', err);
   }
 
-  // 2. Look up member in subcollection groups/shivshahi_group_001/members
+  // 2. Resolve the member from the shared root users collection.
   if (memberId) {
     try {
-      const memDoc = await getDoc(doc(db, 'groups', 'shivshahi_group_001', 'members', memberId));
+      const memDoc = await getDoc(doc(db, 'users', memberId));
       if (memDoc.exists()) {
         memberData = memDoc.data();
       }
@@ -55,7 +57,7 @@ async function resolveUserProfile(currentFirebaseUser) {
 
   if (!memberData) {
     try {
-      const membersSnap = await getDocs(collection(db, 'groups', 'shivshahi_group_001', 'members')).catch(() => ({ docs: [] }));
+      const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001')).catch(() => ({ docs: [] }));
       const found = membersSnap.docs.find((d) => {
         const m = d.data();
         return (
@@ -77,21 +79,8 @@ async function resolveUserProfile(currentFirebaseUser) {
     }
   }
 
-  // Check top-level members collection
-  if (!memberData) {
-    try {
-      const topDoc = await getDoc(doc(db, 'members', currentFirebaseUser.uid)).catch(() => null);
-      if (topDoc && topDoc.exists()) {
-        memberData = topDoc.data();
-        memberId = topDoc.id;
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
   // 3. Resolve active group details
-  let currentGroupName = 'Chhatrapati Bachat Gat, Ghargaon Stand';
+  let currentGroupName = 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
   try {
     const gRes = await groupService.getGroupDetails(userData?.groupId || memberData?.groupId || 'shivshahi_group_001');
     if (gRes.group?.groupName || gRes.group?.name) {
@@ -107,16 +96,16 @@ async function resolveUserProfile(currentFirebaseUser) {
   const fullName = userData?.fullName || userData?.name || memberData?.fullName || memberData?.name || currentFirebaseUser.displayName || (currentFirebaseUser.email ? currentFirebaseUser.email.split('@')[0] : 'Member');
   const phone = userData?.phone || memberData?.phone || '';
 
-  // 5. If member record still doesn't exist, auto-create under groups/shivshahi_group_001/members
+  // 5. If the member profile does not exist, create it at users/{uid}.
   if (!memberData) {
     try {
-      const membersSnap = await getDocs(collection(db, 'groups', 'shivshahi_group_001', 'members')).catch(() => ({ docs: [] }));
+      const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001')).catch(() => ({ docs: [] }));
       let maxNum = 0;
       membersSnap.docs.forEach((d) => {
         const num = parseInt(d.id.replace(/\D/g, ''), 10);
         if (!isNaN(num) && num > maxNum) maxNum = num;
       });
-      memberId = `M_${maxNum + 1}`;
+      memberId = currentFirebaseUser.uid;
       memberData = {
         id: memberId,
         userId: currentFirebaseUser.uid,
@@ -137,7 +126,7 @@ async function resolveUserProfile(currentFirebaseUser) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      await setDoc(doc(db, 'groups', 'shivshahi_group_001', 'members', memberId), memberData, { merge: true });
+      await setDoc(doc(db, 'users', memberId), memberData, { merge: true });
     } catch (e) {
       console.warn('Notice: Auto-create member in context:', e);
     }
@@ -202,9 +191,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const stored = localStorage.getItem('bachat_user');
       const parsed = stored ? JSON.parse(stored) : null;
-      return parsed?.groupName || 'Chhatrapati Bachat Gat';
+      return parsed?.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
     } catch (e) {
-      return 'Chhatrapati Bachat Gat';
+      return 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
     }
   });
 
@@ -217,7 +206,7 @@ export const AuthProvider = ({ children }) => {
     const unsubscribeGroup = onSnapshot(groupDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const liveName = data.groupName || data.group_name;
+        const liveName = data.name || data.groupName || data.group_name;
         if (liveName) {
           setGroupName(liveName);
           setUser((prev) => {
@@ -408,7 +397,7 @@ export const AuthProvider = ({ children }) => {
     isTreasurer,
     isSecretary,
     isMember,
-    groupName: groupName || user?.groupName || 'Chhatrapati Bachat Gat',
+    groupName: groupName || user?.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
     token,
     loading,
     login,

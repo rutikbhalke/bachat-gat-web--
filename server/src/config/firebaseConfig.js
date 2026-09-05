@@ -4,13 +4,13 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAfSLqG3mqeWxnhk_gBUPkDK9Y4Y17GeFU",
-  authDomain: "bachat-gat-app-9e38e.firebaseapp.com",
-  projectId: "bachat-gat-app-9e38e",
-  storageBucket: "bachat-gat-app-9e38e.firebasestorage.app",
-  messagingSenderId: "1038306626235",
-  appId: "1:1038306626235:web:eb1da740ae33c09ad3b79e",
-  measurementId: "G-DJ20C3JZH8"
+  apiKey: "AIzaSyBJyKRv81qV_tmnmcYF76Dx0JLxGKvK_7I",
+  authDomain: "bachat-gat-32ffe.firebaseapp.com",
+  projectId: "bachat-gat-32ffe",
+  storageBucket: "bachat-gat-32ffe.firebasestorage.app",
+  messagingSenderId: "215206829034",
+  appId: "1:215206829034:web:63a0816174e77792427093",
+  measurementId: "G-NP2QYVL1XK"
 };
 
 const app = initializeApp(firebaseConfig);

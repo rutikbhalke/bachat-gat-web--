@@ -62,7 +62,7 @@ const GroupInfoModal = ({ isOpen, onClose }) => {
             </div>
             <div>
               <h3 style={{ fontSize: '1.15rem', color: 'var(--primary)', fontWeight: 700 }}>
-                {group.group_name || group.groupName || 'Chhatrapati Bachat Gat'}
+                {group.name || group.group_name || group.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT'}
               </h3>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Tag size={12} /> ID: <code style={{ fontWeight: 600 }}>{group.group_code || group.groupCode || 'group_001'}</code>

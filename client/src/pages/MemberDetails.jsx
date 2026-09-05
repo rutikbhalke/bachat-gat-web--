@@ -77,7 +77,14 @@ const MemberDetails = () => {
   const handleUpdateRole = async () => {
     try {
       setUpdatingRole(true);
-      const res = await memberService.updateMember(id, { role_name: selectedRole });
+      const res = await memberService.manageMemberAccess(id, {
+        name: member.name,
+        phone: member.phone || '',
+        memberCode: member.member_code || member.memberCode || id,
+        email: member.email,
+        role: selectedRole,
+        isActive: member.isActive !== false && member.is_active !== false && member.is_active !== 0,
+      });
       if (res.success) {
         setIsEditingRole(false);
         await fetchMember();
@@ -189,6 +196,7 @@ const MemberDetails = () => {
                     style={{ padding: '4px 10px', fontSize: '0.8rem' }}
                   >
                     <option value="MEMBER">MEMBER</option>
+                    <option value="ADMIN">ADMIN</option>
                     <option value="TREASURER">TREASURER</option>
                     <option value="SECRETARY">SECRETARY</option>
                   </select>
@@ -255,12 +263,12 @@ const MemberDetails = () => {
               <HandCoins size={16} /> + Issue Loan
             </button>
           )}
-          {canManageMembers && (
+          {isAdmin && (
             <button onClick={() => setIsMemberLoginOpen(true)} className="btn-outline">
               <KeyRound size={16} /> Edit / Add Login
             </button>
           )}
-          {canManageMembers && (
+          {isAdmin && (
             <button
               onClick={handleDeleteMember}
               className="btn-outline"

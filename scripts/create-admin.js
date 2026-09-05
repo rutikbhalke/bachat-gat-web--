@@ -51,12 +51,12 @@ loadEnv();
 
 const firebaseConfig = {
   apiKey: process.env.VITE_FIREBASE_API_KEY || 'YOUR_FIREBASE_API_KEY',
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || 'bachat-gat-app-9e38e.firebaseapp.com',
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'bachat-gat-app-9e38e',
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || 'bachat-gat-app-9e38e.firebasestorage.app',
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1038306626235',
-  appId: process.env.VITE_FIREBASE_APP_ID || '1:1038306626235:web:eb1da740ae33c09ad3b79e',
-  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-DJ20C3JZH8',
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || 'bachat-gat-32ffe.firebaseapp.com',
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'bachat-gat-32ffe',
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || 'bachat-gat-32ffe.firebasestorage.app',
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '215206829034',
+  appId: process.env.VITE_FIREBASE_APP_ID || '1:215206829034:web:63a0816174e77792427093',
+  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-NP2QYVL1XK',
 };
 
 const app = initializeApp(firebaseConfig);
@@ -106,7 +106,7 @@ async function createAdmin() {
       role_name: 'ADMIN',
       isActive: true,
       groupId: 'shivshahi_group_001',
-      groupName: 'Chhatrapati Bachat Gat',
+      groupName: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     }, { merge: true });
@@ -117,8 +117,9 @@ async function createAdmin() {
     const groupDocRef = doc(db, 'groups', 'shivshahi_group_001');
     await setDoc(groupDocRef, {
       groupId: 'shivshahi_group_001',
-      groupName: 'Chhatrapati Bachat Gat',
-      group_name: 'Chhatrapati Bachat Gat',
+      name: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
+      groupName: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
+      group_name: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
       groupCode: 'shivshahi_group_001',
       group_code: 'shivshahi_group_001',
       monthlyContribution: 1000,

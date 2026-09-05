@@ -90,7 +90,7 @@ export const formatMonthYear = (month, year) => {
  */
 export const normalizeGroup = (id, data = {}) => {
   const groupId = id || data.id || data.groupId || DEFAULT_GROUP_ID;
-  const name = data.name || data.groupName || data.group_name || 'Chhatrapati Bachat Gat, Ghargaon Stand';
+  const name = data.name || data.groupName || data.group_name || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
   const monthlyContribution = Number(data.monthlyContributionAmount || data.monthlyContribution || data.monthly_contribution_per_share || 1000);
   const monthlyTarget = Number(data.monthlyTarget || data.monthly_target || 363000);
   const totalSavings = Number(data.totalSavings || data.total_savings || 0);

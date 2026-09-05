@@ -10,6 +10,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { groupQuery } from './dataContract';
 import { groupService } from './groupService';
 import { reportService } from './reportService';
 import { notificationService } from './notificationService';
@@ -84,13 +85,13 @@ export const dashboardService = {
 
       const [groupRes, contributionsSnap, loansSnap, membersSnap] = await Promise.all([
         groupService.getGroupDetails(targetGroupId),
-        getDocs(collection(db, 'groups', targetGroupId, 'monthly_contributions')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'loans')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'members')).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
       ]);
 
       const group = groupRes.group || {};
-      const groupName = group.name || group.groupName || 'Chhatrapati Bachat Gat, Ghargaon Stand';
+      const groupName = group.name || group.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
       const groupCode = group.groupCode || targetGroupId;
 
       // 1. Core Financial Baseline calculated dynamically from real collections
@@ -186,7 +187,7 @@ export const dashboardService = {
       return {
         success: false,
         summary: {
-          groupName: 'Chhatrapati Bachat Gat',
+          groupName: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
           groupCode: DEFAULT_GROUP_ID,
           totalGroupFund: 0,
           totalSavings: 0,
@@ -223,8 +224,8 @@ export const dashboardService = {
 
       // Read collections directly for target group
       const [membersSnap, contributionsSnap, groupDocSnap] = await Promise.all([
-        getDocs(collection(db, 'groups', targetGroupId, 'members')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'monthly_contributions')).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
         getDoc(doc(db, 'groups', targetGroupId)).catch(() => null),
       ]);
 
@@ -300,13 +301,13 @@ export const dashboardService = {
   },
 
   /**
-   * Get recent activities from Firestore subcollection
+   * Get recent activities from the shared root transactions collection.
    */
   getRecentActivities: async (limitCount = 8, groupId = DEFAULT_GROUP_ID) => {
     try {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
       const activitiesSnap = await getDocs(
-        collection(db, 'groups', targetGroupId, 'activities')
+        groupQuery('transactions', targetGroupId)
       ).catch(() => ({ docs: [] }));
 
       const activities = activitiesSnap.docs
@@ -342,13 +343,13 @@ export const dashboardService = {
     // Listen to the main group document
     const unsubGroup = onSnapshot(doc(db, 'groups', targetGroupId), triggerUpdate, (err) => console.warn('Group listener error:', err));
     // Listen to members collection
-    const unsubMembers = onSnapshot(collection(db, 'groups', targetGroupId, 'members'), triggerUpdate, (err) => console.warn('Members listener error:', err));
+    const unsubMembers = onSnapshot(groupQuery('users', targetGroupId), triggerUpdate, (err) => console.warn('Members listener error:', err));
     // Listen to monthly contributions collection
-    const unsubContrib = onSnapshot(collection(db, 'groups', targetGroupId, 'monthly_contributions'), triggerUpdate, (err) => console.warn('Contributions listener error:', err));
+    const unsubContrib = onSnapshot(groupQuery('monthlyContributions', targetGroupId), triggerUpdate, (err) => console.warn('Contributions listener error:', err));
     // Listen to loans collection
-    const unsubLoans = onSnapshot(collection(db, 'groups', targetGroupId, 'loans'), triggerUpdate, (err) => console.warn('Loans listener error:', err));
+    const unsubLoans = onSnapshot(groupQuery('loans', targetGroupId), triggerUpdate, (err) => console.warn('Loans listener error:', err));
     // Listen to repayments collection
-    const unsubRepay = onSnapshot(collection(db, 'groups', targetGroupId, 'repayments'), triggerUpdate, (err) => console.warn('Repayments listener error:', err));
+    const unsubRepay = onSnapshot(groupQuery('repayments', targetGroupId), triggerUpdate, (err) => console.warn('Repayments listener error:', err));
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);

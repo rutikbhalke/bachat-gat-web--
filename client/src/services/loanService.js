@@ -11,6 +11,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { groupQuery } from './dataContract';
 import {
   normalizeLoan,
   normalizeMember,
@@ -20,15 +21,15 @@ import {
 
 export const loanService = {
   /**
-   * Get all loans with member info and progress metrics from Flutter subcollections
+   * Get all loans with member info and progress metrics from the shared root collections.
    */
   getAllLoans: async (params = {}, groupId = DEFAULT_GROUP_ID) => {
     try {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
 
       const [loansSnap, membersSnap] = await Promise.all([
-        getDocs(collection(db, 'groups', targetGroupId, 'loans')).catch(() => ({ docs: [] })),
-        getDocs(collection(db, 'groups', targetGroupId, 'members')).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
       ]);
 
       const membersMap = {};
@@ -137,7 +138,7 @@ export const loanService = {
   getLoanById: async (loanId, groupId = DEFAULT_GROUP_ID) => {
     try {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-      const loanDocRef = doc(db, 'groups', targetGroupId, 'loans', loanId);
+      const loanDocRef = doc(db, 'loans', loanId);
       const loanSnap = await getDoc(loanDocRef);
 
       if (!loanSnap.exists()) {
@@ -151,7 +152,7 @@ export const loanService = {
       let memberName = normalized.memberName;
       let memberCode = normalized.memberCode;
       try {
-        const memSnap = await getDoc(doc(db, 'groups', targetGroupId, 'members', normalized.memberId));
+        const memSnap = await getDoc(doc(db, 'users', normalized.memberId));
         if (memSnap.exists()) {
           const mData = memSnap.data();
           memberName = mData.name || mData.fullName || memberName;
@@ -163,7 +164,7 @@ export const loanService = {
 
       // Fetch repayments/contributions
       const contributionsSnap = await getDocs(
-        collection(db, 'groups', targetGroupId, 'monthly_contributions')
+        groupQuery('monthlyContributions', targetGroupId)
       ).catch(() => ({ docs: [] }));
 
       const repaymentsList = contributionsSnap.docs
@@ -225,13 +226,13 @@ export const loanService = {
       if (!memberId || !Number.isFinite(principal) || principal <= 0) {
         throw new Error('A valid member and principal amount are required.');
       }
-      const selectedMemberSnap = await getDoc(doc(db, 'groups', targetGroupId, 'members', memberId));
+      const selectedMemberSnap = await getDoc(doc(db, 'users', memberId));
       if (!selectedMemberSnap.exists() || selectedMemberSnap.data().isActive === false || (selectedMemberSnap.data().status || 'active').toLowerCase() === 'inactive') {
         throw new Error('The selected member is not active or no longer exists.');
       }
 
       const loanId = `L_${Date.now()}`;
-      const loanDocRef = doc(db, 'groups', targetGroupId, 'loans', loanId);
+      const loanDocRef = doc(db, 'loans', loanId);
 
       const loanPayload = {
         id: loanId,
@@ -255,7 +256,7 @@ export const loanService = {
       // Fetch member name for logging
       let memberName = 'Member';
       try {
-        const memSnap = await getDoc(doc(db, 'groups', targetGroupId, 'members', memberId));
+        const memSnap = await getDoc(doc(db, 'users', memberId));
         if (memSnap.exists()) memberName = memSnap.data().name || memSnap.data().fullName || 'Member';
       } catch (e) {
         // fallback
@@ -263,8 +264,9 @@ export const loanService = {
 
       // Log activity
       const actId = `ACT_${Date.now()}_loan`;
-      await setDoc(doc(db, 'groups', targetGroupId, 'activities', actId), {
+      await setDoc(doc(db, 'transactions', actId), {
         id: actId,
+        groupId: targetGroupId,
         type: 'loan',
         amount: principal,
         description: `Loan of ₹${principal} approved for ${memberName}`,
@@ -319,7 +321,7 @@ export const loanService = {
       const mode = repayData.payment_mode || repayData.paymentMode || 'UPI';
       const remarks = (repayData.remarks || '').trim();
 
-      const loanDocRef = doc(db, 'groups', targetGroupId, 'loans', loanId);
+      const loanDocRef = doc(db, 'loans', loanId);
       const loanSnap = await getDoc(loanDocRef);
 
       if (!loanSnap.exists()) {
@@ -330,6 +332,8 @@ export const loanService = {
       const currentPending = Number(loanData.pendingPrincipal || loanData.remainingAmount || 0);
       if ((loanData.status || 'active').toLowerCase() !== 'active') throw new Error('This loan is already closed.');
       if (principalRepay < 0 || principalRepay > currentPending) throw new Error('Principal repayment is outside the valid outstanding balance.');
+      const newPending = Math.max(0, currentPending - principalRepay);
+      const newStatus = newPending === 0 ? 'CLOSED' : 'ACTIVE';
       const interestRate = Number(loanData.interestRate || 2.0);
       const calculatedInterest = Math.round(((currentPending * interestRate) / 100) * 100) / 100;
       const totalPayment = principalRepay + calculatedInterest + regularHafta;
@@ -351,7 +355,7 @@ export const loanService = {
 
       // 2. Save immutable loan repayment record in 'repayments' collection
       const repaymentId = `REP_${loanId}_${Date.now()}`;
-      await setDoc(doc(db, 'groups', targetGroupId, 'repayments', repaymentId), {
+      await setDoc(doc(db, 'repayments', repaymentId), {
         id: repaymentId,
         repaymentId: repaymentId,
         repayment_id: repaymentId,
@@ -365,11 +369,19 @@ export const loanService = {
         transactionType: 'LOAN_REPAYMENT',
         principalAmount: principalRepay,
         principal_amount: principalRepay,
+        principalRepaid: principalRepay,
         interestAmount: calculatedInterest,
         interest_amount: calculatedInterest,
         regularHaftaAmount: regularHafta,
         regular_hafta_amount: regularHafta,
+        regularContribution: regularHafta,
         amount: totalPayment,
+        totalPaid: totalPayment,
+        openingPrincipal: currentPending,
+        closingPrincipal: newPending,
+        interestRate,
+        month,
+        year,
         paymentMonth: month,
         payment_month: month,
         paymentYear: year,
@@ -385,7 +397,7 @@ export const loanService = {
       // 3. ONLY if regularHafta was explicitly entered (> 0), record separate savings contribution
       if (regularHafta > 0) {
         const contribDocId = `C_${memberId}_${year}_${String(month).padStart(2, '0')}`;
-        const contribRef = doc(db, 'groups', targetGroupId, 'monthly_contributions', contribDocId);
+        const contribRef = doc(db, 'monthlyContributions', contribDocId);
         const existingContrib = await getDoc(contribRef);
         const existingPaid = existingContrib.exists() ? Number(existingContrib.data().paidAmount || 0) : 0;
         const totalPaidSavings = existingPaid + regularHafta;
@@ -409,6 +421,9 @@ export const loanService = {
           amount: totalPaidSavings,
           regularHaftaAmount: totalPaidSavings,
           regular_hafta_amount: totalPaidSavings,
+          totalPaid: totalPaidSavings,
+          interestAmount: 0,
+          loanPrincipalPaid: 0,
           status: isPaidFull ? 'PAID' : 'PENDING',
           status_lower: isPaidFull ? 'paid' : 'pending',
           paymentDate,
@@ -416,13 +431,16 @@ export const loanService = {
           paymentMode: mode,
           payment_mode: mode,
           updatedAt: new Date().toISOString(),
+          createdAt: existingContrib.exists()
+            ? existingContrib.data().createdAt || new Date().toISOString()
+            : new Date().toISOString(),
         }, { merge: true });
       }
 
       // Fetch member name for logging
       let memberName = 'Member';
       try {
-        const memSnap = await getDoc(doc(db, 'groups', targetGroupId, 'members', memberId));
+        const memSnap = await getDoc(doc(db, 'users', memberId));
         if (memSnap.exists()) memberName = memSnap.data().name || memSnap.data().fullName || 'Member';
       } catch (e) {
         // fallback
@@ -430,8 +448,9 @@ export const loanService = {
 
       // Log activity
       const actId = `ACT_${Date.now()}_repay`;
-      await setDoc(doc(db, 'groups', targetGroupId, 'activities', actId), {
+      await setDoc(doc(db, 'transactions', actId), {
         id: actId,
+        groupId: targetGroupId,
         type: 'repayment',
         amount: totalPayment,
         description: `Loan repayment ₹${totalPayment} (Principal: ₹${principalRepay}, Interest: ₹${calculatedInterest}) received from ${memberName}`,
@@ -486,7 +505,7 @@ export const loanService = {
    */
   subscribeToLoans: (callback, groupId = DEFAULT_GROUP_ID) => {
     const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-    return onSnapshot(collection(db, 'groups', targetGroupId, 'loans'), () => {
+    return onSnapshot(groupQuery('loans', targetGroupId), () => {
       loanService.getAllLoans({}, targetGroupId).then((res) => {
         if (res.success) callback(res);
       });

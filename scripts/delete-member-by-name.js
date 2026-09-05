@@ -1,7 +1,7 @@
 /**
  * One-time Firestore cleanup script
- * Deletes a member by name from both root and group-scoped collections,
- * plus related records that reference the memberId(s) found.
+ * Deletes a member by name from the shared root users collection,
+ * plus related root records that reference the member ID.
  *
  * Usage:
  *   node scripts/delete-member-by-name.js Rutik
@@ -50,12 +50,12 @@ loadEnv();
 
 const firebaseConfig = {
   apiKey: process.env.VITE_FIREBASE_API_KEY || 'YOUR_FIREBASE_API_KEY',
-  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || 'bachat-gat-app-9e38e.firebaseapp.com',
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'bachat-gat-app-9e38e',
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || 'bachat-gat-app-9e38e.firebasestorage.app',
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1038306626235',
-  appId: process.env.VITE_FIREBASE_APP_ID || '1:1038306626235:web:eb1da740ae33c09ad3b79e',
-  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-DJ20C3JZH8',
+  authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || 'bachat-gat-32ffe.firebaseapp.com',
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'bachat-gat-32ffe',
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || 'bachat-gat-32ffe.firebasestorage.app',
+  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '215206829034',
+  appId: process.env.VITE_FIREBASE_APP_ID || '1:215206829034:web:63a0816174e77792427093',
+  measurementId: process.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-NP2QYVL1XK',
 };
 
 const app = initializeApp(firebaseConfig);
@@ -97,14 +97,7 @@ async function main() {
   const batch = writeBatch(db);
   const memberIds = new Set();
 
-  // Group-scoped members
-  const groupMembersSnap = await getDocs(collection(db, 'groups', groupId, 'members'));
-  groupMembersSnap.docs.forEach((d) => {
-    if (matchesName(d.data())) memberIds.add(d.id);
-  });
-
-  // Root-level members
-  const rootMembersSnap = await getDocs(collection(db, 'members'));
+  const rootMembersSnap = await getDocs(query(collection(db, 'users'), where('groupId', '==', groupId)));
   rootMembersSnap.docs.forEach((d) => {
     if (matchesName(d.data())) memberIds.add(d.id);
   });
@@ -119,20 +112,16 @@ async function main() {
   // Delete member docs
   for (const memberId of memberIds) {
     if (!dryRun) {
-      batch.delete(doc(db, 'groups', groupId, 'members', memberId));
-      batch.delete(doc(db, 'members', memberId));
+      batch.delete(doc(db, 'users', memberId));
     }
   }
 
   // Delete related records that reference the memberId(s)
   const collectionsToClean = [
-    ['groups', groupId, 'monthly_contributions'],
-    ['groups', groupId, 'loans'],
-    ['groups', groupId, 'repayments'],
-    ['groups', groupId, 'activities'],
-    ['savings'],
+    ['monthlyContributions'],
     ['loans'],
     ['repayments'],
+    ['transactions'],
   ];
 
   for (const memberId of memberIds) {
