@@ -23,6 +23,7 @@ import {
   HandCoins,
   TrendingUp,
   Wallet,
+  Eye,
 } from 'lucide-react';
 
 const DEFAULT_PHOTO_REGISTER = [
@@ -65,6 +66,7 @@ const Reports = () => {
   const [pendingData, setPendingData] = useState(null);
   const [loansData, setLoansData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showRegisterPreview, setShowRegisterPreview] = useState(false);
 
   const registerRows = React.useMemo(() => {
     if (monthlyData && monthlyData.collections && monthlyData.collections.length > 0) {
@@ -90,6 +92,19 @@ const Reports = () => {
     }
     return DEFAULT_PHOTO_REGISTER;
   }, [monthlyData]);
+
+  const registerTotals = React.useMemo(() => {
+    return registerRows.reduce(
+      (acc, row) => ({
+        loan: acc.loan + (Number(row.loan) || 0),
+        loanHafta: acc.loanHafta + (Number(row.loanHafta) || 0),
+        interest: acc.interest + (Number(row.interest) || 0),
+        fund: acc.fund + (Number(row.fund) || 0),
+        total: acc.total + (Number(row.total) || 0),
+      }),
+      { loan: 0, loanHafta: 0, interest: 0, fund: 0, total: 0 }
+    );
+  }, [registerRows]);
 
   const fetchReports = async () => {
     try {
@@ -216,7 +231,16 @@ const Reports = () => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          {activeTab === 'monthly' && (
+            <button
+              onClick={() => setShowRegisterPreview(!showRegisterPreview)}
+              className="btn-secondary"
+              style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+            >
+              <Eye size={16} /> {showRegisterPreview ? 'Standard Dashboard' : 'Preview Register Format'}
+            </button>
+          )}
           <button onClick={handlePrint} className="btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
             <Printer size={16} /> Print Report
           </button>
@@ -317,14 +341,24 @@ const Reports = () => {
           {activeTab === 'monthly' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <style>{`
+                @media screen {
+                  .register-print-only {
+                    display: none !important;
+                  }
+                }
                 @media print {
                   body * {
+                    visibility: hidden !important;
+                  }
+                  .no-print, .no-print *, .sidebar, .navbar, .tabs-container, header, button, .app-header {
+                    display: none !important;
                     visibility: hidden !important;
                   }
                   .register-print-area, .register-print-area * {
                     visibility: visible !important;
                   }
                   .register-print-area {
+                    display: block !important;
                     position: absolute !important;
                     left: 0 !important;
                     top: 0 !important;
@@ -336,8 +370,27 @@ const Reports = () => {
                     color: #000 !important;
                     box-shadow: none !important;
                   }
-                  .no-print {
-                    display: none !important;
+                  .register-print-area table {
+                    display: table !important;
+                    width: 100% !important;
+                    border-collapse: collapse !important;
+                  }
+                  .register-print-area thead {
+                    display: table-header-group !important;
+                  }
+                  .register-print-area tbody {
+                    display: table-row-group !important;
+                  }
+                  .register-print-area tfoot {
+                    display: table-footer-group !important;
+                  }
+                  .register-print-area tr {
+                    display: table-row !important;
+                    page-break-inside: avoid !important;
+                  }
+                  .register-print-area th,
+                  .register-print-area td {
+                    display: table-cell !important;
                   }
                   @page {
                     size: A4 portrait;
@@ -346,11 +399,53 @@ const Reports = () => {
                 }
               `}</style>
 
-              {/* OFFICIAL PHYSICAL REGISTER: हप्ता मागणी रिपोर्ट */}
-              <div className="card register-print-area" style={{ padding: '0', overflow: 'hidden', border: '1.5px solid #000', borderRadius: '4px', background: '#fff', color: '#000', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+              {/* REGISTER PREVIEW BANNER (Screen only when previewing) */}
+              {showRegisterPreview && (
+                <div
+                  className="no-print"
+                  style={{
+                    background: 'linear-gradient(90deg, #EFF6FF 0%, #DBEAFE 100%)',
+                    border: '1px solid #93C5FD',
+                    borderRadius: '8px',
+                    padding: '12px 18px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1E40AF', fontWeight: 700 }}>
+                    <Eye size={20} />
+                    <span>Print Register Format Preview: Showing official 8-column "हप्ता मागणी रिपोर्ट" layout.</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={handlePrint} className="btn-primary" style={{ padding: '6px 14px', fontSize: '0.85rem' }}>
+                      <Printer size={15} /> Print Now
+                    </button>
+                    <button onClick={() => setShowRegisterPreview(false)} className="btn-secondary" style={{ padding: '6px 14px', fontSize: '0.85rem' }}>
+                      Standard Dashboard View
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* OFFICIAL PHYSICAL REGISTER: हप्ता मागणी रिपोर्ट (Visible only on print or preview) */}
+              <div
+                className={`card register-print-area ${showRegisterPreview ? '' : 'register-print-only'}`}
+                style={{
+                  padding: '0',
+                  overflow: 'hidden',
+                  border: '1.5px solid #000',
+                  borderRadius: '4px',
+                  background: '#fff',
+                  color: '#000',
+                  boxShadow: showRegisterPreview ? '0 4px 14px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >
                 {/* Header Box */}
                 <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 100px', borderBottom: '1px solid #000', textAlign: 'center' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '45px 1fr 110px', borderBottom: '1px solid #000', textAlign: 'center' }}>
                     <div style={{ borderRight: '1px solid #000', padding: '6px 4px', fontWeight: 800, fontSize: '1.1rem' }}>१</div>
                     <div style={{ padding: '6px 10px', fontWeight: 800, fontSize: '1.25rem' }}>
                       श्री सद्बाबा युवा स्वयं सहाय्य बचतगट
@@ -359,7 +454,7 @@ const Reports = () => {
                       क्र. 130
                     </div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', textAlign: 'center', borderBottom: '1.5px solid #000' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', textAlign: 'center', borderBottom: '1.5px solid #000' }}>
                     <div style={{ padding: '6px 10px', fontWeight: 800, fontSize: '1.1rem' }}>
                       हप्ता मागणी रिपोर्ट
                     </div>
@@ -414,77 +509,166 @@ const Reports = () => {
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot>
+                      <tr style={{ borderTop: '1.5px solid #000', fontWeight: 800, background: '#f1f5f9' }}>
+                        <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}></td>
+                        <td style={{ borderRight: '1px solid #000', padding: '6px 8px', textAlign: 'left' }}>एकूण</td>
+                        <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>{toDevanagariDigits(registerTotals.loan)}</td>
+                        <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>-</td>
+                        <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>{toDevanagariDigits(registerTotals.loanHafta)}</td>
+                        <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>{toDevanagariDigits(registerTotals.interest)}</td>
+                        <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>{toDevanagariDigits(registerTotals.fund)}</td>
+                        <td style={{ padding: '6px 4px', fontWeight: 800 }}>{toDevanagariDigits(registerTotals.total)}</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>
 
-              {/* Collection Summary Strip (Screen only) */}
-              {monthlyData && (
-                <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-                  <div className="card" style={{ padding: '18px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL SAVINGS (MONTH)</span>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
-                      {formatCurrency(monthlyData.summary?.monthSavings ?? monthlyData.summary?.totalSavingsCollected)}
+              {/* ON-SCREEN STANDARD DASHBOARD (Hidden in Print) */}
+              <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {/* 4 KPI Summary Cards */}
+                {monthlyData && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                    <div className="card" style={{ padding: '18px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL SAVINGS (MONTH)</span>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
+                        {formatCurrency(monthlyData.summary?.monthSavings ?? monthlyData.summary?.totalSavingsCollected)}
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Collected in {months.find(m => m.value === selectedMonth)?.label}</span>
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Collected in {months.find(m => m.value === selectedMonth)?.label}</span>
+
+                    <div className="card" style={{ padding: '18px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL INTEREST (MONTH)</span>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
+                        {formatCurrency(monthlyData.summary?.monthInterest ?? monthlyData.summary?.totalInterestCollected)}
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>From loan repayments</span>
+                    </div>
+
+                    <div className="card" style={{ padding: '18px' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>OUTSTANDING PRINCIPAL</span>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--danger-text)', marginTop: '4px' }}>
+                        {formatCurrency(monthlyData.summary?.outstandingPrincipal)}
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Active loan balance</span>
+                    </div>
+
+                    <div className="card" style={{ padding: '18px', borderColor: 'var(--success)', background: 'linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%)' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>AVAILABLE GROUP BALANCE</span>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
+                        {formatCurrency(monthlyData.summary?.availableGroupBalance)}
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Net liquid cash in fund</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* On-Screen Member Demand & Collection Breakdown Table */}
+                <div className="card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.15rem', fontWeight: 800 }}>Member Monthly Collections & Dues Breakdown</h3>
+                      <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        Active register breakdown for {months.find(m => m.value === selectedMonth)?.label} {selectedYear}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span className="badge badge-success">
+                        {monthlyData?.summary?.totalPaidMembers || 0} Paid
+                      </span>
+                      <span className="badge badge-warning">
+                        {registerRows.filter(r => r.loan > 0).length} Active Loans
+                      </span>
+                      <span className="badge badge-info">
+                        {registerRows.length} Total Members
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="card" style={{ padding: '18px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL INTEREST (MONTH)</span>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
-                      {formatCurrency(monthlyData.summary?.monthInterest ?? monthlyData.summary?.totalInterestCollected)}
-                    </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>From loan repayments</span>
-                  </div>
-
-                  <div className="card" style={{ padding: '18px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>OUTSTANDING PRINCIPAL</span>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--danger-text)', marginTop: '4px' }}>
-                      {formatCurrency(monthlyData.summary?.outstandingPrincipal)}
-                    </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Active loan balance</span>
-                  </div>
-
-                  <div className="card" style={{ padding: '18px', borderColor: 'var(--success)', background: 'linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>AVAILABLE GROUP BALANCE</span>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
-                      {formatCurrency(monthlyData.summary?.availableGroupBalance)}
-                    </div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Net liquid cash in fund</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Monthly Savings Transactions Table (Screen only) */}
-              {monthlyData && monthlyData.savingsTransactions && monthlyData.savingsTransactions.length > 0 && (
-                <div className="card no-print">
-                  <h3 style={{ fontSize: '1.15rem', marginBottom: '14px' }}>Monthly Savings Transactions</h3>
                   <div className="table-responsive">
                     <table className="custom-table">
                       <thead>
                         <tr>
-                          <th>Member</th>
-                          <th>Code</th>
-                          <th>Amount</th>
-                          <th>Date</th>
-                          <th>Mode</th>
+                          <th style={{ width: '40px' }}>#</th>
+                          <th>Member Name</th>
+                          <th>Monthly Savings (निधी)</th>
+                          <th>Active Loan (कर्ज)</th>
+                          <th>Installment # (हप्ता)</th>
+                          <th>Principal Due (हप्ता)</th>
+                          <th>Interest (व्याज)</th>
+                          <th>Total Demand (एकूण)</th>
+                          <th>Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {monthlyData.savingsTransactions.map((s) => (
-                          <tr key={s.id || s.member_id}>
-                            <td style={{ fontWeight: 700 }}>{s.member_name || s.memberName}</td>
-                            <td>{s.member_code || s.memberCode}</td>
-                            <td style={{ fontWeight: 800, color: 'var(--success-text)' }}>{formatCurrency(s.amount || s.paid_amount)}</td>
-                            <td>{formatDate(s.payment_date || s.paymentDate)}</td>
-                            <td><span className="badge badge-info">{s.payment_mode || s.paymentMode || 'UPI'}</span></td>
+                        {registerRows.map((row, idx) => (
+                          <tr key={idx}>
+                            <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{idx + 1}</td>
+                            <td>
+                              <div style={{ fontWeight: 700 }}>{row.name}</div>
+                            </td>
+                            <td style={{ fontWeight: 600, color: 'var(--primary)' }}>
+                              {formatCurrency(row.fund || 1000)}
+                            </td>
+                            <td style={{ fontWeight: 600 }}>
+                              {row.loan > 0 ? formatCurrency(row.loan) : '-'}
+                            </td>
+                            <td style={{ color: 'var(--text-muted)' }}>
+                              {row.inst > 0 ? `${row.inst} / 10` : '-'}
+                            </td>
+                            <td style={{ fontWeight: 600 }}>
+                              {row.loanHafta > 0 ? formatCurrency(row.loanHafta) : '-'}
+                            </td>
+                            <td style={{ fontWeight: 600, color: row.interest > 0 ? '#D97706' : 'var(--text-muted)' }}>
+                              {row.interest > 0 ? formatCurrency(row.interest) : '-'}
+                            </td>
+                            <td style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.95rem' }}>
+                              {formatCurrency(row.total || (row.loanHafta + row.interest + row.fund))}
+                            </td>
+                            <td>
+                              <span className={`badge ${row.loanHafta > 0 ? 'badge-warning' : 'badge-success'}`}>
+                                {row.loanHafta > 0 ? 'Active Loan' : 'Regular'}
+                              </span>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
-              )}
+
+                {/* Monthly Savings Transactions Table */}
+                {monthlyData && monthlyData.savingsTransactions && monthlyData.savingsTransactions.length > 0 && (
+                  <div className="card">
+                    <h3 style={{ fontSize: '1.15rem', marginBottom: '14px' }}>Monthly Savings Transactions</h3>
+                    <div className="table-responsive">
+                      <table className="custom-table">
+                        <thead>
+                          <tr>
+                            <th>Member</th>
+                            <th>Code</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                            <th>Mode</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {monthlyData.savingsTransactions.map((s) => (
+                            <tr key={s.id || s.member_id}>
+                              <td style={{ fontWeight: 700 }}>{s.member_name || s.memberName}</td>
+                              <td>{s.member_code || s.memberCode}</td>
+                              <td style={{ fontWeight: 800, color: 'var(--success-text)' }}>{formatCurrency(s.amount || s.paid_amount)}</td>
+                              <td>{formatDate(s.payment_date || s.paymentDate)}</td>
+                              <td><span className="badge badge-info">{s.payment_mode || s.paymentMode || 'UPI'}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
