@@ -11,6 +11,7 @@ import {
   toDevanagariDigits,
   formatMemberWithHonorific,
 } from '../utils/formatters';
+import MemberHistoryModal from '../components/reports/MemberHistoryModal';
 import {
   FileBarChart2,
   Download,
@@ -24,6 +25,7 @@ import {
   TrendingUp,
   Wallet,
   Eye,
+  History,
 } from 'lucide-react';
 
 const DEFAULT_PHOTO_REGISTER = [
@@ -67,6 +69,13 @@ const Reports = () => {
   const [loansData, setLoansData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showRegisterPreview, setShowRegisterPreview] = useState(false);
+  const [selectedMemberForHistory, setSelectedMemberForHistory] = useState(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+
+  const handleOpenMemberHistory = (member) => {
+    setSelectedMemberForHistory(member);
+    setIsHistoryModalOpen(true);
+  };
 
   const registerRows = React.useMemo(() => {
     if (monthlyData && monthlyData.collections && monthlyData.collections.length > 0) {
@@ -80,17 +89,31 @@ const Reports = () => {
         const total = m.totalDemand !== undefined && m.totalDemand > 0 ? m.totalDemand : (fallback.total || (loanHafta + interest + fund));
 
         return {
+          id: m.id || m.memberId || m.member_id || `member_${idx + 1}`,
+          memberId: m.id || m.memberId || m.member_id || `member_${idx + 1}`,
+          memberCode: m.memberCode || m.member_code || `M-130-${String(idx + 1).padStart(2, '0')}`,
+          phone: m.phone || '',
           name: m.memberName || m.member_name || fallback.name || `Member ${idx + 1}`,
+          memberName: m.memberName || m.member_name || fallback.name || `Member ${idx + 1}`,
           loan: originalLoan,
           inst,
           loanHafta,
           interest,
           fund,
           total,
+          status: m.status || (originalLoan > 0 ? 'ACTIVE_LOAN' : 'REGULAR'),
         };
       });
     }
-    return DEFAULT_PHOTO_REGISTER;
+    return DEFAULT_PHOTO_REGISTER.map((f, idx) => ({
+      ...f,
+      id: `photo_mem_${idx + 1}`,
+      memberId: `photo_mem_${idx + 1}`,
+      memberCode: `M-130-${String(idx + 1).padStart(2, '0')}`,
+      memberName: f.name,
+      phone: '',
+      status: f.loan > 0 ? 'ACTIVE_LOAN' : 'REGULAR',
+    }));
   }, [monthlyData]);
 
   const registerTotals = React.useMemo(() => {
@@ -599,6 +622,7 @@ const Reports = () => {
                           <th>Interest (व्याज)</th>
                           <th>Total Demand (एकूण)</th>
                           <th>Status</th>
+                          <th style={{ textAlign: 'center' }}>History</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -606,7 +630,26 @@ const Reports = () => {
                           <tr key={idx}>
                             <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{idx + 1}</td>
                             <td>
-                              <div style={{ fontWeight: 700 }}>{row.name}</div>
+                              <div
+                                onClick={() => handleOpenMemberHistory(row)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  fontWeight: 700,
+                                  color: 'var(--primary)',
+                                  cursor: 'pointer',
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  transition: 'all 0.15s ease',
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.08)')}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                                title="Click to view full financial history"
+                              >
+                                <span>{row.name}</span>
+                                <History size={14} color="var(--primary)" />
+                              </div>
                             </td>
                             <td style={{ fontWeight: 600, color: 'var(--primary)' }}>
                               {formatCurrency(row.fund || 1000)}
@@ -631,6 +674,22 @@ const Reports = () => {
                                 {row.loanHafta > 0 ? 'Active Loan' : 'Regular'}
                               </span>
                             </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                onClick={() => handleOpenMemberHistory(row)}
+                                className="btn-secondary"
+                                style={{
+                                  padding: '4px 10px',
+                                  fontSize: '0.78rem',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                                title="View savings, loans, and repayments history"
+                              >
+                                <History size={13} /> View
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -651,16 +710,54 @@ const Reports = () => {
                             <th>Amount</th>
                             <th>Date</th>
                             <th>Mode</th>
+                            <th style={{ textAlign: 'center' }}>History</th>
                           </tr>
                         </thead>
                         <tbody>
                           {monthlyData.savingsTransactions.map((s) => (
                             <tr key={s.id || s.member_id}>
-                              <td style={{ fontWeight: 700 }}>{s.member_name || s.memberName}</td>
+                              <td>
+                                <div
+                                  onClick={() =>
+                                    handleOpenMemberHistory({
+                                      id: s.member_id || s.memberId,
+                                      name: s.member_name || s.memberName,
+                                      memberCode: s.member_code || s.memberCode,
+                                    })
+                                  }
+                                  style={{
+                                    fontWeight: 700,
+                                    color: 'var(--primary)',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                  }}
+                                  title="Click to view history"
+                                >
+                                  <span>{s.member_name || s.memberName}</span>
+                                  <History size={13} />
+                                </div>
+                              </td>
                               <td>{s.member_code || s.memberCode}</td>
                               <td style={{ fontWeight: 800, color: 'var(--success-text)' }}>{formatCurrency(s.amount || s.paid_amount)}</td>
                               <td>{formatDate(s.payment_date || s.paymentDate)}</td>
                               <td><span className="badge badge-info">{s.payment_mode || s.paymentMode || 'UPI'}</span></td>
+                              <td style={{ textAlign: 'center' }}>
+                                <button
+                                  onClick={() =>
+                                    handleOpenMemberHistory({
+                                      id: s.member_id || s.memberId,
+                                      name: s.member_name || s.memberName,
+                                      memberCode: s.member_code || s.memberCode,
+                                    })
+                                  }
+                                  className="btn-secondary"
+                                  style={{ padding: '3px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                  <History size={12} /> History
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -723,13 +820,39 @@ const Reports = () => {
                           <th>Loan Outstanding</th>
                           <th>Pending Interest</th>
                           <th>Total Pending</th>
+                          <th style={{ textAlign: 'center' }}>History</th>
                         </tr>
                       </thead>
                       <tbody>
                         {pendingData.duesList.map((d) => (
                           <tr key={d.memberId || d.member_id || d.memberName}>
                             <td>
-                              <div style={{ fontWeight: 700 }}>{d.memberName || d.member_name}</div>
+                              <div
+                                onClick={() =>
+                                  handleOpenMemberHistory({
+                                    id: d.memberId || d.member_id,
+                                    name: d.memberName || d.member_name,
+                                    memberName: d.memberName || d.member_name,
+                                    memberCode: d.memberCode || d.member_code,
+                                    phone: d.memberPhone || d.phone,
+                                    loan: d.outstandingPrincipal,
+                                    interest: d.pendingInterest,
+                                    total: d.totalPending,
+                                  })
+                                }
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  fontWeight: 700,
+                                  color: 'var(--primary)',
+                                  cursor: 'pointer',
+                                }}
+                                title="Click to view full financial history"
+                              >
+                                <span>{d.memberName || d.member_name}</span>
+                                <History size={13} />
+                              </div>
                               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.memberCode || d.member_code} • {d.memberPhone || d.phone || 'No Phone'}</div>
                             </td>
                             <td style={{ fontWeight: 600, color: (d.pendingHafta || d.monthly_contribution) > 0 ? 'var(--danger-text)' : 'var(--text-muted)' }}>
@@ -743,6 +866,26 @@ const Reports = () => {
                             </td>
                             <td style={{ fontWeight: 800, color: 'var(--danger-text)', fontSize: '1rem' }}>
                               {formatCurrency(d.totalPending || d.due_amount)}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                onClick={() =>
+                                  handleOpenMemberHistory({
+                                    id: d.memberId || d.member_id,
+                                    name: d.memberName || d.member_name,
+                                    memberName: d.memberName || d.member_name,
+                                    memberCode: d.memberCode || d.member_code,
+                                    phone: d.memberPhone || d.phone,
+                                    loan: d.outstandingPrincipal,
+                                    interest: d.pendingInterest,
+                                    total: d.totalPending,
+                                  })
+                                }
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <History size={12} /> History
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -813,6 +956,7 @@ const Reports = () => {
                           <th>Outstanding</th>
                           <th>Repayments</th>
                           <th>Status</th>
+                          <th style={{ textAlign: 'center' }}>History</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -820,7 +964,29 @@ const Reports = () => {
                           <tr key={l.id || l.loan_id}>
                             <td style={{ fontWeight: 700 }}>{l.loan_number || l.loanNumber}</td>
                             <td>
-                              <div style={{ fontWeight: 600 }}>{l.member_name || l.memberName}</div>
+                              <div
+                                onClick={() =>
+                                  handleOpenMemberHistory({
+                                    id: l.member_id || l.memberId,
+                                    name: l.member_name || l.memberName,
+                                    memberName: l.member_name || l.memberName,
+                                    memberCode: l.member_code || l.memberCode,
+                                    loan: l.principal_amount || l.principalAmount,
+                                  })
+                                }
+                                style={{
+                                  fontWeight: 700,
+                                  color: 'var(--primary)',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                }}
+                                title="Click to view member financial history"
+                              >
+                                <span>{l.member_name || l.memberName}</span>
+                                <History size={13} />
+                              </div>
                               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{l.member_code || l.memberCode}</div>
                             </td>
                             <td style={{ fontWeight: 700 }}>{formatCurrency(l.principal_amount || l.principalAmount)}</td>
@@ -835,6 +1001,23 @@ const Reports = () => {
                                 {l.status}
                               </span>
                             </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                onClick={() =>
+                                  handleOpenMemberHistory({
+                                    id: l.member_id || l.memberId,
+                                    name: l.member_name || l.memberName,
+                                    memberName: l.member_name || l.memberName,
+                                    memberCode: l.member_code || l.memberCode,
+                                    loan: l.principal_amount || l.principalAmount,
+                                  })
+                                }
+                                className="btn-secondary"
+                                style={{ padding: '4px 10px', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <History size={12} /> History
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -846,6 +1029,13 @@ const Reports = () => {
           )}
         </>
       )}
+
+      {/* MEMBER FINANCIAL HISTORY MODAL */}
+      <MemberHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        member={selectedMemberForHistory}
+      />
     </div>
   );
 };
