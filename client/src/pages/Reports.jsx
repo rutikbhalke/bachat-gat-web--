@@ -377,10 +377,11 @@ const Reports = () => {
                     display: none !important;
                     visibility: hidden !important;
                   }
-                  .register-print-area, .register-print-area * {
+                  body:not(.member-modal-open) .register-print-area,
+                  body:not(.member-modal-open) .register-print-area * {
                     visibility: visible !important;
                   }
-                  .register-print-area {
+                  body:not(.member-modal-open) .register-print-area {
                     display: block !important;
                     position: absolute !important;
                     left: 0 !important;
@@ -392,6 +393,10 @@ const Reports = () => {
                     background: #fff !important;
                     color: #000 !important;
                     box-shadow: none !important;
+                  }
+                  body.member-modal-open .register-print-area {
+                    display: none !important;
+                    visibility: hidden !important;
                   }
                   .register-print-area table {
                     display: table !important;
