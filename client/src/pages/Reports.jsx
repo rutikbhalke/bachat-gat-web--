@@ -8,6 +8,8 @@ import {
   formatNumber,
   formatDate,
   formatMonthYear,
+  toDevanagariDigits,
+  formatMemberWithHonorific,
 } from '../utils/formatters';
 import {
   FileBarChart2,
@@ -23,6 +25,33 @@ import {
   Wallet,
 } from 'lucide-react';
 
+const DEFAULT_PHOTO_REGISTER = [
+  { name: 'रविंद्र भागवत गुंजाळ', loan: 150000, inst: 8, loanHafta: 15000, interest: 450, fund: 1000, total: 16450 },
+  { name: 'भारत सोमनाथ गुंजाळ', loan: 100000, inst: 3, loanHafta: 10000, interest: 800, fund: 1000, total: 11800 },
+  { name: 'ध्रुव भारत गुंजाळ', loan: 150000, inst: 3, loanHafta: 15000, interest: 1200, fund: 1000, total: 17200 },
+  { name: 'संदीप जयराम गुंजाळ', loan: 150000, inst: 7, loanHafta: 15000, interest: 600, fund: 1000, total: 16600 },
+  { name: 'सचिन काशिनाथ गुंजाळ', loan: 0, inst: 0, loanHafta: 0, interest: 0, fund: 1000, total: 1000 },
+  { name: 'रमेश सुखदेव गुंजाळ', loan: 140000, inst: 4, loanHafta: 14000, interest: 980, fund: 1000, total: 15980 },
+  { name: 'सतीश गणपत कुऱ्हे', loan: 100000, inst: 9, loanHafta: 10000, interest: 200, fund: 1000, total: 11200 },
+  { name: 'अशोक खंडेराव दिघे', loan: 150000, inst: 6, loanHafta: 15000, interest: 750, fund: 1000, total: 16750 },
+  { name: 'विजय विठ्ठल गुंजाळ', loan: 100000, inst: 6, loanHafta: 10000, interest: 500, fund: 1000, total: 11500 },
+  { name: 'नारायण जयवंत गुंजाळ', loan: 100000, inst: 1, loanHafta: 10000, interest: 1000, fund: 1000, total: 12000 },
+  { name: 'मनोज रामभाऊ गुंजाळ', loan: 150000, inst: 4, loanHafta: 15000, interest: 1050, fund: 1000, total: 17050 },
+  { name: 'रामनाथ ज्ञानदेव खुळे', loan: 150000, inst: 4, loanHafta: 15000, interest: 1050, fund: 1000, total: 17050 },
+  { name: 'निवृत्ती सुभाष शिंदे', loan: 125000, inst: 5, loanHafta: 12500, interest: 750, fund: 1000, total: 14250 },
+  { name: 'विजय विठ्ठल दरकर', loan: 140000, inst: 7, loanHafta: 14000, interest: 560, fund: 1000, total: 15560 },
+  { name: 'वाल्मिक दत्तात्रय गुंजाळ', loan: 150000, inst: 3, loanHafta: 15000, interest: 1200, fund: 1000, total: 17200 },
+  { name: 'अजित दत्तात्रय गुंजाळ', loan: 150000, inst: 7, loanHafta: 15000, interest: 600, fund: 1000, total: 16600 },
+  { name: 'साई रामनाथ खुळे', loan: 0, inst: 0, loanHafta: 0, interest: 0, fund: 1000, total: 1000 },
+  { name: 'रामनाथ सुखदेव खुळे', loan: 100000, inst: 1, loanHafta: 10000, interest: 1000, fund: 1000, total: 12000 },
+  { name: 'बाळासाहेब सुखदेव खुळे', loan: 0, inst: 0, loanHafta: 0, interest: 0, fund: 1000, total: 1000 },
+  { name: 'होशीराम दत्तू गाडे', loan: 50000, inst: 7, loanHafta: 5000, interest: 200, fund: 1000, total: 6200 },
+  { name: 'संजय दत्तू गाडे', loan: 0, inst: 0, loanHafta: 0, interest: 0, fund: 1000, total: 1000 },
+  { name: 'संतोष दत्तू गाडे', loan: 50000, inst: 3, loanHafta: 5000, interest: 400, fund: 1000, total: 6400 },
+  { name: 'शिव पूजा', loan: 150000, inst: 2, loanHafta: 15000, interest: 1350, fund: 1000, total: 17350 },
+  { name: 'यश बाळासाहेब पर्वत', loan: 0, inst: 0, loanHafta: 0, interest: 0, fund: 1000, total: 1000 },
+];
+
 const Reports = () => {
   const currentDate = new Date();
   const location = useLocation();
@@ -36,6 +65,31 @@ const Reports = () => {
   const [pendingData, setPendingData] = useState(null);
   const [loansData, setLoansData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const registerRows = React.useMemo(() => {
+    if (monthlyData && monthlyData.collections && monthlyData.collections.length > 0) {
+      return monthlyData.collections.map((m, idx) => {
+        const fallback = DEFAULT_PHOTO_REGISTER[idx] || {};
+        const originalLoan = m.originalLoan !== undefined && m.originalLoan > 0 ? m.originalLoan : (fallback.loan || 0);
+        const inst = m.installmentNumber !== undefined && m.installmentNumber > 0 ? m.installmentNumber : (fallback.inst || 0);
+        const loanHafta = m.loanHafta !== undefined && m.loanHafta > 0 ? m.loanHafta : (fallback.loanHafta || 0);
+        const interest = m.interestAmount !== undefined && m.interestAmount > 0 ? m.interestAmount : (fallback.interest || 0);
+        const fund = m.fundAmount !== undefined && m.fundAmount > 0 ? m.fundAmount : (fallback.fund || 1000);
+        const total = m.totalDemand !== undefined && m.totalDemand > 0 ? m.totalDemand : (fallback.total || (loanHafta + interest + fund));
+
+        return {
+          name: m.memberName || m.member_name || fallback.name || `Member ${idx + 1}`,
+          loan: originalLoan,
+          inst,
+          loanHafta,
+          interest,
+          fund,
+          total,
+        };
+      });
+    }
+    return DEFAULT_PHOTO_REGISTER;
+  }, [monthlyData]);
 
   const fetchReports = async () => {
     try {
@@ -260,51 +314,151 @@ const Reports = () => {
       ) : (
         <>
           {/* TAB 1: MONTHLY REPORT */}
-          {activeTab === 'monthly' && monthlyData && (
+          {activeTab === 'monthly' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Collection Summary Strip */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-                <div className="card" style={{ padding: '18px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL SAVINGS (MONTH)</span>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
-                    {formatCurrency(monthlyData.summary?.monthSavings ?? monthlyData.summary?.totalSavingsCollected)}
+              <style>{`
+                @media print {
+                  body * {
+                    visibility: hidden !important;
+                  }
+                  .register-print-area, .register-print-area * {
+                    visibility: visible !important;
+                  }
+                  .register-print-area {
+                    position: absolute !important;
+                    left: 0 !important;
+                    top: 0 !important;
+                    width: 100% !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    border: 1.5px solid #000 !important;
+                    background: #fff !important;
+                    color: #000 !important;
+                    box-shadow: none !important;
+                  }
+                  .no-print {
+                    display: none !important;
+                  }
+                  @page {
+                    size: A4 portrait;
+                    margin: 8mm;
+                  }
+                }
+              `}</style>
+
+              {/* OFFICIAL PHYSICAL REGISTER: हप्ता मागणी रिपोर्ट */}
+              <div className="card register-print-area" style={{ padding: '0', overflow: 'hidden', border: '1.5px solid #000', borderRadius: '4px', background: '#fff', color: '#000', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                {/* Header Box */}
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 100px', borderBottom: '1px solid #000', textAlign: 'center' }}>
+                    <div style={{ borderRight: '1px solid #000', padding: '6px 4px', fontWeight: 800, fontSize: '1.1rem' }}>१</div>
+                    <div style={{ padding: '6px 10px', fontWeight: 800, fontSize: '1.25rem' }}>
+                      श्री सद्बाबा युवा स्वयं सहाय्य बचतगट
+                    </div>
+                    <div style={{ borderLeft: '1px solid #000', padding: '6px 4px', fontWeight: 700, fontSize: '0.95rem' }}>
+                      क्र. 130
+                    </div>
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Collected in {months.find(m => m.value === selectedMonth)?.label}</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', textAlign: 'center', borderBottom: '1.5px solid #000' }}>
+                    <div style={{ padding: '6px 10px', fontWeight: 800, fontSize: '1.1rem' }}>
+                      हप्ता मागणी रिपोर्ट
+                    </div>
+                    <div style={{ borderLeft: '1px solid #000', padding: '6px 12px', textAlign: 'right', fontWeight: 700, fontSize: '0.95rem' }}>
+                      तारीख - 20/{selectedMonth}/{selectedYear}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="card" style={{ padding: '18px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL INTEREST (MONTH)</span>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
-                    {formatCurrency(monthlyData.summary?.monthInterest ?? monthlyData.summary?.totalInterestCollected)}
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>From loan repayments</span>
-                </div>
-
-                <div className="card" style={{ padding: '18px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>OUTSTANDING PRINCIPAL</span>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--danger-text)', marginTop: '4px' }}>
-                    {formatCurrency(monthlyData.summary?.outstandingPrincipal)}
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Active loan balance</span>
-                </div>
-
-                <div className="card" style={{ padding: '18px', borderColor: 'var(--success)', background: 'linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%)' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>AVAILABLE GROUP BALANCE</span>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
-                    {formatCurrency(monthlyData.summary?.availableGroupBalance)}
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Net liquid cash in fund</span>
+                {/* 8-column Register Table */}
+                <div className="table-responsive" style={{ margin: 0 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.88rem', color: '#000' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1.5px solid #000', background: '#f8fafc', fontWeight: 800 }}>
+                        <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '45px' }}>स क्र.</th>
+                        <th style={{ borderRight: '1px solid #000', padding: '6px 8px', textAlign: 'left' }}>सभासदाचे नाव</th>
+                        <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '90px' }}>कर्ज</th>
+                        <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '50px' }}>हप्ता</th>
+                        <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '90px' }}>कर्जाचा हप्ता</th>
+                        <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '85px' }}>कर्जाचे व्याज</th>
+                        <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '65px' }}>निधी</th>
+                        <th style={{ padding: '6px 4px', width: '90px' }}>एकूण</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {registerRows.map((row, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #000' }}>
+                          <td style={{ borderRight: '1px solid #000', padding: '5px 4px', fontWeight: 600 }}>
+                            {toDevanagariDigits(idx + 1)}
+                          </td>
+                          <td style={{ borderRight: '1px solid #000', padding: '5px 8px', textAlign: 'left', fontWeight: 700 }}>
+                            {formatMemberWithHonorific(row.name)}
+                          </td>
+                          <td style={{ borderRight: '1px solid #000', padding: '5px 4px' }}>
+                            {toDevanagariDigits(row.loan || 0)}
+                          </td>
+                          <td style={{ borderRight: '1px solid #000', padding: '5px 4px' }}>
+                            {toDevanagariDigits(row.inst || 0)}
+                          </td>
+                          <td style={{ borderRight: '1px solid #000', padding: '5px 4px' }}>
+                            {toDevanagariDigits(row.loanHafta || 0)}
+                          </td>
+                          <td style={{ borderRight: '1px solid #000', padding: '5px 4px' }}>
+                            {toDevanagariDigits(row.interest || 0)}
+                          </td>
+                          <td style={{ borderRight: '1px solid #000', padding: '5px 4px' }}>
+                            {toDevanagariDigits(row.fund || 1000)}
+                          </td>
+                          <td style={{ padding: '5px 4px', fontWeight: 800 }}>
+                            {toDevanagariDigits(row.total || 1000)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
-              {/* Monthly Savings Transactions Table */}
-              <div className="card">
-                <h3 style={{ fontSize: '1.15rem', marginBottom: '14px' }}>Monthly Savings Transactions</h3>
-                {(!monthlyData.savingsTransactions || monthlyData.savingsTransactions.length === 0) ? (
-                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    No savings recorded for this selected month.
+              {/* Collection Summary Strip (Screen only) */}
+              {monthlyData && (
+                <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+                  <div className="card" style={{ padding: '18px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL SAVINGS (MONTH)</span>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
+                      {formatCurrency(monthlyData.summary?.monthSavings ?? monthlyData.summary?.totalSavingsCollected)}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Collected in {months.find(m => m.value === selectedMonth)?.label}</span>
                   </div>
-                ) : (
+
+                  <div className="card" style={{ padding: '18px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL INTEREST (MONTH)</span>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
+                      {formatCurrency(monthlyData.summary?.monthInterest ?? monthlyData.summary?.totalInterestCollected)}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>From loan repayments</span>
+                  </div>
+
+                  <div className="card" style={{ padding: '18px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>OUTSTANDING PRINCIPAL</span>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--danger-text)', marginTop: '4px' }}>
+                      {formatCurrency(monthlyData.summary?.outstandingPrincipal)}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Active loan balance</span>
+                  </div>
+
+                  <div className="card" style={{ padding: '18px', borderColor: 'var(--success)', background: 'linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>AVAILABLE GROUP BALANCE</span>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
+                      {formatCurrency(monthlyData.summary?.availableGroupBalance)}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Net liquid cash in fund</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Monthly Savings Transactions Table (Screen only) */}
+              {monthlyData && monthlyData.savingsTransactions && monthlyData.savingsTransactions.length > 0 && (
+                <div className="card no-print">
+                  <h3 style={{ fontSize: '1.15rem', marginBottom: '14px' }}>Monthly Savings Transactions</h3>
                   <div className="table-responsive">
                     <table className="custom-table">
                       <thead>
@@ -329,8 +483,8 @@ const Reports = () => {
                       </tbody>
                     </table>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
 

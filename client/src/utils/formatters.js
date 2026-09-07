@@ -429,3 +429,25 @@ export const normalizeActivity = (id, data = {}) => {
     referenceId: data.referenceId || data.reference_id || '',
   };
 };
+
+/**
+ * Converts numbers to authentic Marathi Devanagari numerals (०-९).
+ */
+export const toDevanagariDigits = (value) => {
+  if (value === null || value === undefined || value === '') return '०';
+  const num = typeof value === 'number' ? Math.round(value) : parseInt(String(value).replace(/,/g, ''), 10);
+  const str = isNaN(num) ? String(value) : String(num);
+  const mrDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
+  return str.replace(/[0-9]/g, (d) => mrDigits[d]);
+};
+
+/**
+ * Ensures Marathi honorific 'श्री.' prefix is present on member names.
+ */
+export const formatMemberWithHonorific = (name) => {
+  const clean = String(name || '').trim();
+  if (!clean) return '';
+  if (clean.startsWith('श्री.') || clean.startsWith('श्री ')) return clean;
+  return `श्री. ${clean}`;
+};
+

@@ -88,19 +88,39 @@ export const reportService = {
         const savingRecord = paidMap[mem.id] || null;
         const expected = Number(mem.monthlyContribution || 1000);
         const paid = savingRecord ? Number(savingRecord.paidAmount || 0) : 0;
+        const memName = mem.name || mem.fullName || '';
+        const memberLoan = activeLoansDocs.find(
+          (l) => l.memberId === mem.id || (l.memberName && l.memberName.trim() === memName.trim())
+        ) || null;
+        const originalLoan = memberLoan ? Number(memberLoan.principalAmount || memberLoan.originalPrincipal || 0) : 0;
+        const installmentNumber = memberLoan ? Number(memberLoan.installmentNumber || 1) : 0;
+        const loanHafta = originalLoan > 0
+          ? (Number(savingRecord?.loanPrincipalPaid || 0) || Math.round(originalLoan / 10))
+          : 0;
+        const interestAmount = originalLoan > 0
+          ? (Number(savingRecord?.interestAmount || 0) || Math.round((memberLoan.remainingAmount || originalLoan) * 0.02))
+          : 0;
+        const fundAmount = Number(savingRecord?.paidAmount || expected || 1000);
+        const totalDemand = loanHafta + interestAmount + fundAmount;
 
         return {
           id: mem.id,
           member_id: mem.id,
           memberId: mem.id,
-          member_name: mem.name || mem.fullName,
-          memberName: mem.name || mem.fullName,
+          member_name: memName,
+          memberName: memName,
           member_code: mem.memberCode,
           memberCode: mem.memberCode,
           phone: mem.phone || '',
           expected_amount: expected,
           paid_amount: paid,
           amount: paid,
+          originalLoan,
+          installmentNumber,
+          loanHafta,
+          interestAmount,
+          fundAmount,
+          totalDemand,
           month: m,
           year: y,
           status: paid >= expected ? 'PAID' : paid > 0 ? 'PARTIAL' : 'PENDING',
