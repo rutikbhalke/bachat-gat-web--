@@ -36,6 +36,20 @@ export const normalizeToYYYYMMDD = (val, defaultVal = '') => {
   return defaultVal;
 };
 
+export const getMonthEndDay = (year, month) => {
+  const y = parseInt(year, 10);
+  const m = parseInt(month, 10);
+  if (!y || !m || m < 1 || m > 12) return 31;
+  return new Date(y, m, 0).getDate();
+};
+
+export const formatMonthEndDate = (year, month) => {
+  const y = parseInt(year, 10);
+  const m = parseInt(month, 10);
+  const lastDay = getMonthEndDay(y, m);
+  return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+};
+
 export const resolveRecordDateString = (rec, defaultDay = 10) => {
   const rawDate = rec.paymentDate || rec.payment_date || rec.loanDate || rec.issueDate || rec.date || rec.createdAt;
   const recMonth = Number(rec.paymentMonth || rec.payment_month || rec.month);
@@ -80,9 +94,11 @@ export const resolveRecordDateString = (rec, defaultDay = 10) => {
     }
   }
 
-  const finalYear = parsedYear || recYear || new Date().getFullYear();
-  const finalMonth = parsedMonth || recMonth || 1;
-  const finalDay = parsedDay || defaultDay;
+  const finalYear = (recYear && !isNaN(recYear) && recYear > 0) ? recYear : (parsedYear || new Date().getFullYear());
+  const finalMonth = (recMonth && !isNaN(recMonth) && recMonth > 0) ? recMonth : (parsedMonth || 1);
+  const rawDay = parsedDay || defaultDay;
+  const maxDaysInMonth = new Date(finalYear, finalMonth, 0).getDate();
+  const finalDay = Math.min(Math.max(1, rawDay), maxDaysInMonth);
 
   return `${finalYear}-${String(finalMonth).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
 };
@@ -549,9 +565,14 @@ export const reportService = {
         .filter(s => s.dateStr <= endStr)
         .reduce((sum, s) => sum + s.amount, 0);
 
-      // Outstanding loan principal across all active loans (authoritative pendingPrincipal)
-      const activeLoansList = loans.filter(l => (l.status || '').toUpperCase() !== 'REJECTED' && (l.status || '').toUpperCase() !== 'CLOSED');
-      const closingOutstanding = activeLoansList.reduce((sum, l) => sum + calculateLoanOutstanding(l, repayments), 0);
+      // Outstanding loan principal across all active loans as of the closing date (up to endStr)
+      const repaymentsTillEnd = datedRepayments.filter(r => r.dateStr <= endStr);
+      const activeLoansList = datedLoans.filter(l => {
+        const isRejected = (l.status || '').toUpperCase() === 'REJECTED';
+        const isDisbursedAfter = l.dateStr > endStr;
+        return !isRejected && !isDisbursedAfter;
+      });
+      const closingOutstanding = activeLoansList.reduce((sum, l) => sum + calculateLoanOutstanding(l, repaymentsTillEnd), 0);
       const closingMonthlyInterest = Math.round(closingOutstanding * 0.02 * 100) / 100;
       const closingAvailableBalance = reportRows.length > 0 ? reportRows[reportRows.length - 1].totalBalance : runningBalance;
       const closingGroupFund = Math.round((closingAvailableBalance + closingOutstanding) * 100) / 100;

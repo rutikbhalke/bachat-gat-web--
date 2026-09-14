@@ -216,13 +216,23 @@ function calculateMonthlyBalanceReport(savings = [], loans = [], repayments = []
       year: current.getFullYear(),
       label: current.toLocaleString('default', { month: 'long', year: 'numeric' })
     });
-    current.setMonth(current.setMonth() + 1);
+    current.setMonth(current.getMonth() + 1);
   }
 
   // Pre-calculate all events with normalized fields
-  const allSavings = savings.map(s => ({ ...s, date: new Date(s.paymentDate || s.createdAt || `${s.year}-${s.month}-01`) }));
+  const allSavings = savings.map(s => {
+    const sMonth = number(s.paymentMonth || s.payment_month || s.month);
+    const sYear = number(s.paymentYear || s.payment_year || s.year);
+    const date = (sMonth && sYear) ? new Date(sYear, sMonth - 1, 15) : new Date(s.paymentDate || s.createdAt || `${sYear || 2026}-${sMonth || 1}-01`);
+    return { ...s, date };
+  });
   const allLoans = loans.filter(l => l.status !== 'REJECTED' && l.status !== 'CANCELLED').map(l => ({ ...l, date: new Date(l.issueDate || l.loanDate || l.createdAt) }));
-  const allRepayments = repayments.map(r => ({ ...r, date: new Date(r.paymentDate || r.createdAt || `${r.paymentYear}-${r.paymentMonth}-01`) }));
+  const allRepayments = repayments.map(r => {
+    const rMonth = number(r.paymentMonth || r.payment_month || r.month);
+    const rYear = number(r.paymentYear || r.payment_year || r.year);
+    const date = (rMonth && rYear) ? new Date(rYear, rMonth - 1, 15) : new Date(r.paymentDate || r.createdAt || `${rYear || 2026}-${rMonth || 1}-01`);
+    return { ...r, date };
+  });
 
   const reportRows = monthSequence.map(period => {
     const startOfMonth = new Date(period.year, period.month - 1, 1);

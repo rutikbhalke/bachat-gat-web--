@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Printer, Download, User } from 'lucide-react';
-import { reportService } from '../../services/reportService';
+import { reportService, formatMonthEndDate } from '../../services/reportService';
 import { DEFAULT_GROUP_ID } from '../../utils/formatters';
 
 const formatDecimal2 = (val) => {
@@ -15,7 +15,7 @@ const formatDecimal4 = (val) => {
   return num.toFixed(2);
 };
 
-const NewMonthWiseBachatGatTaalebandReport = () => {
+const NewMonthWiseBachatGatTaalebandReport = ({ selectedMonth, selectedYear }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [groupInfo, setGroupInfo] = useState({
@@ -25,11 +25,23 @@ const NewMonthWiseBachatGatTaalebandReport = () => {
     email: 'sadubaba@gmail.com',
   });
   
-  // Default to current operational year (e.g. 2026-01-01 to 2026-12-31)
-  const currentYear = new Date().getFullYear();
+  const currentYear = selectedYear || new Date().getFullYear();
+  const initialToDate = (selectedMonth && selectedYear)
+    ? formatMonthEndDate(selectedYear, selectedMonth)
+    : `${currentYear}-12-31`;
+
   const [fromDate, setFromDate] = useState(`${currentYear}-01-01`);
-  const [toDate, setToDate] = useState(`${currentYear}-12-31`);
+  const [toDate, setToDate] = useState(initialToDate);
   const [summary, setSummary] = useState(null);
+
+  useEffect(() => {
+    if (selectedYear) {
+      setFromDate(`${selectedYear}-01-01`);
+      if (selectedMonth) {
+        setToDate(formatMonthEndDate(selectedYear, selectedMonth));
+      }
+    }
+  }, [selectedMonth, selectedYear]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -65,7 +77,7 @@ const NewMonthWiseBachatGatTaalebandReport = () => {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fromDate, toDate]);
 
   const handlePrint = () => {
     window.print();
