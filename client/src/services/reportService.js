@@ -3,7 +3,7 @@ import { db } from '../config/firebase.js';
 import { groupQuery } from './dataContract.js';
 import { groupService } from './groupService.js';
 import { DEFAULT_GROUP_ID, normalizeMember, normalizeLoan, normalizeSavings } from '../utils/formatters.js';
-import { calculateLoanOutstanding, calculateGroupFinancialSummary } from './financialService.js';
+import { calculateLoanOutstanding, calculateLoanInterest, calculateGroupFinancialSummary, LOAN_INTEREST_RATE } from './financialService.js';
 
 const number = (item) => Number(item) || 0;
 
@@ -215,12 +215,17 @@ export const reportService = {
       // Member collections breakdown
       const collections = activeMembers.map(mem => {
         const memberId = mem.id;
-        const memberLoans = loans.filter(l => l.memberId === memberId);
-        const memberActiveLoan = memberLoans.find(l => (l.status || '').toUpperCase() === 'ACTIVE') || memberLoans[0];
-        const memberContrib = monthSavings.find(s => s.memberId === memberId);
+        const memberLoans = loans.filter(l => l.memberId === memberId || l.member_id === memberId);
+        const memberActiveLoan = memberLoans.find(l => {
+          const out = calculateLoanOutstanding(l, repayments);
+          const rawStatus = (l.status || '').toUpperCase();
+          return rawStatus !== 'CLOSED' && rawStatus !== 'REJECTED' && out > 0;
+        }) || memberLoans.find(l => (l.status || '').toUpperCase() === 'ACTIVE') || null;
+
+        const memberContrib = monthSavings.find(s => s.memberId === memberId || s.member_id === memberId);
 
         // Sum all non-deposit repayments made by this member in this period
-        const memberRepayList = monthRepayments.filter(r => r.memberId === memberId && !r.isDeposit);
+        const memberRepayList = monthRepayments.filter(r => (r.memberId === memberId || r.member_id === memberId) && !r.isDeposit);
         const totalPrincipalPaid = memberRepayList.reduce((sum, r) => sum + number(r.principalPaid), 0);
         const totalInterestPaid = memberRepayList.reduce((sum, r) => sum + number(r.interestPaid), 0);
         const totalHaptaPaid = memberRepayList.reduce((sum, r) => sum + number(r.regularHaptaPaid), 0);
@@ -228,30 +233,43 @@ export const reportService = {
         let loanHafta = totalPrincipalPaid;
         let interestAmount = totalInterestPaid;
         let fundAmount = totalHaptaPaid > 0 ? totalHaptaPaid : number(memberContrib?.paidAmount || mem.monthlyContribution || 1000);
-        let status = 'PENDING';
 
-        const hasRepaid = memberRepayList.length > 0;
+        const hasRepaid = totalPrincipalPaid > 0 || totalInterestPaid > 0;
         const hasSavings = Boolean(memberContrib && number(memberContrib.paidAmount) > 0);
 
-        if (hasRepaid || hasSavings) {
-          status = (totalPrincipalPaid > 0 || totalInterestPaid > 0 || (memberContrib && number(memberContrib.paidAmount) >= number(mem.monthlyContribution || 1000))) ? 'PAID' : 'PARTIAL';
-        } else if (memberActiveLoan && (memberActiveLoan.status || '').toUpperCase() === 'ACTIVE') {
-          // No payment recorded yet: show expected monthly demand
-          const currentOut = calculateLoanOutstanding(memberActiveLoan, repayments);
-          interestAmount = Math.round(currentOut * 0.02 * 100) / 100;
-          loanHafta = Math.round(number(memberActiveLoan.originalPrincipal) / 10);
+        const currentOut = memberActiveLoan ? calculateLoanOutstanding(memberActiveLoan, repayments) : 0;
+        const originalLoanAmount = memberActiveLoan ? number(memberActiveLoan.originalPrincipal ?? memberActiveLoan.principalAmount ?? memberActiveLoan.loanAmount ?? 0) : 0;
+
+        // If no loan repayment was made for this month but the member has an active loan with outstanding balance,
+        // show expected monthly installment demand (हप्ता) and interest demand (व्याज)
+        if (!hasRepaid && memberActiveLoan && currentOut > 0) {
+          const tenure = parseInt(memberActiveLoan.durationMonths || memberActiveLoan.duration_months || 10, 10) || 10;
+          loanHafta = Math.round(originalLoanAmount / tenure);
+          interestAmount = calculateLoanInterest(currentOut, memberActiveLoan.interestRate || memberActiveLoan.interest_rate || 2.0);
+        }
+
+        let status = 'PENDING';
+        if (hasRepaid && hasSavings) {
+          status = 'PAID';
+        } else if (hasRepaid || hasSavings) {
+          status = (memberActiveLoan && currentOut > 0) ? 'PARTIAL' : 'PAID';
         }
 
         const lastRepay = memberRepayList[memberRepayList.length - 1];
-        const inst = lastRepay ? (Number(lastRepay.installmentNumber) || 1) : (memberActiveLoan ? (Number(memberActiveLoan.lastInstallmentPaid) || 0) + 1 : 0);
+        let inst = 0;
+        if (lastRepay && (lastRepay.installmentNumber || lastRepay.installment_number)) {
+          inst = Number(lastRepay.installmentNumber || lastRepay.installment_number);
+        } else if (memberActiveLoan && currentOut > 0) {
+          inst = (Number(memberActiveLoan.lastInstallmentPaid || memberActiveLoan.last_installment_paid || 0)) + 1;
+        }
 
         return {
           id: memberId,
           memberId,
-          name: mem.name,
-          memberName: mem.name,
+          name: mem.name || mem.fullName,
+          memberName: mem.name || mem.fullName,
           memberCode: mem.memberCode,
-          loan: memberActiveLoan ? memberActiveLoan.originalPrincipal : 0,
+          loan: originalLoanAmount,
           inst,
           loanHafta,
           haptaPaid: loanHafta,

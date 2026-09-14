@@ -376,7 +376,14 @@ const MemberDetails = () => {
             INTEREST PAID
           </span>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
-            {formatCurrency(member.totalInterestPaid || member.myInterestPaid)}
+            {formatCurrency(
+              member.totalInterestPaid !== undefined ? member.totalInterestPaid :
+              member.total_interest_paid !== undefined ? member.total_interest_paid :
+              member.myInterestPaid !== undefined ? member.myInterestPaid :
+              ((member.repayments && member.repayments.length > 0)
+                ? member.repayments.reduce((acc, r) => acc + (Number(r.interestAmount || r.interest_amount || r.interestPaid || r.interest_paid || r.interest) || 0), 0)
+                : 0)
+            )}
           </div>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             Cumulative interest contribution
@@ -554,11 +561,11 @@ const MemberDetails = () => {
                 <tbody>
                   {member.repayments.map((r) => (
                     <tr key={r.id || r.repayment_id}>
-                      <td style={{ fontWeight: 700 }}>{r.loan_number || r.loanNumber}</td>
+                      <td style={{ fontWeight: 700 }}>{r.loan_number || r.loanNumber || 'N/A'}</td>
                       <td>{r.payment_month || r.month}/{r.payment_year || r.year}</td>
-                      <td style={{ fontWeight: 600 }}>{formatCurrency(r.principal_repayment_amount)}</td>
-                      <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{formatCurrency(r.interest_amount)}</td>
-                      <td style={{ fontWeight: 800, color: 'var(--success-text)' }}>{formatCurrency(r.total_payment)}</td>
+                      <td style={{ fontWeight: 600 }}>{formatCurrency(r.principal_repayment_amount ?? r.principalAmount ?? r.principal_amount ?? 0)}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{formatCurrency(r.interest_amount ?? r.interestAmount ?? r.interestPaid ?? r.interest_paid ?? r.interest ?? 0)}</td>
+                      <td style={{ fontWeight: 800, color: 'var(--success-text)' }}>{formatCurrency(r.total_payment ?? r.totalPayment ?? r.total_amount ?? r.totalAmount ?? 0)}</td>
                       <td>{formatDate(r.payment_date || r.paymentDate)}</td>
                       <td><span className="badge badge-info">{r.payment_mode || r.paymentMode || 'UPI'}</span></td>
                       <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.recorded_by_name || 'System'}</td>

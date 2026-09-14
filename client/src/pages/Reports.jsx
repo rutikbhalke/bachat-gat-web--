@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { reportService } from '../services/reportService';
 import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
@@ -96,17 +97,20 @@ const Reports = () => {
     );
   }, [registerRows]);
 
+  const { user } = useAuth();
+  const targetGroupId = user?.groupId || DEFAULT_GROUP_ID;
+
   const fetchReports = async () => {
     try {
       setLoading(true);
       if (activeTab === 'monthly') {
-        const res = await reportService.getMonthlyReport(selectedMonth, selectedYear, DEFAULT_GROUP_ID);
+        const res = await reportService.getMonthlyReport(selectedMonth, selectedYear, targetGroupId);
         if (res.success) setMonthlyData(res);
       } else if (activeTab === 'pending') {
-        const res = await reportService.getPendingDuesReport(selectedMonth, selectedYear, search, DEFAULT_GROUP_ID);
+        const res = await reportService.getPendingDuesReport(selectedMonth, selectedYear, search, targetGroupId);
         if (res.success) setPendingData(res);
       } else if (activeTab === 'loans') {
-        const res = await reportService.getLoansOverviewReport(DEFAULT_GROUP_ID);
+        const res = await reportService.getLoansOverviewReport(targetGroupId);
         if (res.success) setLoansData(res);
       }
     } catch (err) {
@@ -118,7 +122,7 @@ const Reports = () => {
 
   useEffect(() => {
     fetchReports();
-  }, [activeTab, selectedMonth, selectedYear, search]);
+  }, [activeTab, selectedMonth, selectedYear, search, targetGroupId]);
 
   const handlePrint = () => {
     window.print();

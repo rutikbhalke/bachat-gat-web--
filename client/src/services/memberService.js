@@ -398,6 +398,10 @@ export const memberService = {
       const totalOutstanding = memberLoans
         .filter((l) => l.status === 'ACTIVE')
         .reduce((acc, l) => acc + (l.pendingPrincipal || 0), 0);
+      const totalInterestPaid = memberRepayments.reduce(
+        (acc, r) => acc + (Number(r.interestAmount || r.interest_amount || r.interestPaid || r.interest_paid || r.interest || 0)),
+        0
+      );
 
       const memberPayload = {
         ...normalized,
@@ -405,6 +409,10 @@ export const memberService = {
         totalSavings: totalSavings,
         total_outstanding: totalOutstanding,
         totalOutstanding: totalOutstanding,
+        total_interest_paid: totalInterestPaid,
+        totalInterestPaid: totalInterestPaid,
+        my_interest_paid: totalInterestPaid,
+        myInterestPaid: totalInterestPaid,
         savings_history: memberSavings,
         savingsHistory: memberSavings,
         loans_history: memberLoans,
