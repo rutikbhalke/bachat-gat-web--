@@ -49,9 +49,60 @@ const LoanDetails = () => {
   if (!loan) return <EmptyState title="Loan not found" description="The requested loan record could not be found." />;
 
   const repaymentsList = loan.repayments || [];
-  const totalPrincipalRepaid = repaymentsList.reduce((acc, r) => acc + (parseFloat(r.principal_repayment_amount || r.principalAmount) || 0), 0);
-  const totalInterestPaid = repaymentsList.reduce((acc, r) => acc + (parseFloat(r.interest_amount || r.interestAmount) || 0), 0);
+  const totalPrincipalRepaid = repaymentsList.reduce((acc, r) => acc + (parseFloat(r.principal_repayment_amount || r.principalAmount || r.principalPaid || 0) || 0), 0);
+  const totalInterestPaid = repaymentsList.reduce((acc, r) => acc + (parseFloat(r.interest_amount || r.interestAmount || r.interestPaid || 0) || 0), 0);
   const totalPaymentSum = totalPrincipalRepaid + totalInterestPaid;
+
+  const origPrincipal = Number(loan.principal_amount || loan.principalAmount || loan.originalPrincipal || 0);
+  const actualPrincipalPaid = Number(loan.total_principal_repaid || loan.total_principal_paid || loan.totalPrincipalPaid || totalPrincipalRepaid || 0);
+  const repaidPercent = origPrincipal > 0 ? Math.min(100, Math.round((actualPrincipalPaid / origPrincipal) * 100)) : (loan.repaid_percent || loan.repaidPercent || 0);
+
+  const schedule = loan.schedule || [];
+  const totalScheduleRegExp = schedule.reduce((sum, row) => sum + (row.regularHaptaExpected || 0), 0);
+  const totalScheduleRegPaid = schedule.reduce((sum, row) => sum + (row.regularHaptaPaid || 0), 0);
+  const totalSchedulePrinExp = schedule.reduce((sum, row) => sum + (row.principalExpected || 0), 0);
+  const totalSchedulePrinPaid = schedule.reduce((sum, row) => sum + (row.principalPaid || 0), 0);
+  const totalScheduleIntExp = schedule.reduce((sum, row) => sum + (row.interestExpected || 0), 0);
+  const totalScheduleIntPaid = schedule.reduce((sum, row) => sum + (row.interestPaid || 0), 0);
+  const totalScheduleLoanExp = schedule.reduce((sum, row) => sum + ((row.principalExpected || 0) + (row.interestExpected || 0)), 0);
+  const totalScheduleLoanPaid = schedule.reduce((sum, row) => sum + ((row.principalPaid || 0) + (row.interestPaid || 0)), 0);
+  const totalScheduleExp = schedule.reduce((sum, row) => sum + (row.totalExpected || 0), 0);
+  const totalSchedulePaid = schedule.reduce((sum, row) => sum + (row.totalPaid || 0), 0);
+
+  const renderStatusBadge = (status) => {
+    let bg = '#f1f5f9';
+    let color = '#475569';
+    if (status === 'PAID') {
+      bg = '#dcfce7';
+      color = '#166534';
+    } else if (status === 'PARTIAL') {
+      bg = '#fef3c7';
+      color = '#92400e';
+    } else if (status === 'DUE') {
+      bg = '#fee2e2';
+      color = '#991b1b';
+    } else if (status === 'UPCOMING') {
+      bg = '#f1f5f9';
+      color = '#64748b';
+    }
+
+    return (
+      <span
+        style={{
+          display: 'inline-block',
+          padding: '2px 8px',
+          borderRadius: '9999px',
+          fontSize: '0.72rem',
+          fontWeight: 700,
+          backgroundColor: bg,
+          color: color,
+          letterSpacing: '0.4px',
+        }}
+      >
+        {status}
+      </span>
+    );
+  };
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -117,7 +168,7 @@ const LoanDetails = () => {
         <div className="card" style={{ padding: '18px 20px' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>ORIGINAL PRINCIPAL</span>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>{formatCurrency(loan.principal_amount || loan.principalAmount)}</div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Duration: {loan.duration_months || 12} Months</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Duration: {loan.duration_months || loan.durationMonths || 10} Months</span>
         </div>
 
         <div className="card" style={{ padding: '18px 20px' }}>
@@ -131,7 +182,7 @@ const LoanDetails = () => {
           <div style={{ fontSize: '1.5rem', fontWeight: 800, color: loan.status === 'ACTIVE' ? 'var(--danger-text)' : 'var(--success-text)', marginTop: '4px' }}>
             {formatCurrency(loan.outstanding_amount || loan.outstandingAmount)}
           </div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Repaid: {loan.repaid_percent || 0}%</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Repaid: {repaidPercent}%</span>
         </div>
 
         <div className="card" style={{ padding: '18px 20px' }}>
@@ -145,7 +196,85 @@ const LoanDetails = () => {
 
       {/* Repayments Schedule Table */}
       <div className="card">
-        <h2 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Loan Repayment Schedule & History</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Month-Wise Repayment Schedule</h2>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+              Planned installments start the month following loan issue, showing expected vs actual paid amounts.
+            </p>
+          </div>
+          {loan.nextDueInstallment ? (
+            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px', padding: '6px 12px', fontSize: '0.8rem', color: '#92400e', fontWeight: 600 }}>
+              Next Due: Installment #{loan.nextDueInstallment.installmentNumber} ({loan.nextDueInstallment.periodLabel || loan.nextDueInstallment.monthLabel}) — {formatCurrency(loan.nextDueInstallment.totalRemaining)}
+            </div>
+          ) : (
+            <div style={{ background: '#dcfce7', border: '1px solid #86efac', borderRadius: '6px', padding: '6px 12px', fontSize: '0.8rem', color: '#166534', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckCircle2 size={16} /> Loan Fully Repaid
+            </div>
+          )}
+        </div>
+
+        {schedule.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+            No schedule available for this loan.
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="custom-table" style={{ fontSize: '0.85rem' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: '60px' }}>Inst #</th>
+                  <th>Month / Year</th>
+                  <th style={{ textAlign: 'right' }}>Regular Hapta (Savings)</th>
+                  <th style={{ textAlign: 'right' }}>Loan Principal (Hapta)</th>
+                  <th style={{ textAlign: 'right' }}>Interest (2%)</th>
+                  <th style={{ textAlign: 'right', color: 'var(--primary)' }}>Loan Total Due (Prin + Int)</th>
+                  <th style={{ textAlign: 'right' }}>Total Member Due</th>
+                  <th style={{ textAlign: 'right' }}>Total Paid</th>
+                  <th style={{ textAlign: 'right' }}>Remaining Prin.</th>
+                  <th style={{ textAlign: 'center' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {schedule.map((row) => {
+                  const loanDueExp = (row.principalExpected || 0) + (row.interestExpected || 0);
+                  return (
+                    <tr key={row.installmentNumber} style={{ background: row.status === 'PAID' ? 'rgba(34, 197, 94, 0.02)' : undefined }}>
+                      <td style={{ fontWeight: 700, textAlign: 'center' }}>#{row.installmentNumber}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{row.periodLabel}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{formatCurrency(row.regularHaptaExpected)}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{formatCurrency(row.principalExpected)}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{formatCurrency(row.interestExpected)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--primary)' }}>{formatCurrency(loanDueExp)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(row.totalExpected)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--success-text)' }}>{formatCurrency(row.totalPaid)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatCurrency(row.remainingPrincipal)}</td>
+                      <td style={{ textAlign: 'center' }}>{renderStatusBadge(row.status)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+                  <td colSpan={2}>TOTALS</td>
+                  <td style={{ textAlign: 'right' }}>{formatCurrency(totalScheduleRegExp)}</td>
+                  <td style={{ textAlign: 'right' }}>{formatCurrency(totalSchedulePrinExp)}</td>
+                  <td style={{ textAlign: 'right' }}>{formatCurrency(totalScheduleIntExp)}</td>
+                  <td style={{ textAlign: 'right', color: 'var(--primary)' }}>{formatCurrency(totalScheduleLoanExp)}</td>
+                  <td style={{ textAlign: 'right' }}>{formatCurrency(totalScheduleExp)}</td>
+                  <td style={{ textAlign: 'right', color: 'var(--success-text)', fontSize: '0.95rem' }}>{formatCurrency(totalSchedulePaid)}</td>
+                  <td style={{ textAlign: 'right' }}>{formatCurrency(loan.outstanding_amount || loan.outstandingAmount || 0)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Payment Transactions History */}
+      <div className="card">
+        <h2 style={{ fontSize: '1.2rem', marginBottom: '16px', fontWeight: 700 }}>Payment Transactions History</h2>
 
         {repaymentsList.length === 0 ? (
           <EmptyState
@@ -161,6 +290,7 @@ const LoanDetails = () => {
               <thead>
                 <tr>
                   <th>Installment Period</th>
+                  <th>Regular Hapta</th>
                   <th>Principal Paid</th>
                   <th>Interest Paid</th>
                   <th>Total Payment</th>
@@ -176,6 +306,9 @@ const LoanDetails = () => {
                     <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
                       {formatMonthYear(r.payment_month || r.month, r.payment_year || r.year)}
                     </td>
+                    <td style={{ fontWeight: 600 }}>
+                      {formatCurrency(r.regular_hafta_amount || r.regularHaftaAmount || r.savingsAmount || 0)}
+                    </td>
                     <td style={{ fontWeight: 600 }}>{formatCurrency(r.principal_repayment_amount || r.principalAmount)}</td>
                     <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{formatCurrency(r.interest_amount || r.interestAmount)}</td>
                     <td style={{ fontWeight: 800, color: 'var(--success-text)' }}>{formatCurrency(r.total_payment || r.totalPayment)}</td>
@@ -189,6 +322,9 @@ const LoanDetails = () => {
               <tfoot>
                 <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
                   <td>TOTAL PAID</td>
+                  <td style={{ color: 'var(--text-primary)' }}>
+                    {formatCurrency(repaymentsList.reduce((acc, r) => acc + (parseFloat(r.regular_hafta_amount || r.regularHaftaAmount || r.savingsAmount) || 0), 0))}
+                  </td>
                   <td style={{ color: 'var(--text-primary)' }}>{formatCurrency(totalPrincipalRepaid)}</td>
                   <td style={{ color: 'var(--primary)' }}>{formatCurrency(totalInterestPaid)}</td>
                   <td style={{ color: 'var(--success-text)', fontSize: '1.05rem' }}>{formatCurrency(totalPaymentSum)}</td>

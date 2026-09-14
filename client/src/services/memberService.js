@@ -336,6 +336,64 @@ export const memberService = {
         .map((d) => normalizeLoan(d.id, d.data()))
         .filter((l) => l.memberId === actualMemberId || l.member_id === actualMemberId);
 
+      // Fetch member repayments from root repayments collection
+      const repaymentsSnap = await getDocs(
+        groupQuery('repayments', targetGroupId)
+      ).catch(() => ({ docs: [] }));
+
+      const loansMap = {};
+      memberLoans.forEach((l) => {
+        loansMap[l.id] = l;
+        if (l.loanId) loansMap[l.loanId] = l;
+        if (l.loan_id) loansMap[l.loan_id] = l;
+      });
+
+      const memberRepayments = repaymentsSnap.docs
+        .map((d) => {
+          const rData = d.data();
+          const rLoanId = rData.loanId || rData.loan_id;
+          const matchedLoan = loansMap[rLoanId];
+          const rLoanNumber = matchedLoan ? (matchedLoan.loanNumber || matchedLoan.loan_number) : (rData.loanNumber || rData.loan_number || rLoanId || 'N/A');
+          const rPrincipal = Number(rData.principalAmount || rData.principal_amount || rData.principalRepaid || rData.principal_repayment_amount || 0);
+          const rInterest = Number(rData.interestAmount || rData.interest_amount || rData.interestPaid || 0);
+          const rRegular = Number(rData.regularHaptaAmount || rData.regular_hafta_amount || rData.regularContribution || 0);
+          const rTotal = Number(rData.totalAmount || rData.total_amount || rData.totalPaid || rData.total_payment || (rPrincipal + rInterest + rRegular));
+          
+          return {
+            id: d.id,
+            repaymentId: d.id,
+            repayment_id: d.id,
+            ...rData,
+            memberId: rData.memberId || rData.member_id,
+            member_id: rData.memberId || rData.member_id,
+            loanId: rLoanId,
+            loan_id: rLoanId,
+            loanNumber: rLoanNumber,
+            loan_number: rLoanNumber,
+            principalAmount: rPrincipal,
+            principal_amount: rPrincipal,
+            principal_repayment_amount: rPrincipal,
+            interestAmount: rInterest,
+            interest_amount: rInterest,
+            regularHaptaAmount: rRegular,
+            regular_hafta_amount: rRegular,
+            totalPayment: rTotal,
+            total_payment: rTotal,
+            totalAmount: rTotal,
+            total_amount: rTotal,
+            paymentDate: rData.paymentDate || rData.payment_date || rData.createdAt,
+            payment_date: rData.paymentDate || rData.payment_date || rData.createdAt,
+            paymentMode: rData.paymentMode || rData.payment_mode || 'UPI',
+            payment_mode: rData.paymentMode || rData.payment_mode || 'UPI',
+            month: Number(rData.month || rData.paymentMonth || rData.payment_month || 0),
+            payment_month: Number(rData.paymentMonth || rData.payment_month || rData.month || 0),
+            year: Number(rData.year || rData.paymentYear || rData.payment_year || 0),
+            payment_year: Number(rData.paymentYear || rData.payment_year || rData.year || 0),
+          };
+        })
+        .filter((r) => r.memberId === actualMemberId || r.member_id === actualMemberId || Boolean(loansMap[r.loanId]))
+        .sort((a, b) => new Date(b.paymentDate || 0) - new Date(a.paymentDate || 0));
+
       const totalSavings = memberSavings.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
       const totalOutstanding = memberLoans
         .filter((l) => l.status === 'ACTIVE')
@@ -351,7 +409,7 @@ export const memberService = {
         savingsHistory: memberSavings,
         loans_history: memberLoans,
         loans: memberLoans,
-        repayments: memberSavings.filter((s) => s.loanPrincipalPaid > 0 || s.interestAmount > 0),
+        repayments: memberRepayments,
       };
 
       return {

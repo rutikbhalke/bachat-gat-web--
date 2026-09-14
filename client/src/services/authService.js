@@ -27,6 +27,7 @@ import {
 import { auth, db, firebaseConfig } from '../config/firebase';
 import { groupQuery } from './dataContract';
 import { groupService } from './groupService';
+import { DEFAULT_GROUP_ID } from '../utils/formatters';
 
 /**
  * Format Firebase Auth errors into accurate, clear, user-friendly messages
@@ -136,7 +137,7 @@ export const authService = {
       let existingMemberId = null;
 
       try {
-        const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001'));
+        const membersSnap = await getDocs(groupQuery('users', DEFAULT_GROUP_ID));
         const found = membersSnap.docs.find((d) => {
           const m = d.data();
           return (
@@ -155,9 +156,9 @@ export const authService = {
       }
 
       // Fetch active group details
-      const defaultGroup = await groupService.getGroupDetails('shivshahi_group_001');
-      const groupId = 'shivshahi_group_001';
-      const groupName = defaultGroup.group?.groupName || defaultGroup.group?.name || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
+      const defaultGroup = await groupService.getGroupDetails(DEFAULT_GROUP_ID);
+      const groupId = DEFAULT_GROUP_ID;
+      const groupName = defaultGroup.group?.groupName || defaultGroup.group?.name || 'श्री सदुबाबा युवा स्वयम सहायता बचतगट';
       const monthlyContribution = defaultGroup.group?.monthlyContribution || 1000;
 
       let memberId = existingMemberId;
@@ -176,7 +177,7 @@ export const authService = {
         }, { merge: true });
       } else {
         // Create a new member profile at users/{uid}, matching the Flutter app.
-        const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001')).catch(() => ({ docs: [] }));
+        const membersSnap = await getDocs(groupQuery('users', DEFAULT_GROUP_ID)).catch(() => ({ docs: [] }));
         let maxNum = 0;
         membersSnap.docs.forEach((d) => {
           const num = parseInt(d.id.replace(/\D/g, ''), 10);
@@ -291,7 +292,7 @@ export const authService = {
 
       if (!linkedMember) {
         try {
-          const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001'));
+          const membersSnap = await getDocs(groupQuery('users', DEFAULT_GROUP_ID));
           const found = membersSnap.docs.find((d) => {
             const m = d.data();
             return (
@@ -344,7 +345,7 @@ export const authService = {
       // If the profile still does not exist, create it at users/{uid}.
       if (!linkedMember) {
         try {
-          const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001')).catch(() => ({ docs: [] }));
+          const membersSnap = await getDocs(groupQuery('users', DEFAULT_GROUP_ID)).catch(() => ({ docs: [] }));
           let maxNum = 0;
           membersSnap.docs.forEach((d) => {
             const num = parseInt(d.id.replace(/\D/g, ''), 10);
@@ -356,7 +357,7 @@ export const authService = {
             userId: user.uid,
             authUid: user.uid,
             firebaseUid: user.uid,
-            groupId: 'shivshahi_group_001',
+            groupId: DEFAULT_GROUP_ID,
             name: resolvedFullName,
             fullName: resolvedFullName,
             email: cleanEmail,
@@ -392,8 +393,8 @@ export const authService = {
           isActive: true,
           memberId: linkedMemberId || '',
           memberCode: linkedMember?.memberCode || linkedMemberId || '',
-          groupId: 'shivshahi_group_001',
-          groupName: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
+          groupId: DEFAULT_GROUP_ID,
+          groupName: 'श्री सदुबाबा युवा स्वयम सहायता बचतगट',
           createdAt: userData?.createdAt || serverTimestamp(),
           updatedAt: serverTimestamp(),
         };
@@ -416,8 +417,8 @@ export const authService = {
       }
 
       // 7. Retrieve dynamic group details
-      const groupData = await groupService.getGroupDetails(userData.groupId || 'shivshahi_group_001');
-      const liveGroupName = groupData.group?.groupName || groupData.group?.name || userData.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
+      const groupData = await groupService.getGroupDetails(userData.groupId || DEFAULT_GROUP_ID);
+      const liveGroupName = groupData.group?.groupName || groupData.group?.name || userData.groupName || 'श्री सदुबाबा युवा स्वयम सहायता बचतगट';
 
       const resolvedUser = {
         ...userData,
@@ -430,6 +431,7 @@ export const authService = {
         phone: resolvedPhone,
         role: resolvedRole,
         role_name: resolvedRole.toUpperCase(),
+        groupId: DEFAULT_GROUP_ID,
         groupName: liveGroupName,
         memberId: linkedMemberId || userData.memberId || '',
         memberCode: linkedMember?.memberCode || userData.memberCode || linkedMemberId || '',
@@ -444,13 +446,15 @@ export const authService = {
         user: resolvedUser,
       };
     } catch (err) {
-      if (
+      console.error('Login error:', err);
+      const msg = (
         err.message === 'This account does not have admin access. Please use Member Login.' ||
         err.message === 'Your account is deactivated. Please contact admin.'
-      ) {
-        throw err;
-      }
-      throw new Error(formatAuthError(err));
+      ) ? err.message : formatAuthError(err);
+      return {
+        success: false,
+        message: msg,
+      };
     }
   },
 
@@ -463,9 +467,9 @@ export const authService = {
   },
 
   /**
-   * Get current authenticated user details from Firestore
+   * Get current authenticated user profile from Firestore
    */
-  getMe: async () => {
+  getProfile: async () => {
     const currentUser = auth.currentUser;
     if (!currentUser) {
       return { success: false, message: 'No authenticated user.' };
@@ -479,8 +483,8 @@ export const authService = {
     }
 
     const userData = userDoc.data();
-    const groupData = await groupService.getGroupDetails(userData.groupId || 'shivshahi_group_001');
-    const liveGroupName = groupData.group?.groupName || userData.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
+    const groupData = await groupService.getGroupDetails(DEFAULT_GROUP_ID);
+    const liveGroupName = groupData.group?.groupName || userData.groupName || 'श्री सदुबाबा युवा स्वयम सहायता बचतगट';
     const userRole = (userData.role || 'member').toLowerCase();
 
     return {
@@ -495,6 +499,7 @@ export const authService = {
         phone: userData.phone || '',
         role: userRole,
         role_name: userRole.toUpperCase(),
+        groupId: DEFAULT_GROUP_ID,
         groupName: liveGroupName,
       },
     };

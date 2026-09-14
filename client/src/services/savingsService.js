@@ -8,16 +8,82 @@ import {
   query,
   where,
   onSnapshot,
+  runTransaction,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { groupQuery } from './dataContract';
+import { db } from '../config/firebase.js';
+import { groupQuery } from './dataContract.js';
 import {
   normalizeSavings,
   normalizeMember,
   DEFAULT_GROUP_ID,
-} from '../utils/formatters';
+} from '../utils/formatters.js';
+
+/**
+ * Calculate the next unpaid savings period for a member based on their recorded savings.
+ * If the member has paid up to month M of year Y:
+ *   - next month is M + 1 (or 1 if M === 12, with year Y + 1)
+ * If no paid savings are recorded:
+ *   - returns current month and year
+ */
+export const calculateNextUnpaidSavingsPeriod = (memberSavings = []) => {
+  const currentDate = new Date();
+  const defaultMonth = currentDate.getMonth() + 1;
+  const defaultYear = currentDate.getFullYear();
+
+  if (!Array.isArray(memberSavings) || memberSavings.length === 0) {
+    return { month: defaultMonth, year: defaultYear };
+  }
+
+  const paidList = memberSavings
+    .filter((s) => {
+      const paidAmt = Number(s.paidAmount ?? s.amount ?? s.paid_amount ?? 0);
+      const status = (s.status || '').toLowerCase();
+      return paidAmt > 0 || status === 'paid';
+    })
+    .map((s) => {
+      const month = Number(s.month);
+      const year = Number(s.year);
+      return {
+        month,
+        year,
+        key: year * 12 + month,
+      };
+    })
+    .filter((p) => !isNaN(p.month) && !isNaN(p.year) && p.month >= 1 && p.month <= 12 && p.year > 2000);
+
+  if (paidList.length === 0) {
+    return { month: defaultMonth, year: defaultYear };
+  }
+
+  // Sort chronologically ascending
+  paidList.sort((a, b) => a.key - b.key);
+  const latest = paidList[paidList.length - 1];
+
+  let nextMonth = latest.month + 1;
+  let nextYear = latest.year;
+  if (nextMonth > 12) {
+    nextMonth = 1;
+    nextYear += 1;
+  }
+
+  return { month: nextMonth, year: nextYear };
+};
 
 export const savingsService = {
+  calculateNextUnpaidSavingsPeriod,
+  
+  /**
+   * Get savings specifically for a single member
+   */
+  getMemberSavings: async (memberId, groupId = DEFAULT_GROUP_ID) => {
+    try {
+      const res = await savingsService.getAllSavings({ memberId, includePending: false }, groupId);
+      return res.savings || [];
+    } catch (err) {
+      console.error('Failed to get member savings:', err);
+      return [];
+    }
+  },
   /**
    * Get all recorded savings / monthly contributions with member information
    */
@@ -88,9 +154,6 @@ export const savingsService = {
     }
   },
 
-  /**
-   * Record monthly savings in Firestore (compatible with Flutter schema)
-   */
   recordSavings: async (data, groupId = DEFAULT_GROUP_ID) => {
     try {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
@@ -101,101 +164,121 @@ export const savingsService = {
       const mode = data.payment_mode || data.paymentMode || 'UPI';
       const notes = data.remarks || data.notes || '';
 
+      if (!memberId) {
+        throw new Error('Member ID is required to record savings.');
+      }
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error('Please enter a valid contribution amount greater than 0.');
+      }
+      if (!month || !year || month < 1 || month > 12) {
+        throw new Error('Valid month and year are required.');
+      }
+
       const docId = `C_${memberId}_${year}_${String(month).padStart(2, '0')}`;
-      const docRef = doc(db, 'monthlyContributions', docId);
-      const existingContribution = await getDoc(docRef);
-      if (existingContribution.exists()) {
-        const existingData = existingContribution.data();
-        const alreadyPaid = Number(existingData.paidAmount || existingData.regularHaftaAmount || 0);
-        if (alreadyPaid > 0) {
+      const preCheckRef = doc(db, 'monthlyContributions', docId);
+      const preCheckSnap = await getDoc(preCheckRef);
+      if (preCheckSnap.exists()) {
+        const preCheckData = preCheckSnap.data();
+        const preAlreadyPaid = Number(preCheckData.paidAmount || preCheckData.regularHaftaAmount || 0);
+        if (preAlreadyPaid > 0) {
           throw new Error(`Savings for ${month}/${year} are already recorded for this member.`);
         }
       }
+      
+      await runTransaction(db, async (transaction) => {
+        const docRef = doc(db, 'monthlyContributions', docId);
+        const existingContribution = await transaction.get(docRef);
+        
+        if (existingContribution.exists()) {
+          const existingData = existingContribution.data();
+          const alreadyPaid = Number(existingData.paidAmount || existingData.regularHaftaAmount || 0);
+          if (alreadyPaid > 0) {
+            throw new Error(`Savings for ${month}/${year} are already recorded for this member.`);
+          }
+        }
 
-      const contributionPayload = {
-        id: docId,
-        contribId: docId,
-        contrib_id: docId,
-        groupId: targetGroupId,
-        group_id: targetGroupId,
-        memberId,
-        member_id: memberId,
-        month,
-        year,
-        expectedAmount: amount,
-        expected_amount: amount,
-        regularHaftaAmount: amount,
-        regular_hafta_amount: amount,
-        paidAmount: amount,
-        paid_amount: amount,
-        amount,
-        totalPaid: amount,
-        total_paid: amount,
-        loanPrincipalPaid: 0,
-        loan_principal_paid: 0,
-        interestAmount: 0,
-        interest_amount: 0,
-        interest: 0,
-        status: 'PAID',
-        status_lower: 'paid',
-        paymentDate: data.payment_date || new Date().toISOString(),
-        payment_date: data.payment_date || new Date().toISOString(),
-        paymentMode: mode,
-        payment_mode: mode,
-        notes: notes.trim(),
-        remarks: notes.trim(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+        const memRef = doc(db, 'users', memberId);
+        const memSnap = await transaction.get(memRef);
+        const memberName = memSnap.exists() ? (memSnap.data().name || memSnap.data().fullName || 'Member') : 'Member';
 
-      await setDoc(docRef, contributionPayload, { merge: true });
-
-      // Fetch member name for logging
-      let memberName = 'Member';
-      try {
-        const memSnap = await getDoc(doc(db, 'users', memberId));
-        if (memSnap.exists()) memberName = memSnap.data().name || memSnap.data().fullName || 'Member';
-      } catch (e) {
-        // fallback
-      }
-
-      // Log activity in the shared root transactions collection.
-      const actId = `ACT_${Date.now()}_saving`;
-      await setDoc(doc(db, 'transactions', actId), {
-        id: actId,
-        groupId: targetGroupId,
-        type: 'saving',
-        amount,
-        description: `Monthly savings ₹${amount} received from ${memberName}`,
-        memberId,
-        memberName,
-        referenceId: docId,
-        date: new Date().toISOString(),
-      });
-
-      // Update Group summary metrics in Firestore
-      try {
         const groupRef = doc(db, 'groups', targetGroupId);
-        const groupSnap = await getDoc(groupRef);
+        const groupSnap = await transaction.get(groupRef);
+        let groupData = {};
+        if (groupSnap.exists()) groupData = groupSnap.data();
+
+        const contributionPayload = {
+          id: docId,
+          contribId: docId,
+          contrib_id: docId,
+          groupId: targetGroupId,
+          group_id: targetGroupId,
+          memberId,
+          member_id: memberId,
+          month,
+          year,
+          expectedAmount: amount,
+          expected_amount: amount,
+          regularHaftaAmount: amount,
+          regular_hafta_amount: amount,
+          paidAmount: amount,
+          paid_amount: amount,
+          amount,
+          totalPaid: amount,
+          total_paid: amount,
+          loanPrincipalPaid: 0,
+          loan_principal_paid: 0,
+          interestAmount: 0,
+          interest_amount: 0,
+          interest: 0,
+          status: 'PAID',
+          status_lower: 'paid',
+          paymentDate: data.payment_date || new Date().toISOString(),
+          payment_date: data.payment_date || new Date().toISOString(),
+          paymentMode: mode,
+          payment_mode: mode,
+          notes: notes.trim(),
+          remarks: notes.trim(),
+          createdAt: existingContribution.exists() ? existingContribution.data().createdAt : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        transaction.set(docRef, contributionPayload, { merge: true });
+
+        const actId = `ACT_${Date.now()}_saving`;
+        const actRef = doc(db, 'transactions', actId);
+        transaction.set(actRef, {
+          id: actId,
+          groupId: targetGroupId,
+          type: 'saving',
+          amount,
+          description: `Monthly savings ₹${amount} received from ${memberName}`,
+          memberId,
+          memberName,
+          referenceId: docId,
+          date: new Date().toISOString(),
+        });
+
         if (groupSnap.exists()) {
-          const gData = groupSnap.data();
-          const currentSavings = Number(gData.totalSavings || gData.total_savings || 0);
-          const currentFund = Number(gData.totalFund || gData.total_fund || 0);
-          await updateDoc(groupRef, {
-            totalSavings: currentSavings + amount,
-            total_savings: currentSavings + amount,
-            savingsTotal: currentSavings + amount,
-            savings_total: currentSavings + amount,
-            totalFund: currentFund + amount,
-            total_fund: currentFund + amount,
-            availableBalance: currentFund + amount,
-            available_balance: currentFund + amount,
+          const newTotalSavings = Number(groupData.totalSavings || 0) + amount;
+          const currentOutstanding = Number(groupData.activeLoans || 0);
+          const currentInterest = Number(groupData.currentMonthlyInterest ?? groupData.current_monthly_interest ?? (currentOutstanding * 0.02) ?? 0);
+
+          const newTotalFund = Math.round((newTotalSavings + currentInterest) * 100) / 100;
+          const newRawAvailableBalance = Math.round((newTotalFund - currentOutstanding) * 100) / 100;
+          const newAvailableBalance = Math.max(0, newRawAvailableBalance);
+
+          transaction.update(groupRef, {
+            totalSavings: newTotalSavings,
+            total_savings: newTotalSavings,
+            totalFund: newTotalFund,
+            total_fund: newTotalFund,
+            availableBalance: newAvailableBalance,
+            available_balance: newAvailableBalance,
+            rawAvailableBalance: newRawAvailableBalance,
             updatedAt: new Date().toISOString(),
           });
         }
-      } catch (e) {
-        console.warn('Notice: Group summary update on savings:', e);
-      }
+      });
 
       return {
         success: true,

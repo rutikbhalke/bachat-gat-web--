@@ -6,13 +6,23 @@ const StatCard = ({
   subtitle,
   icon: Icon,
   trend,
-  colorScheme = 'pink', // 'pink', 'blue', 'green', 'amber', 'purple'
+  colorScheme = 'saffron', // 'saffron', 'pink', 'blue', 'green', 'amber', 'purple'
   highlight = false,
 }) => {
   const schemes = {
+    saffron: {
+      bgIcon: 'var(--accent-soft)',
+      colorIcon: 'var(--primary-dark)',
+      border: highlight ? 'var(--primary)' : 'var(--border-color)',
+    },
     pink: {
       bgIcon: 'var(--accent-soft)',
-      colorIcon: 'var(--primary)',
+      colorIcon: 'var(--primary-dark)',
+      border: highlight ? 'var(--primary)' : 'var(--border-color)',
+    },
+    orange: {
+      bgIcon: 'var(--accent-soft)',
+      colorIcon: 'var(--primary-dark)',
       border: highlight ? 'var(--primary)' : 'var(--border-color)',
     },
     green: {
@@ -37,7 +47,7 @@ const StatCard = ({
     },
   };
 
-  const currentScheme = schemes[colorScheme] || schemes.pink;
+  const currentScheme = schemes[colorScheme] || schemes.saffron;
 
   return (
     <div
@@ -49,7 +59,7 @@ const StatCard = ({
         position: 'relative',
         overflow: 'hidden',
         borderColor: currentScheme.border,
-        background: highlight ? 'linear-gradient(180deg, #FFFFFF 0%, #FFF5F8 100%)' : 'var(--bg-card)',
+        background: highlight ? 'linear-gradient(180deg, #FFFFFF 0%, #FFF8F1 100%)' : 'var(--bg-card)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px' }}>

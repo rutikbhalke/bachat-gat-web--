@@ -141,7 +141,7 @@ const Register = () => {
           width: '500px',
           height: '500px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(190, 24, 93, 0.08) 0%, rgba(255,255,255,0) 70%)',
+          background: 'radial-gradient(circle, rgba(245, 124, 0, 0.08) 0%, rgba(255,255,255,0) 70%)',
           zIndex: 0,
         }}
       />
@@ -153,7 +153,7 @@ const Register = () => {
           width: '450px',
           height: '450px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(219, 39, 119, 0.06) 0%, rgba(255,255,255,0) 70%)',
+          background: 'radial-gradient(circle, rgba(230, 81, 0, 0.06) 0%, rgba(255,255,255,0) 70%)',
           zIndex: 0,
         }}
       />

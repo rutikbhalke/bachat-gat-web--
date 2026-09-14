@@ -131,7 +131,7 @@ const Header = ({ onOpenMobileSidebar, onOpenRecordSavings, onOpenCreateLoan }) 
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
-                  border: '1px solid rgba(194, 24, 91, 0.15)',
+                  border: '1px solid var(--accent-border)',
                 }}
                 title="View Group Information"
               >

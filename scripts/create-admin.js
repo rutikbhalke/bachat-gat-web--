@@ -106,7 +106,7 @@ async function createAdmin() {
       role_name: 'ADMIN',
       isActive: true,
       groupId: 'shivshahi_group_001',
-      groupName: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
+      groupName: 'श्री सदुबाबा युवा स्वयम सहायता बचतगट',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     }, { merge: true });
@@ -117,9 +117,9 @@ async function createAdmin() {
     const groupDocRef = doc(db, 'groups', 'shivshahi_group_001');
     await setDoc(groupDocRef, {
       groupId: 'shivshahi_group_001',
-      name: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
-      groupName: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
-      group_name: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
+      name: 'श्री सदुबाबा युवा स्वयम सहायता बचतगट',
+      groupName: 'श्री सदुबाबा युवा स्वयम सहायता बचतगट',
+      group_name: 'श्री सदुबाबा युवा स्वयम सहायता बचतगट',
       groupCode: 'shivshahi_group_001',
       group_code: 'shivshahi_group_001',
       monthlyContribution: 1000,

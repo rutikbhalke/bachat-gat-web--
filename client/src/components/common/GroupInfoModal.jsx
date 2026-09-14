@@ -37,8 +37,8 @@ const GroupInfoModal = ({ isOpen, onClose }) => {
             style={{
               padding: '16px',
               borderRadius: 'var(--radius-md)',
-              background: 'linear-gradient(135deg, rgba(194, 24, 91, 0.1) 0%, rgba(233, 30, 99, 0.05) 100%)',
-              border: '1px solid rgba(194, 24, 91, 0.2)',
+              background: 'var(--primary-gradient-subtle)',
+              border: '1px solid var(--accent-border)',
               display: 'flex',
               alignItems: 'center',
               gap: '14px',
@@ -62,7 +62,7 @@ const GroupInfoModal = ({ isOpen, onClose }) => {
             </div>
             <div>
               <h3 style={{ fontSize: '1.15rem', color: 'var(--primary)', fontWeight: 700 }}>
-                {group.name || group.group_name || group.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT'}
+                {group.name || group.group_name || group.groupName || 'श्री सदुबाबा युवा स्वयम सहायता बचतगट'}
               </h3>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Tag size={12} /> ID: <code style={{ fontWeight: 600 }}>{group.group_code || group.groupCode || 'group_001'}</code>

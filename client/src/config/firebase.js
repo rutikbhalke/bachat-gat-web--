@@ -6,14 +6,16 @@ import { getFirestore } from 'firebase/firestore';
  * Firebase Web Configuration
  * Connected to Shared Project: bachat-gat-32ffe (Used by Flutter Android & React Web)
  */
+const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' && process.env ? process.env : {});
+
 export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyBJyKRv81qV_tmnmcYF76Dx0JLxGKvK_7I',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'bachat-gat-32ffe.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'bachat-gat-32ffe',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'bachat-gat-32ffe.firebasestorage.app',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '215206829034',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:215206829034:web:63a0816174e77792427093',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-NP2QYVL1XK',
+  apiKey: env.VITE_FIREBASE_API_KEY || 'AIzaSyBJyKRv81qV_tmnmcYF76Dx0JLxGKvK_7I',
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || 'bachat-gat-32ffe.firebaseapp.com',
+  projectId: env.VITE_FIREBASE_PROJECT_ID || 'bachat-gat-32ffe',
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || 'bachat-gat-32ffe.firebasestorage.app',
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || '215206829034',
+  appId: env.VITE_FIREBASE_APP_ID || '1:215206829034:web:63a0816174e77792427093',
+  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID || 'G-NP2QYVL1XK',
 };
 
 // Initialize Firebase App singleton

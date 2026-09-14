@@ -82,7 +82,6 @@ const Members = () => {
     try {
       setLoading(true);
       const res = await memberService.getAllMembers({
-        search,
         month: selectedMonth,
         year: selectedYear,
       });
@@ -98,8 +97,7 @@ const Members = () => {
           selectedYear,
           total,
           paid,
-          pending,
-          balance: paid + pending === total,
+          pending
         });
       }
     } catch (err) {
@@ -111,12 +109,25 @@ const Members = () => {
 
   useEffect(() => {
     fetchMembers();
-  }, [refreshTrigger, search, selectedMonth, selectedYear]);
+  }, [refreshTrigger, selectedMonth, selectedYear]);
 
   const isMemberPending = (m) => m.status === 'Pending' || m.due_status === 'Pending' || m.paymentStatus === 'Pending' || (m.current_due > 0 || m.currentDue > 0 || m.is_pending_dues || m.isPendingDues);
-  const displayedMembers = activeTab === 'all'
+  
+  const tabMembers = activeTab === 'all'
     ? members
     : members.filter(isMemberPending);
+
+  const displayedMembers = search.trim()
+    ? tabMembers.filter((m) => {
+        const q = search.trim().toLowerCase();
+        return (
+          (m.name || '').toLowerCase().includes(q) ||
+          (m.fullName || '').toLowerCase().includes(q) ||
+          (m.member_code || m.memberCode || '').toLowerCase().includes(q) ||
+          (m.phone || '').includes(q)
+        );
+      })
+    : tabMembers;
 
   const pendingCount = members.filter(isMemberPending).length;
 

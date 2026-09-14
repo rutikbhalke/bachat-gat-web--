@@ -2,16 +2,20 @@ import React, { useState, useEffect } from 'react';
 import Modal from '../common/Modal';
 import { memberService } from '../../services/memberService';
 import { loanService } from '../../services/loanService';
-import { formatCurrency } from '../../utils/formatters';
-import { HandCoins, AlertCircle, CheckCircle2, Calculator } from 'lucide-react';
+import { dashboardService } from '../../services/dashboardService';
+import { formatCurrency, formatNumber, DEFAULT_GROUP_ID } from '../../utils/formatters';
+import { usePopup } from '../../context/PopupContext';
+import { HandCoins, AlertCircle, CheckCircle2, Calculator, Wallet } from 'lucide-react';
 
 const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null }) => {
+  const { showError, askConfirm, showSuccess } = usePopup();
   const [members, setMembers] = useState([]);
+  const [availableCash, setAvailableCash] = useState(null);
   const [formData, setFormData] = useState({
     member_id: initialMemberId || '',
-    principal_amount: '1000',
+    principal_amount: '10000',
     interest_rate: '2.0',
-    duration_months: '12',
+    duration_months: '10',
     loan_date: new Date().toISOString().split('T')[0],
     purpose: '',
   });
@@ -22,22 +26,46 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
 
   useEffect(() => {
     if (isOpen) {
-      const fetchMembers = async () => {
+      // Reset form synchronously
+      setFormData({
+        member_id: initialMemberId || '',
+        principal_amount: '10000',
+        interest_rate: '2.0',
+        duration_months: '10',
+        loan_date: new Date().toISOString().split('T')[0],
+        purpose: '',
+      });
+      setError('');
+      setSuccess('');
+      setAvailableCash(null);
+
+      const fetchData = async () => {
         try {
-          const res = await memberService.getAllMembers({ status: 'active' });
-          if (res.success) {
-            setMembers(res.members);
+          const [memRes, summaryRes] = await Promise.all([
+            memberService.getAllMembers({ status: 'active' }),
+            dashboardService.getSummary(DEFAULT_GROUP_ID),
+          ]);
+
+          if (memRes.success) {
+            setMembers(memRes.members);
             if (initialMemberId) {
               setFormData((prev) => ({ ...prev, member_id: initialMemberId }));
-            } else if (res.members.length > 0 && !formData.member_id) {
-              setFormData((prev) => ({ ...prev, member_id: res.members[0].member_id }));
+            } else if (memRes.members.length > 0) {
+              setFormData((prev) => ({ ...prev, member_id: prev.member_id || memRes.members[0].member_id }));
             }
+          }
+
+          if (summaryRes?.summary) {
+            const rawCash = summaryRes.summary.rawAvailableBalance !== undefined
+              ? summaryRes.summary.rawAvailableBalance
+              : summaryRes.summary.availableBalance;
+            setAvailableCash(Number(rawCash) || 0);
           }
         } catch (err) {
           console.error(err);
         }
       };
-      fetchMembers();
+      fetchData();
     }
   }, [isOpen, initialMemberId]);
 
@@ -52,8 +80,67 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.member_id || !formData.principal_amount) {
-      setError('Please select a member and enter loan amount.');
+    if (!formData.member_id) {
+      showError({
+        title: 'Validation Error',
+        message: 'Please select a borrowing member.',
+      });
+      return;
+    }
+
+    if (isNaN(principal) || principal <= 0) {
+      showError({
+        title: 'Validation Error',
+        message: 'Loan amount must be greater than ₹0.',
+      });
+      return;
+    }
+
+    const durationNum = parseInt(formData.duration_months, 10);
+    if (durationNum !== 10) {
+      showError({
+        title: 'Validation Error',
+        message: 'Loan duration must be exactly 10 installments.',
+      });
+      return;
+    }
+
+    if (availableCash !== null && principal > availableCash) {
+      showError({
+        title: 'Insufficient Balance',
+        message: `Insufficient available balance. Available: ₹${formatNumber(Math.max(0, availableCash))}. Requested loan: ₹${formatNumber(principal)}.`,
+        details: [
+          { label: 'Available Cash', value: formatCurrency(Math.max(0, availableCash)) },
+          { label: 'Requested Loan', value: formatCurrency(principal), highlight: true },
+        ],
+      });
+      return;
+    }
+
+    const targetMem = members.find(
+      (m) => String(m.member_id) === String(formData.member_id) || String(m.id) === String(formData.member_id)
+    );
+    const memberName = targetMem ? (targetMem.name || targetMem.fullName) : 'Member';
+    const memberCode = targetMem ? (targetMem.member_code || targetMem.memberCode || '') : '';
+
+    // Confirmation Modal
+    const confirmed = await askConfirm({
+      title: 'Confirm Loan Disbursement',
+      message: 'Are you sure you want to disburse this loan?',
+      details: [
+        { label: 'Borrowing Member', value: `${memberName} (${memberCode})` },
+        { label: 'Loan Principal', value: formatCurrency(principal), highlight: true },
+        { label: 'Interest Rate', value: '2.0% per month (Reducing Balance)' },
+        { label: 'Loan Duration', value: '10 installments' },
+        { label: 'First Month Interest', value: `${formatCurrency(monthlyInterest)}` },
+        { label: 'Disbursement Date', value: formData.loan_date },
+      ],
+      confirmText: 'Disburse Loan',
+      confirmVariant: 'primary',
+    });
+
+    if (!confirmed) {
+      // 0 database writes!
       return;
     }
 
@@ -62,21 +149,28 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
       setError('');
       const res = await loanService.createLoan({
         ...formData,
-        principal_amount: parseFloat(formData.principal_amount),
+        principal_amount: principal,
         interest_rate: parseFloat(formData.interest_rate),
-        duration_months: parseInt(formData.duration_months, 10),
+        duration_months: durationNum,
       });
 
       if (res.success) {
-        setSuccess(`Loan ${res.loanNumber} created successfully!`);
-        setTimeout(() => {
-          setSuccess('');
-          onSuccess();
-          onClose();
-        }, 1200);
+        showSuccess({
+          title: 'Loan Disbursed',
+          message: `Loan of ${formatCurrency(principal)} successfully disbursed for ${memberName}.`,
+        });
+        onSuccess();
+        onClose();
       }
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Failed to create loan.');
+      showError({
+        title: 'Loan Disbursement Failed',
+        error: err,
+        details: [
+          { label: 'Borrowing Member', value: memberName },
+          { label: 'Principal', value: formatCurrency(principal) },
+        ],
+      });
     } finally {
       setLoading(false);
     }
@@ -110,7 +204,14 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
 
         <div className="form-grid-2">
           <div className="form-group">
-            <label className="form-label">Principal Amount (₹) *</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label className="form-label" style={{ marginBottom: 0 }}>Principal Amount (₹) *</label>
+              {availableCash !== null && (
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: availableCash > 0 ? 'var(--success-text)' : 'var(--danger-text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Wallet size={12} /> Available: {formatCurrency(Math.max(0, availableCash))}
+                </span>
+              )}
+            </div>
             <input
               type="number"
               name="principal_amount"
@@ -129,12 +230,10 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
               type="number"
               name="interest_rate"
               className="form-input"
-              value={formData.interest_rate}
-              onChange={handleChange}
-              min="0.01"
-              max="100"
-              step="0.01"
-              required
+              value="2.0"
+              readOnly
+              style={{ background: '#f1f5f9', cursor: 'not-allowed' }}
+              title="Interest rate is fixed at 2% per Bachat Gat rules"
             />
           </div>
         </div>
@@ -146,7 +245,7 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
             background: 'var(--accent-soft)',
             borderRadius: 'var(--radius-md)',
             marginBottom: '16px',
-            border: '1px solid rgba(194, 24, 91, 0.2)',
+            border: '1px solid var(--accent-border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -162,15 +261,15 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
 
         <div className="form-grid-2">
           <div className="form-group">
-            <label className="form-label">Duration (Months)</label>
+            <label className="form-label">Duration (Months) *</label>
             <input
               type="number"
               name="duration_months"
               className="form-input"
-              value={formData.duration_months}
-              onChange={handleChange}
-              min="1"
-              max="60"
+              value="10"
+              readOnly
+              style={{ background: '#f1f5f9', cursor: 'not-allowed' }}
+              title="Loan duration is fixed at 10 months per Bachat Gat rules"
             />
           </div>
 

@@ -58,9 +58,9 @@ async function seedFirebase() {
     console.log('📌 Seeding Group [shivshahi_group_001]...');
     await setDoc(doc(db, 'groups', groupId), {
       groupId,
-      name: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
-      groupName: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
-      group_name: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
+      name: 'श्री सदुबाबा युवा स्वयम सहायता बचतगट',
+      groupName: 'श्री सदुबाबा युवा स्वयम सहायता बचतगट',
+      group_name: 'श्री सदुबाबा युवा स्वयम सहायता बचतगट',
       groupCode: 'shivshahi_group_001',
       group_code: 'shivshahi_group_001',
       monthlyContribution: 1000,

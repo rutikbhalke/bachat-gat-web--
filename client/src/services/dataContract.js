@@ -1,5 +1,5 @@
 import { collection, doc, query, where } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db } from '../config/firebase.js';
 
 // Shared Firestore contract used by the Flutter app and this web client.
 export const ROOT_COLLECTIONS = Object.freeze({

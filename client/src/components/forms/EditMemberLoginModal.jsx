@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, KeyRound, Mail, Phone, Shield, User, BadgeCheck } from 'lucide-react';
 import Modal from '../common/Modal';
 import { memberService } from '../../services/memberService';
+import { usePopup } from '../../context/PopupContext';
 
 const EditMemberLoginModal = ({ isOpen, onClose, onSuccess, member }) => {
+  const { showError, askConfirm, showSuccess } = usePopup();
   const closeTimerRef = useRef(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,6 +40,41 @@ const EditMemberLoginModal = ({ isOpen, onClose, onSuccess, member }) => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!name.trim()) {
+      showError({
+        title: 'Validation Error',
+        message: 'Member full name is required.',
+      });
+      return;
+    }
+
+    if (password && password.length < 6) {
+      showError({
+        title: 'Validation Error',
+        message: 'Password must be at least 6 characters.',
+      });
+      return;
+    }
+
+    const confirmed = await askConfirm({
+      title: 'Confirm Profile & Access Update',
+      message: `Are you sure you want to update login access and details for "${name}"?`,
+      details: [
+        { label: 'Member Name', value: name },
+        { label: 'Member Code', value: memberCode || member?.id },
+        { label: 'Assigned Role', value: role },
+        { label: 'Login Email', value: email || 'None' },
+        { label: 'Status', value: isActive ? 'ACTIVE' : 'INACTIVE' },
+      ],
+      confirmText: 'Save Access',
+      confirmVariant: 'primary',
+    });
+
+    if (!confirmed) {
+      // 0 database writes!
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
@@ -56,13 +93,22 @@ const EditMemberLoginModal = ({ isOpen, onClose, onSuccess, member }) => {
       if (result.partial) {
         setWarning(result.message);
       } else {
-        setSuccess(result.message || 'Member access updated successfully.');
+        showSuccess({
+          title: 'Access Updated',
+          message: result.message || 'Member access updated successfully.',
+        });
       }
       closeTimerRef.current = setTimeout(() => {
         onClose();
       }, 900);
     } catch (err) {
-      setError(err.message || 'Failed to enable member login.');
+      showError({
+        title: 'Update Failed',
+        error: err,
+        details: [
+          { label: 'Member', value: name },
+        ],
+      });
     } finally {
       setLoading(false);
     }

@@ -7,9 +7,9 @@ import {
   collection,
   getDocs,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { groupQuery } from './dataContract';
-import { normalizeGroup, DEFAULT_GROUP_ID } from '../utils/formatters';
+import { db } from '../config/firebase.js';
+import { groupQuery } from './dataContract.js';
+import { normalizeGroup, DEFAULT_GROUP_ID } from '../utils/formatters.js';
 
 export const groupService = {
   /**
@@ -59,7 +59,7 @@ export const groupService = {
       return {
         success: true,
         group: normalizeGroup(DEFAULT_GROUP_ID, {
-          name: 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
+          name: 'श्री सदुबाबा युवा स्वयम सहायता बचतगट',
           totalSavings: 3000,
           totalOutstandingLoans: 1710,
           totalFund: 1290,

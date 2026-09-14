@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px' }) => {
+const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px', bodyPadding = '24px' }) => {
   const dialogRef = useRef(null);
   const bodyRef = useRef(null);
   const previousFocusRef = useRef(null);
@@ -48,7 +49,9 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px' }) => {
 
   if (!isOpen) return null;
 
-  return (
+  const isZeroPadding = bodyPadding === '0' || bodyPadding === 0;
+
+  const modalElement = (
     <div
       style={{
         position: 'fixed',
@@ -56,15 +59,17 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px' }) => {
         left: 0,
         right: 0,
         bottom: 0,
+        width: '100vw',
+        height: '100dvh',
         backgroundColor: 'rgba(15, 23, 42, 0.65)',
         backdropFilter: 'blur(4px)',
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center', // Center vertically within viewport
         justifyContent: 'center',
         zIndex: 1000,
-        padding: '16px',
-        overflowY: 'auto',
-        overscrollBehavior: 'contain',
+        padding: '16px', // responsive outer margin
+        overflow: 'hidden', // prevent background page scrolling
+        boxSizing: 'border-box',
       }}
       onClick={onClose}
     >
@@ -79,30 +84,31 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px' }) => {
           borderRadius: 'var(--radius-xl)',
           width: '100%',
           maxWidth,
-          maxHeight: 'calc(100dvh - 32px)',
+          maxHeight: 'min(90vh, 90dvh)', // Constrain to 90% of visible viewport
+          height: 'auto',
+          minHeight: 0, // CRITICAL: allows flex child to shrink properly
           overflow: 'hidden',
           boxShadow: 'var(--shadow-lg)',
           border: '1px solid var(--border-color)',
           display: 'flex',
           flexDirection: 'column',
-          margin: 'auto 0',
-          minHeight: 0,
+          margin: '0 auto',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div
           style={{
-            padding: '20px 24px',
+            padding: '18px 24px',
             borderBottom: '1px solid var(--border-color)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--primary-gradient-subtle)',
-            flexShrink: 0,
+            flexShrink: 0, // Header never shrinks or scrolls away
           }}
         >
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{title}</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{title}</h2>
           <button
             onClick={onClose}
             style={{
@@ -113,6 +119,8 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px' }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              border: 'none',
+              cursor: 'pointer',
             }}
             aria-label="Close Modal"
           >
@@ -123,20 +131,35 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px' }) => {
         {/* Modal Body */}
         <div
           ref={bodyRef}
-          className="app-modal-body"
-          style={{
-            padding: '24px',
-            overflowY: 'auto',
-            minHeight: 0,
-            overscrollBehavior: 'contain',
-            scrollbarGutter: 'stable',
-          }}
+          className={`app-modal-body ${isZeroPadding ? 'no-padding' : ''}`}
+          style={
+            isZeroPadding
+              ? {
+                  padding: 0,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: '1 1 auto',
+                  minHeight: 0,
+                }
+              : {
+                  padding: bodyPadding,
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  flex: '1 1 auto',
+                  minHeight: 0,
+                  overscrollBehavior: 'contain',
+                  scrollbarGutter: 'stable',
+                }
+          }
         >
           {children}
         </div>
       </div>
     </div>
   );
+
+  return createPortal(modalElement, document.body);
 };
 
 export default Modal;

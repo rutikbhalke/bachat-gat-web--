@@ -15,6 +15,7 @@ import { auth, db } from '../config/firebase';
 import { authService } from '../services/authService';
 import { groupService } from '../services/groupService';
 import { groupQuery } from '../services/dataContract';
+import { DEFAULT_GROUP_ID } from '../utils/formatters';
 
 const AuthContext = createContext(null);
 
@@ -57,7 +58,7 @@ async function resolveUserProfile(currentFirebaseUser) {
 
   if (!memberData) {
     try {
-      const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001')).catch(() => ({ docs: [] }));
+      const membersSnap = await getDocs(groupQuery('users', DEFAULT_GROUP_ID)).catch(() => ({ docs: [] }));
       const found = membersSnap.docs.find((d) => {
         const m = d.data();
         return (
@@ -80,9 +81,9 @@ async function resolveUserProfile(currentFirebaseUser) {
   }
 
   // 3. Resolve active group details
-  let currentGroupName = 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
+  let currentGroupName = 'श्री सदुबाबा युवा स्वयम सहायता बचतगट';
   try {
-    const gRes = await groupService.getGroupDetails(userData?.groupId || memberData?.groupId || 'shivshahi_group_001');
+    const gRes = await groupService.getGroupDetails(userData?.groupId || memberData?.groupId || DEFAULT_GROUP_ID);
     if (gRes.group?.groupName || gRes.group?.name) {
       currentGroupName = gRes.group.groupName || gRes.group.name;
     }
@@ -99,7 +100,7 @@ async function resolveUserProfile(currentFirebaseUser) {
   // 5. If the member profile does not exist, create it at users/{uid}.
   if (!memberData) {
     try {
-      const membersSnap = await getDocs(groupQuery('users', 'shivshahi_group_001')).catch(() => ({ docs: [] }));
+      const membersSnap = await getDocs(groupQuery('users', DEFAULT_GROUP_ID)).catch(() => ({ docs: [] }));
       let maxNum = 0;
       membersSnap.docs.forEach((d) => {
         const num = parseInt(d.id.replace(/\D/g, ''), 10);
@@ -111,7 +112,7 @@ async function resolveUserProfile(currentFirebaseUser) {
         userId: currentFirebaseUser.uid,
         authUid: currentFirebaseUser.uid,
         firebaseUid: currentFirebaseUser.uid,
-        groupId: 'shivshahi_group_001',
+        groupId: DEFAULT_GROUP_ID,
         name: fullName,
         fullName: fullName,
         email: cleanEmail,
@@ -143,6 +144,7 @@ async function resolveUserProfile(currentFirebaseUser) {
     phone: phone,
     role: rawRole,
     role_name: rawRole.toUpperCase(),
+    groupId: DEFAULT_GROUP_ID,
     groupName: currentGroupName,
     memberId: memberId || userData?.memberId || '',
     memberCode: memberData?.memberCode || userData?.memberCode || memberId || '',
@@ -163,7 +165,7 @@ async function resolveUserProfile(currentFirebaseUser) {
         isActive: true,
         memberId: memberId || '',
         memberCode: memberData?.memberCode || memberId || '',
-        groupId: 'shivshahi_group_001',
+        groupId: DEFAULT_GROUP_ID,
         groupName: currentGroupName,
         createdAt: userData?.createdAt || serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -181,7 +183,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
       const stored = localStorage.getItem('bachat_user');
-      return stored ? JSON.parse(stored) : null;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        parsed.groupId = DEFAULT_GROUP_ID;
+        return parsed;
+      }
+      return null;
     } catch (e) {
       return null;
     }
@@ -191,9 +198,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const stored = localStorage.getItem('bachat_user');
       const parsed = stored ? JSON.parse(stored) : null;
-      return parsed?.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
+      return parsed?.groupName || 'श्री सदुबाबा युवा स्वयम सहायता बचतगट';
     } catch (e) {
-      return 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
+      return 'श्री सदुबाबा युवा स्वयम सहायता बचतगट';
     }
   });
 
@@ -202,7 +209,7 @@ export const AuthProvider = ({ children }) => {
 
   // 1. Listen for real-time changes to the active Group document in Firestore
   useEffect(() => {
-    const groupDocRef = doc(db, 'groups', 'shivshahi_group_001');
+    const groupDocRef = doc(db, 'groups', DEFAULT_GROUP_ID);
     const unsubscribeGroup = onSnapshot(groupDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -211,7 +218,7 @@ export const AuthProvider = ({ children }) => {
           setGroupName(liveName);
           setUser((prev) => {
             if (!prev) return prev;
-            const updated = { ...prev, groupName: liveName };
+            const updated = { ...prev, groupName: liveName, groupId: DEFAULT_GROUP_ID };
             localStorage.setItem('bachat_user', JSON.stringify(updated));
             return updated;
           });
@@ -240,6 +247,7 @@ export const AuthProvider = ({ children }) => {
           // Asynchronously resolve user profile before concluding loading state
           const resolved = await resolveUserProfile(currentFirebaseUser);
           if (resolved) {
+            resolved.groupId = DEFAULT_GROUP_ID;
             setUser(resolved);
             if (resolved.groupName) setGroupName(resolved.groupName);
             localStorage.setItem('bachat_user', JSON.stringify(resolved));
@@ -259,6 +267,7 @@ export const AuthProvider = ({ children }) => {
                   name: uData.fullName || uData.name || prev?.name || currentFirebaseUser.displayName || 'Member',
                   role: rawRole,
                   role_name: rawRole.toUpperCase(),
+                  groupId: DEFAULT_GROUP_ID,
                 };
                 localStorage.setItem('bachat_user', JSON.stringify(updated));
                 return updated;
@@ -397,7 +406,8 @@ export const AuthProvider = ({ children }) => {
     isTreasurer,
     isSecretary,
     isMember,
-    groupName: groupName || user?.groupName || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT',
+    groupId: DEFAULT_GROUP_ID,
+    groupName: groupName || user?.groupName || 'श्री सदुबाबा युवा स्वयम सहायता बचतगट',
     token,
     loading,
     login,

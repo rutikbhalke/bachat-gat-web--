@@ -152,52 +152,6 @@ const Loans = () => {
               Closed / Repaid ({closedLoansCount})
             </button>
           </div>
-
-          {/* Scope Filter for Members */}
-          {user?.memberId && (
-            <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: 'var(--radius-md)', gap: '4px' }}>
-              <button
-                type="button"
-                onClick={() => setScope('all')}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  background: scope === 'all' ? '#FFFFFF' : 'transparent',
-                  color: scope === 'all' ? 'var(--primary)' : 'var(--text-secondary)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  boxShadow: scope === 'all' ? 'var(--shadow-xs)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Building2 size={13} /> All Group Loans
-              </button>
-              <button
-                type="button"
-                onClick={() => setScope('my')}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  background: scope === 'my' ? '#FFFFFF' : 'transparent',
-                  color: scope === 'my' ? 'var(--primary)' : 'var(--text-secondary)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  boxShadow: scope === 'my' ? 'var(--shadow-xs)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <User size={13} /> My Loans
-              </button>
-            </div>
-          )}
         </div>
 
         <div style={{ position: 'relative', width: '280px' }}>
@@ -252,7 +206,7 @@ const Loans = () => {
                   justifyContent: 'space-between',
                   padding: '22px',
                   borderLeft: l.status === 'ACTIVE' ? '4px solid var(--primary)' : '4px solid var(--success)',
-                  background: isMyLoan ? 'linear-gradient(180deg, #FFFFFF 0%, #FFF5F8 100%)' : '#FFFFFF',
+                  background: isMyLoan ? 'linear-gradient(180deg, #FFFFFF 0%, #FFF8F1 100%)' : '#FFFFFF',
                 }}
               >
                 <div>

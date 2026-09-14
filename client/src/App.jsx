@@ -1,13 +1,13 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { PopupProvider } from './context/PopupContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Pages
 import Login from './pages/Login';
-import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Members from './pages/Members';
 import MemberDetails from './pages/MemberDetails';
@@ -22,35 +22,33 @@ function App() {
     <BrowserRouter>
       <ErrorBoundary>
         <AuthProvider>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Register />} />
-            <Route path="/register" element={<Register />} />
+          <PopupProvider>
+            <Routes>
+              {/* Public Admin Login Route */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Navigate to="/login" replace />} />
+              <Route path="/register" element={<Navigate to="/login" replace />} />
 
-            {/* Protected Routes */}
-            <Route element={<ProtectedRoute />}>
-              <Route element={<MainLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/members" element={<Members />} />
-                <Route path="/members/:id" element={<MemberDetails />} />
-                <Route path="/savings" element={<Savings />} />
-                <Route path="/monthly-savings" element={<Savings />} />
-                <Route path="/loans" element={<Loans />} />
-                <Route path="/loans/:id" element={<LoanDetails />} />
-                <Route path="/reports" element={<Reports />} />
-
-                {/* Admin Only Route */}
-                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+              {/* Admin-Only Protected Routes */}
+              <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                <Route element={<MainLayout />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/members" element={<Members />} />
+                  <Route path="/members/:id" element={<MemberDetails />} />
+                  <Route path="/savings" element={<Savings />} />
+                  <Route path="/monthly-savings" element={<Savings />} />
+                  <Route path="/loans" element={<Loans />} />
+                  <Route path="/loans/:id" element={<LoanDetails />} />
+                  <Route path="/reports" element={<Reports />} />
                   <Route path="/settings" element={<Settings />} />
                 </Route>
               </Route>
-            </Route>
 
-            {/* Fallback */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
+              {/* Fallback */}
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </PopupProvider>
         </AuthProvider>
       </ErrorBoundary>
     </BrowserRouter>

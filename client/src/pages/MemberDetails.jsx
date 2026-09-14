@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePopup } from '../context/PopupContext';
 import { memberService } from '../services/memberService';
 import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
@@ -30,7 +31,8 @@ import {
   Shield,
   Edit2,
   Save,
-  Trash2,
+  UserX,
+  UserCheck,
   KeyRound,
 } from 'lucide-react';
 
@@ -70,11 +72,25 @@ const MemberDetails = () => {
     }
   };
 
+  const { showError, askConfirm, showSuccess } = usePopup();
+
   useEffect(() => {
     fetchMember();
   }, [id]);
 
   const handleUpdateRole = async () => {
+    const confirmed = await askConfirm({
+      title: 'Confirm Role Change',
+      message: `Are you sure you want to change role for "${member.name}" to ${selectedRole}?`,
+      details: [
+        { label: 'Member', value: member.name },
+        { label: 'New Role', value: selectedRole, highlight: true },
+      ],
+      confirmText: 'Update Role',
+      confirmVariant: 'primary',
+    });
+    if (!confirmed) return;
+
     try {
       setUpdatingRole(true);
       const res = await memberService.manageMemberAccess(id, {
@@ -87,27 +103,65 @@ const MemberDetails = () => {
       });
       if (res.success) {
         setIsEditingRole(false);
+        showSuccess({
+          title: 'Role Updated',
+          message: `Role for "${member.name}" changed to ${selectedRole}.`,
+        });
         await fetchMember();
       }
     } catch (err) {
       console.error('Failed to update role:', err);
+      showError({
+        title: 'Failed to Update Role',
+        error: err,
+      });
     } finally {
       setUpdatingRole(false);
     }
   };
 
-  const handleDeleteMember = async () => {
-    const ok = window.confirm(`Delete member "${member.name}" permanently? This cannot be undone.`);
-    if (!ok) return;
+  const handleToggleDeactivate = async () => {
+    const isCurrentlyActive = member.isActive !== false && (member.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
+    const actionText = isCurrentlyActive ? 'deactivate' : 'reactivate';
+    
+    const confirmed = await askConfirm({
+      title: `Confirm Member ${isCurrentlyActive ? 'Deactivation' : 'Reactivation'}`,
+      message: `Are you sure you want to ${actionText} member "${member.name}"?`,
+      details: [
+        { label: 'Member Name', value: member.name },
+        { label: 'Member Code', value: member.member_code || member.memberCode || id },
+        { label: 'Current Status', value: isCurrentlyActive ? 'ACTIVE' : 'INACTIVE' },
+        { label: 'Target Status', value: isCurrentlyActive ? 'INACTIVE' : 'ACTIVE', highlight: true },
+      ],
+      confirmText: isCurrentlyActive ? 'Deactivate Member' : 'Reactivate Member',
+      confirmVariant: isCurrentlyActive ? 'danger' : 'success',
+    });
+    if (!confirmed) return; // 0 writes on cancel!
 
     try {
-      const res = await memberService.deleteMember(id);
+      const newStatus = isCurrentlyActive ? 'INACTIVE' : 'ACTIVE';
+      const res = await memberService.manageMemberAccess(id, {
+        name: member.name,
+        phone: member.phone || '',
+        memberCode: member.member_code || member.memberCode || id,
+        email: member.email,
+        role: member.role || 'member',
+        isActive: !isCurrentlyActive,
+        status: newStatus,
+      });
       if (res.success) {
-        navigate('/members');
+        showSuccess({
+          title: `Member ${isCurrentlyActive ? 'Deactivated' : 'Reactivated'}`,
+          message: `Member "${member.name}" has been ${isCurrentlyActive ? 'deactivated' : 'reactivated'}.`,
+        });
+        await fetchMember();
       }
     } catch (err) {
-      console.error('Failed to delete member:', err);
-      alert(err.message || 'Failed to delete member.');
+      console.error(`Failed to ${actionText} member:`, err);
+      showError({
+        title: `Failed to ${actionText} Member`,
+        error: err,
+      });
     }
   };
 
@@ -146,8 +200,8 @@ const MemberDetails = () => {
         className="card"
         style={{
           padding: '28px 32px',
-          background: 'linear-gradient(180deg, #FFFFFF 0%, #FFF5F8 100%)',
-          borderColor: 'rgba(194, 24, 91, 0.2)',
+          background: 'linear-gradient(180deg, #FFFFFF 0%, #FFF8F1 100%)',
+          borderColor: 'var(--accent-border)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
@@ -270,24 +324,35 @@ const MemberDetails = () => {
           )}
           {isAdmin && (
             <button
-              onClick={handleDeleteMember}
+              onClick={handleToggleDeactivate}
               className="btn-outline"
-              style={{ color: 'var(--danger-text)', borderColor: 'var(--danger)' }}
+              style={{
+                color: (member.isActive !== false && (member.status || 'ACTIVE').toUpperCase() === 'ACTIVE') ? 'var(--danger-text)' : 'var(--success)',
+                borderColor: (member.isActive !== false && (member.status || 'ACTIVE').toUpperCase() === 'ACTIVE') ? 'var(--danger)' : 'var(--success)',
+              }}
             >
-              <Trash2 size={16} /> Delete Member
+              {(member.isActive !== false && (member.status || 'ACTIVE').toUpperCase() === 'ACTIVE') ? (
+                <>
+                  <UserX size={16} /> Deactivate Member
+                </>
+              ) : (
+                <>
+                  <UserCheck size={16} /> Reactivate Member
+                </>
+              )}
             </button>
           )}
         </div>
       </div>
 
       {/* Portfolio Metric Overview */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
         <div className="card" style={{ padding: '18px 20px' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
             TOTAL ACCUMULATED SAVINGS
           </span>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
-            {formatCurrency(member.totalSavings || member.total_savings)}
+            {formatCurrency(member.totalSavings || member.mySavings)}
           </div>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             {formatCurrency(member.monthlyContribution || member.monthly_contribution)} monthly share
@@ -298,8 +363,8 @@ const MemberDetails = () => {
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
             ACTIVE LOAN OUTSTANDING
           </span>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: (member.totalOutstanding || member.total_outstanding) > 0 ? 'var(--danger-text)' : 'var(--text-primary)', marginTop: '4px' }}>
-            {formatCurrency(member.totalOutstanding || member.total_outstanding)}
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: (member.totalOutstanding || member.myLoanOutstanding) > 0 ? 'var(--danger-text)' : 'var(--text-primary)', marginTop: '4px' }}>
+            {formatCurrency(member.totalOutstanding || member.myLoanOutstanding)}
           </div>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             {(member.loans || []).filter((l) => l.status === 'ACTIVE').length} active loan(s)
@@ -308,7 +373,19 @@ const MemberDetails = () => {
 
         <div className="card" style={{ padding: '18px 20px' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-            TOTAL LOANS ISSUED
+            INTEREST PAID
+          </span>
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
+            {formatCurrency(member.totalInterestPaid || member.myInterestPaid)}
+          </div>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            Cumulative interest contribution
+          </span>
+        </div>
+
+        <div className="card" style={{ padding: '18px 20px' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            LOANS ISSUED
           </span>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: '4px' }}>
             {(member.loans || []).length}

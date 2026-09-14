@@ -3,6 +3,7 @@ import Modal from '../common/Modal';
 import { memberService } from '../../services/memberService';
 import { formatCurrency } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
+import { usePopup } from '../../context/PopupContext';
 import {
   AlertCircle,
   CheckCircle2,
@@ -19,6 +20,7 @@ import {
 
 const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
   const { isAdmin } = useAuth();
+  const { showError, askConfirm, showSuccess } = usePopup();
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -38,6 +40,18 @@ const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
+
+    // Reset form
+    setFormData({
+      name: '',
+      phone: '',
+      shares: '1',
+      perShare: '1000',
+      member_code: '',
+      email: '',
+      password: '',
+      role_name: 'MEMBER',
+    });
     setError('');
     setSuccess('');
 
@@ -97,34 +111,72 @@ const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
     const cleanPhone = formData.phone.trim();
     const cleanEmail = formData.email.trim().toLowerCase();
 
-    // 1. Validation
+    // 1. Validation checks with popup
     if (!cleanName || cleanName.length < 2) {
-      setError('Please enter a valid member Full Name.');
+      showError({
+        title: 'Validation Error',
+        message: 'Please enter a valid member Full Name.',
+      });
       return;
     }
 
     if (!cleanPhone || cleanPhone.length < 10) {
-      setError('Please enter a valid 10-digit mobile phone number.');
+      showError({
+        title: 'Validation Error',
+        message: 'Please enter a valid 10-digit mobile phone number.',
+      });
       return;
     }
 
     if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
-      setError('Please enter a valid member login email ID.');
+      showError({
+        title: 'Validation Error',
+        message: 'Please enter a valid member login email ID.',
+      });
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('Temporary password must be at least 6 characters.');
+      showError({
+        title: 'Validation Error',
+        message: 'Temporary password must be at least 6 characters.',
+      });
       return;
     }
 
     if (numShares < 1) {
-      setError('Shares count must be at least 1.');
+      showError({
+        title: 'Validation Error',
+        message: 'Shares count must be at least 1.',
+      });
       return;
     }
 
     if (numPerShare <= 0) {
-      setError('Per Share amount must be greater than ₹0.');
+      showError({
+        title: 'Validation Error',
+        message: 'Per Share amount must be greater than ₹0.',
+      });
+      return;
+    }
+
+    // 2. Confirmation Dialog
+    const confirmed = await askConfirm({
+      title: 'Confirm Add Member',
+      message: `Are you sure you want to register member "${cleanName}" in the group?`,
+      details: [
+        { label: 'Full Name', value: cleanName },
+        { label: 'Member Code', value: formData.member_code || 'Auto-generated' },
+        { label: 'Mobile Phone', value: cleanPhone },
+        { label: 'Monthly Contribution', value: formatCurrency(calculatedMonthlyContribution), highlight: true },
+        { label: 'Assigned Role', value: isAdmin ? formData.role_name : 'MEMBER' },
+      ],
+      confirmText: 'Add Member',
+      confirmVariant: 'primary',
+    });
+
+    if (!confirmed) {
+      // 0 database writes!
       return;
     }
 
@@ -148,16 +200,24 @@ const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
       });
 
       if (res.success) {
-        setSuccess(`Member ${res.member?.member_code || formData.member_code || ''} successfully recorded!`);
-        setTimeout(() => {
-          handleReset();
-          if (onSuccess) onSuccess();
-          onClose();
-        }, 1000);
+        showSuccess({
+          title: 'Member Added',
+          message: `Member "${cleanName}" (${res.member?.member_code || formData.member_code || ''}) registered successfully!`,
+        });
+        handleReset();
+        if (onSuccess) onSuccess();
+        onClose();
       }
     } catch (err) {
       console.error('Failed to add member:', err);
-      setError(err.response?.data?.message || err.message || 'Failed to record member.');
+      showError({
+        title: 'Failed to Add Member',
+        error: err,
+        details: [
+          { label: 'Full Name', value: cleanName },
+          { label: 'Phone', value: cleanPhone },
+        ],
+      });
     } finally {
       setLoading(false);
     }
@@ -332,8 +392,8 @@ const AddMemberModal = ({ isOpen, onClose, onSuccess }) => {
         {/* 5. Dynamic Calculated Monthly Contribution Card */}
         <div
           style={{
-            background: 'linear-gradient(135deg, #FFF5F8 0%, #FDF2F8 100%)',
-            border: '1px solid rgba(194, 24, 91, 0.2)',
+            background: 'linear-gradient(135deg, #FFF8F1 0%, #FFF3E0 100%)',
+            border: '1px solid var(--accent-border)',
             borderRadius: 'var(--radius-md)',
             padding: '14px 18px',
             display: 'flex',

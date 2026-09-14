@@ -1,2 +1,2 @@
-const { getMonthlyReport, getPendingDuesReport, getLoansOverviewReport } = require('./firebaseController');
-module.exports = { getMonthlyReport, getPendingDuesReport, getLoansOverviewReport };
+const { getMonthlyReport, getPendingDuesReport, getLoansOverviewReport, getMonthlyBalanceReport } = require('./firebaseController');
+module.exports = { getMonthlyReport, getPendingDuesReport, getLoansOverviewReport, getMonthlyBalanceReport };

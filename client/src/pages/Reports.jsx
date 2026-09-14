@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { reportService } from '../services/dashboardService';
+import { reportService } from '../services/reportService';
 import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
 import {
@@ -10,8 +10,10 @@ import {
   formatMonthYear,
   toDevanagariDigits,
   formatMemberWithHonorific,
+  DEFAULT_GROUP_ID,
 } from '../utils/formatters';
 import MemberHistoryModal from '../components/reports/MemberHistoryModal';
+import NewMonthWiseBachatGatTaalebandReport from '../components/reports/NewMonthWiseBachatGatTaalebandReport';
 import {
   FileBarChart2,
   Download,
@@ -26,34 +28,8 @@ import {
   Wallet,
   Eye,
   History,
+  ShieldCheck,
 } from 'lucide-react';
-
-const DEFAULT_PHOTO_REGISTER = [
-  { name: 'रविंद्र भागवत गुंजाळ', loan: 150000, inst: 8, loanHafta: 15000, interest: 450, fund: 1000, total: 16450 },
-  { name: 'भारत सोमनाथ गुंजाळ', loan: 100000, inst: 3, loanHafta: 10000, interest: 800, fund: 1000, total: 11800 },
-  { name: 'ध्रुव भारत गुंजाळ', loan: 150000, inst: 3, loanHafta: 15000, interest: 1200, fund: 1000, total: 17200 },
-  { name: 'संदीप जयराम गुंजाळ', loan: 150000, inst: 7, loanHafta: 15000, interest: 600, fund: 1000, total: 16600 },
-  { name: 'सचिन काशिनाथ गुंजाळ', loan: 0, inst: 0, loanHafta: 0, interest: 0, fund: 1000, total: 1000 },
-  { name: 'रमेश सुखदेव गुंजाळ', loan: 140000, inst: 4, loanHafta: 14000, interest: 980, fund: 1000, total: 15980 },
-  { name: 'सतीश गणपत कुऱ्हे', loan: 100000, inst: 9, loanHafta: 10000, interest: 200, fund: 1000, total: 11200 },
-  { name: 'अशोक खंडेराव दिघे', loan: 150000, inst: 6, loanHafta: 15000, interest: 750, fund: 1000, total: 16750 },
-  { name: 'विजय विठ्ठल गुंजाळ', loan: 100000, inst: 6, loanHafta: 10000, interest: 500, fund: 1000, total: 11500 },
-  { name: 'नारायण जयवंत गुंजाळ', loan: 100000, inst: 1, loanHafta: 10000, interest: 1000, fund: 1000, total: 12000 },
-  { name: 'मनोज रामभाऊ गुंजाळ', loan: 150000, inst: 4, loanHafta: 15000, interest: 1050, fund: 1000, total: 17050 },
-  { name: 'रामनाथ ज्ञानदेव खुळे', loan: 150000, inst: 4, loanHafta: 15000, interest: 1050, fund: 1000, total: 17050 },
-  { name: 'निवृत्ती सुभाष शिंदे', loan: 125000, inst: 5, loanHafta: 12500, interest: 750, fund: 1000, total: 14250 },
-  { name: 'विजय विठ्ठल दरकर', loan: 140000, inst: 7, loanHafta: 14000, interest: 560, fund: 1000, total: 15560 },
-  { name: 'वाल्मिक दत्तात्रय गुंजाळ', loan: 150000, inst: 3, loanHafta: 15000, interest: 1200, fund: 1000, total: 17200 },
-  { name: 'अजित दत्तात्रय गुंजाळ', loan: 150000, inst: 7, loanHafta: 15000, interest: 600, fund: 1000, total: 16600 },
-  { name: 'साई रामनाथ खुळे', loan: 0, inst: 0, loanHafta: 0, interest: 0, fund: 1000, total: 1000 },
-  { name: 'रामनाथ सुखदेव खुळे', loan: 100000, inst: 1, loanHafta: 10000, interest: 1000, fund: 1000, total: 12000 },
-  { name: 'बाळासाहेब सुखदेव खुळे', loan: 0, inst: 0, loanHafta: 0, interest: 0, fund: 1000, total: 1000 },
-  { name: 'होशीराम दत्तू गाडे', loan: 50000, inst: 7, loanHafta: 5000, interest: 200, fund: 1000, total: 6200 },
-  { name: 'संजय दत्तू गाडे', loan: 0, inst: 0, loanHafta: 0, interest: 0, fund: 1000, total: 1000 },
-  { name: 'संतोष दत्तू गाडे', loan: 50000, inst: 3, loanHafta: 5000, interest: 400, fund: 1000, total: 6400 },
-  { name: 'शिव पूजा', loan: 150000, inst: 2, loanHafta: 15000, interest: 1350, fund: 1000, total: 17350 },
-  { name: 'यश बाळासाहेब पर्वत', loan: 0, inst: 0, loanHafta: 0, interest: 0, fund: 1000, total: 1000 },
-];
 
 const Reports = () => {
   const currentDate = new Date();
@@ -80,21 +56,20 @@ const Reports = () => {
   const registerRows = React.useMemo(() => {
     if (monthlyData && monthlyData.collections && monthlyData.collections.length > 0) {
       return monthlyData.collections.map((m, idx) => {
-        const fallback = DEFAULT_PHOTO_REGISTER[idx] || {};
-        const originalLoan = m.originalLoan !== undefined && m.originalLoan > 0 ? m.originalLoan : (fallback.loan || 0);
-        const inst = m.installmentNumber !== undefined && m.installmentNumber > 0 ? m.installmentNumber : (fallback.inst || 0);
-        const loanHafta = m.loanHafta !== undefined && m.loanHafta > 0 ? m.loanHafta : (fallback.loanHafta || 0);
-        const interest = m.interestAmount !== undefined && m.interestAmount > 0 ? m.interestAmount : (fallback.interest || 0);
-        const fund = m.fundAmount !== undefined && m.fundAmount > 0 ? m.fundAmount : (fallback.fund || 1000);
-        const total = m.totalDemand !== undefined && m.totalDemand > 0 ? m.totalDemand : (fallback.total || (loanHafta + interest + fund));
+        const originalLoan = (m.loan !== undefined && m.loan !== null) ? Number(m.loan) : 0;
+        const inst = (m.inst !== undefined && m.inst !== null) ? Number(m.inst) : 0;
+        const loanHafta = (m.loanHafta !== undefined && m.loanHafta !== null) ? Number(m.loanHafta) : 0;
+        const interest = (m.interest !== undefined && m.interest !== null) ? Number(m.interest) : 0;
+        const fund = (m.fund !== undefined && m.fund !== null) ? Number(m.fund) : 1000;
+        const total = (m.total !== undefined && m.total !== null) ? Number(m.total) : (loanHafta + interest + fund);
 
         return {
           id: m.id || m.memberId || m.member_id || `member_${idx + 1}`,
           memberId: m.id || m.memberId || m.member_id || `member_${idx + 1}`,
-          memberCode: m.memberCode || m.member_code || `M-130-${String(idx + 1).padStart(2, '0')}`,
+          memberCode: m.memberCode || m.member_code || `TM-${String(idx + 1).padStart(3, '0')}`,
           phone: m.phone || '',
-          name: m.memberName || m.member_name || fallback.name || `Member ${idx + 1}`,
-          memberName: m.memberName || m.member_name || fallback.name || `Member ${idx + 1}`,
+          name: m.memberName || m.member_name || m.name || `Member ${idx + 1}`,
+          memberName: m.memberName || m.member_name || m.name || `Member ${idx + 1}`,
           loan: originalLoan,
           inst,
           loanHafta,
@@ -105,15 +80,7 @@ const Reports = () => {
         };
       });
     }
-    return DEFAULT_PHOTO_REGISTER.map((f, idx) => ({
-      ...f,
-      id: `photo_mem_${idx + 1}`,
-      memberId: `photo_mem_${idx + 1}`,
-      memberCode: `M-130-${String(idx + 1).padStart(2, '0')}`,
-      memberName: f.name,
-      phone: '',
-      status: f.loan > 0 ? 'ACTIVE_LOAN' : 'REGULAR',
-    }));
+    return [];
   }, [monthlyData]);
 
   const registerTotals = React.useMemo(() => {
@@ -133,13 +100,13 @@ const Reports = () => {
     try {
       setLoading(true);
       if (activeTab === 'monthly') {
-        const res = await reportService.getMonthlyReport(selectedMonth, selectedYear);
+        const res = await reportService.getMonthlyReport(selectedMonth, selectedYear, DEFAULT_GROUP_ID);
         if (res.success) setMonthlyData(res);
       } else if (activeTab === 'pending') {
-        const res = await reportService.getPendingDuesReport(selectedMonth, selectedYear, search);
+        const res = await reportService.getPendingDuesReport(selectedMonth, selectedYear, search, DEFAULT_GROUP_ID);
         if (res.success) setPendingData(res);
       } else if (activeTab === 'loans') {
-        const res = await reportService.getLoansOverviewReport();
+        const res = await reportService.getLoansOverviewReport(DEFAULT_GROUP_ID);
         if (res.success) setLoansData(res);
       }
     } catch (err) {
@@ -217,11 +184,12 @@ const Reports = () => {
         LoanNumber: l.loan_number || l.loanNumber,
         Member: l.member_name || l.memberName,
         Code: l.member_code || l.memberCode,
-        OriginalLoan: l.principal_amount || l.principalAmount,
-        InterestRate: l.interest_rate || l.interestRate,
-        PrincipalPaid: l.total_principal_paid,
-        InterestPaid: l.total_interest_paid,
-        Outstanding: l.outstanding_amount || l.outstandingAmount,
+        OriginalPrincipal: l.originalPrincipal ?? l.principal_amount ?? l.principalAmount,
+        InterestRate: `${l.interest_rate || l.interestRate || 2}%`,
+        TotalPrincipalPaid: l.total_principal_paid ?? l.totalPrincipalPaid ?? 0,
+        TotalInterestPaid: l.total_interest_paid ?? l.totalInterestPaid ?? 0,
+        OutstandingPrincipal: l.outstanding_amount ?? l.outstandingAmount ?? l.pendingPrincipal ?? 0,
+        CurrentMonthlyInterest: Math.round(Number(l.outstanding_amount ?? l.outstandingAmount ?? l.pendingPrincipal ?? 0) * 0.02 * 100) / 100,
         Status: l.status,
       }));
       exportToCSV('Loans_Overview_Report', exportList);
@@ -248,7 +216,12 @@ const Reports = () => {
       {/* Header with Export & Print */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Financial Reports</h1>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0 }}>Financial Reports</h1>
+            <div data-testid="runtime-group-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(37, 99, 235, 0.1)', color: '#1D4ED8', padding: '3px 10px', borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.02em', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
+              Runtime Group ID: {DEFAULT_GROUP_ID}
+            </div>
+          </div>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
             Comprehensive accounting summaries, pending collections, and loan performance
           </p>
@@ -292,8 +265,17 @@ const Reports = () => {
         <button
           onClick={() => setActiveTab('loans')}
           className={`tab-btn ${activeTab === 'loans' ? 'active' : ''}`}
+          style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
         >
           <HandCoins size={18} /> Loans Overview
+        </button>
+
+        <button
+          onClick={() => setActiveTab('taaleband')}
+          className={`tab-btn ${activeTab === 'taaleband' ? 'active' : ''}`}
+          style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+        >
+          <FileBarChart2 size={18} /> Monthly Balance Report
         </button>
       </div>
 
@@ -310,31 +292,37 @@ const Reports = () => {
             gap: '14px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Select Period:</span>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))}
-              className="form-select"
-              style={{ width: '150px', fontSize: '0.85rem' }}
-            >
-              {months.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
-              className="form-select"
-              style={{ width: '110px', fontSize: '0.85rem' }}
-            >
-              <option value="2025">2025</option>
-              <option value="2026">2026</option>
-              <option value="2027">2027</option>
-            </select>
-          </div>
+          {/* Filters (Hidden for Taaleband) */}
+          {activeTab !== 'taaleband' && (
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }} className="no-print">
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Select Period:</span>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))}
+                className="form-select"
+                style={{ width: '150px', fontSize: '0.85rem' }}
+              >
+                {[
+                  'जानेवारी (January)', 'फेब्रुवारी (February)', 'मार्च (March)', 'एप्रिल (April)',
+                  'मे (May)', 'जून (June)', 'जुलै (July)', 'ऑगस्ट (August)',
+                  'सप्टेंबर (September)', 'ऑक्टोबर (October)', 'नोव्हेंबर (November)', 'डिसेंबर (December)'
+                ].map((m, i) => (
+                  <option key={i} value={i + 1}>{m}</option>
+                ))}
+              </select>
+
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+                className="form-select"
+                style={{ width: '100px', fontSize: '0.85rem' }}
+              >
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {activeTab === 'pending' && (
             <div style={{ position: 'relative', width: '260px' }}>
@@ -410,7 +398,7 @@ const Reports = () => {
                     display: table-row-group !important;
                   }
                   .register-print-area tfoot {
-                    display: table-footer-group !important;
+                    display: table-row-group !important;
                   }
                   .register-print-area tr {
                     display: table-row !important;
@@ -476,7 +464,7 @@ const Reports = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: '45px 1fr 110px', borderBottom: '1px solid #000', textAlign: 'center' }}>
                     <div style={{ borderRight: '1px solid #000', padding: '6px 4px', fontWeight: 800, fontSize: '1.1rem' }}>१</div>
                     <div style={{ padding: '6px 10px', fontWeight: 800, fontSize: '1.25rem' }}>
-                      श्री सद्बाबा युवा स्वयं सहाय्य बचतगट
+                      श्री सदुबाबा युवा स्वयम सहाय्य बचतगट
                     </div>
                     <div style={{ borderLeft: '1px solid #000', padding: '6px 4px', fontWeight: 700, fontSize: '0.95rem' }}>
                       क्र. 130
@@ -488,6 +476,55 @@ const Reports = () => {
                     </div>
                     <div style={{ borderLeft: '1px solid #000', padding: '6px 12px', textAlign: 'right', fontWeight: 700, fontSize: '0.95rem' }}>
                       तारीख - 20/{selectedMonth}/{selectedYear}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Authoritative Financial Reconciliation Banner (Included in Print View) */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(6, 1fr)',
+                  borderBottom: '1.5px solid #000',
+                  background: '#f8fafc',
+                  padding: '6px 4px',
+                  textAlign: 'center',
+                  fontSize: '0.8rem',
+                  color: '#000'
+                }}>
+                  <div style={{ borderRight: '1px solid #ddd', padding: '0 4px' }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>एकूण बचत</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+                      ₹{formatNumber(monthlyData?.summary?.totalSavings || 0)}
+                    </div>
+                  </div>
+                  <div style={{ borderRight: '1px solid #ddd', padding: '0 4px' }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#15803d' }}>जमा व्याज</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
+                      ₹{formatNumber(monthlyData?.summary?.totalInterestPaid || 0)}
+                    </div>
+                  </div>
+                  <div style={{ borderRight: '1px solid #ddd', padding: '0 4px' }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#b45309' }}>चालू व्याज</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#b45309', marginTop: '2px' }}>
+                      ₹{formatNumber(monthlyData?.summary?.currentMonthlyInterest || 0)}
+                    </div>
+                  </div>
+                  <div style={{ borderRight: '1px solid #ddd', padding: '0 4px' }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#dc2626' }}>शिल्लक मुद्दल</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#dc2626', marginTop: '2px' }}>
+                      ₹{formatNumber(monthlyData?.summary?.outstandingPrincipal || 0)}
+                    </div>
+                  </div>
+                  <div style={{ borderRight: '1px solid #ddd', padding: '0 4px' }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>एकूण गट निधी</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
+                      ₹{formatNumber(monthlyData?.summary?.totalGroupFund || 0)}
+                    </div>
+                  </div>
+                  <div style={{ padding: '0 4px' }}>
+                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#1d4ed8' }}>उपलब्ध शिल्लक</div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1d4ed8', marginTop: '2px' }}>
+                      ₹{formatNumber(monthlyData?.summary?.availableBalance || 0)}
                     </div>
                   </div>
                 </div>
@@ -559,19 +596,23 @@ const Reports = () => {
                 {monthlyData && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
                     <div className="card" style={{ padding: '18px' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL SAVINGS (MONTH)</span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL SAVINGS</span>
                       <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
-                        {formatCurrency(monthlyData.summary?.monthSavings ?? monthlyData.summary?.totalSavingsCollected)}
+                        {formatCurrency(monthlyData.summary?.totalSavings ?? monthlyData.summary?.totalSavingsCollected)}
                       </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Collected in {months.find(m => m.value === selectedMonth)?.label}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Cumulative member savings only
+                      </span>
                     </div>
 
                     <div className="card" style={{ padding: '18px' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL INTEREST (MONTH)</span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL INTEREST PAID</span>
                       <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
-                        {formatCurrency(monthlyData.summary?.monthInterest ?? monthlyData.summary?.totalInterestCollected)}
+                        {formatCurrency(monthlyData.summary?.totalInterestPaid ?? monthlyData.summary?.totalInterestCollected)}
                       </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>From loan repayments</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Current Monthly Interest: {formatCurrency(monthlyData.summary?.currentMonthlyInterest ?? 0)}
+                      </span>
                     </div>
 
                     <div className="card" style={{ padding: '18px' }}>
@@ -579,15 +620,19 @@ const Reports = () => {
                       <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--danger-text)', marginTop: '4px' }}>
                         {formatCurrency(monthlyData.summary?.outstandingPrincipal)}
                       </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Active loan balance</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Current Monthly Interest @ 2%: {formatCurrency(monthlyData.summary?.currentMonthlyInterest ?? 0)}
+                      </span>
                     </div>
 
                     <div className="card" style={{ padding: '18px', borderColor: 'var(--success)', background: 'linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%)' }}>
                       <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>AVAILABLE GROUP BALANCE</span>
                       <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
-                        {formatCurrency(monthlyData.summary?.availableGroupBalance)}
+                        {formatCurrency(Math.max(0, Number(monthlyData.summary?.availableBalance ?? monthlyData.summary?.availableGroupBalance ?? 0)))}
                       </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Net liquid cash in fund</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Total Group Fund: {formatCurrency(monthlyData.summary?.totalGroupFund ?? 0)}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -906,37 +951,45 @@ const Reports = () => {
           {activeTab === 'loans' && loansData && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* Summary Strip */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                 <div className="card" style={{ padding: '18px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL DISBURSED</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL LOAN PRINCIPAL</span>
                   <div style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '4px' }}>
                     {formatCurrency(loansData.summary?.totalPrincipalDisbursed)}
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Across {formatNumber(loansData.summary?.totalLoans ?? loansData.summary?.totalLoansCount)} loan(s)</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Disbursed across {formatNumber(loansData.summary?.totalLoansCount || loansData.summary?.totalLoans)} loan(s)</span>
                 </div>
 
                 <div className="card" style={{ padding: '18px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>PRINCIPAL COLLECTED</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL PRINCIPAL REPAID</span>
                   <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
                     {formatCurrency(loansData.summary?.totalPrincipalCollected ?? loansData.summary?.totalPrincipalRecovered)}
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Recovered principal</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Recovered loan principal</span>
                 </div>
 
                 <div className="card" style={{ padding: '18px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>INTEREST EARNED</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL INTEREST PAID</span>
                   <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
-                    {formatCurrency(loansData.summary?.totalInterestCollected ?? loansData.summary?.totalInterestEarned)}
+                    {formatCurrency(loansData.summary?.totalInterestPaid ?? loansData.summary?.totalInterestCollected)}
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Cumulative interest</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Cumulative interest collected</span>
                 </div>
 
                 <div className="card" style={{ padding: '18px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>REMAINING OUTSTANDING</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>OUTSTANDING PRINCIPAL</span>
                   <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--danger-text)', marginTop: '4px' }}>
                     {formatCurrency(loansData.summary?.totalOutstanding)}
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Active loan balance</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Current pending principal</span>
+                </div>
+
+                <div className="card" style={{ padding: '18px' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>CURRENT MONTHLY INTEREST</span>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--warning-text, #b45309)', marginTop: '4px' }}>
+                    {formatCurrency(loansData.summary?.currentMonthlyInterest)}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Outstanding principal × 2%</span>
                 </div>
               </div>
 
@@ -1031,6 +1084,14 @@ const Reports = () => {
                 )}
               </div>
             </div>
+          )}
+
+          {/* TAB 4: MONTHLY BALANCE REPORT */}
+          {activeTab === 'taaleband' && (
+            <NewMonthWiseBachatGatTaalebandReport
+              selectedMonth={selectedMonth}
+              selectedYear={selectedYear}
+            />
           )}
         </>
       )}

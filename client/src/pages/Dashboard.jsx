@@ -5,7 +5,7 @@ import { dashboardService } from '../services/dashboardService';
 import StatCard from '../components/common/StatCard';
 import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
-import { formatCurrency, formatNumber, formatDate, formatMonthYear, formatPercentage } from '../utils/formatters';
+import { formatCurrency, formatNumber, formatDate, formatMonthYear, formatPercentage, DEFAULT_GROUP_ID } from '../utils/formatters';
 import {
   Wallet,
   PiggyBank,
@@ -42,11 +42,15 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      const targetGroupId = DEFAULT_GROUP_ID;
       const memberLookupId = user?.memberId || user?.uid || '';
+
+      console.log(`[Dashboard] Fetching data for group: ${targetGroupId}`);
+
       const [sumRes, progRes, actRes] = await Promise.allSettled([
-        dashboardService.getSummary('shivshahi_group_001', memberLookupId),
-        dashboardService.getMonthlyProgress(selectedMonth, selectedYear, 'shivshahi_group_001'),
-        dashboardService.getRecentActivities(8, 'shivshahi_group_001'),
+        dashboardService.getSummary(targetGroupId, memberLookupId),
+        dashboardService.getMonthlyProgress(selectedMonth, selectedYear, targetGroupId),
+        dashboardService.getRecentActivities(8, targetGroupId),
       ]);
 
       if (sumRes.status === 'fulfilled' && sumRes.value?.success) {
@@ -67,21 +71,26 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    if (!loading && !user) {
+      return;
+    }
+
     fetchDashboardData();
 
-    // Set up real-time listener for instant sync with Flutter Mobile app
+    // Set up real-time listener
+    const targetGroupId = DEFAULT_GROUP_ID;
     const memberLookupId = user?.memberId || user?.uid || '';
-    const unsubscribe = dashboardService.subscribeToDashboard('shivshahi_group_001', memberLookupId, (liveData) => {
+    const unsubscribe = dashboardService.subscribeToDashboard(targetGroupId, memberLookupId, (liveData) => {
       if (liveData?.summary) {
         setSummary(liveData.summary);
         if (liveData.memberSummary) setMemberSummary(liveData.memberSummary);
       }
-      dashboardService.getMonthlyProgress(selectedMonth, selectedYear, 'shivshahi_group_001').then((pRes) => {
+      dashboardService.getMonthlyProgress(selectedMonth, selectedYear, targetGroupId).then((pRes) => {
         if (pRes?.success && pRes.progress) {
           setProgress(pRes.progress);
         }
       });
-      dashboardService.getRecentActivities(8, 'shivshahi_group_001').then((aRes) => {
+      dashboardService.getRecentActivities(8, targetGroupId).then((aRes) => {
         if (aRes?.success && aRes.activities) {
           setActivities(aRes.activities);
         }
@@ -112,21 +121,23 @@ const Dashboard = () => {
     return <Loader text="Loading group financial metrics..." />;
   }
 
-  const safeTotalGroupFund = summary?.totalGroupFund ?? 0;
-  const safeTotalSavings = summary?.totalSavings ?? 0;
-  const safeActiveLoans = summary?.activeLoans ?? 0;
-  const safeActiveLoansCount = summary?.activeLoansCount ?? 0;
-  const safeTotalInterest = summary?.totalInterest ?? 0;
-  const safeAvailableBalance = summary?.availableBalance ?? 0;
+  const safeTotalGroupFund = summary?.totalGroupFund || summary?.totalFund || 0;
+  const safeTotalSavings = summary?.totalSavings || summary?.total_savings || 0;
+  const safeActiveLoans = summary?.activeLoans || summary?.active_loans || 0;
+  const safeActiveLoansCount = summary?.activeLoansCount || summary?.active_loans_count || 0;
+  const safeTotalInterestPaid = summary?.totalInterestPaid ?? summary?.totalInterestCollected ?? summary?.total_interest_paid ?? summary?.totalInterest ?? 0;
+  const safeCurrentMonthlyInterest = summary?.currentMonthlyInterest ?? summary?.current_monthly_interest ?? Math.round(safeActiveLoans * 0.02 * 100) / 100;
+  const safeTotalInterest = safeTotalInterestPaid;
+  const safeAvailableBalance = Math.max(0, Number(summary?.availableBalance ?? summary?.available_balance ?? 0));
   const pendingCount = progress?.pendingMembersCount !== undefined
-    ? progress.pendingMembersCount
+    ? Number(progress.pendingMembersCount)
     : (Array.isArray(progress?.pendingMembers) ? progress.pendingMembers.length : 0);
-  const paidCount = progress?.paidMembers !== undefined
-    ? progress.paidMembers
-    : (progress?.membersPaid || 0);
+  const paidCount = progress?.paidMembersCount !== undefined
+    ? Number(progress.paidMembersCount)
+    : (Array.isArray(progress?.paidMembers) ? progress.paidMembers.length : (Number(progress?.membersPaid) || 0));
   const totalCount = progress?.totalMembers !== undefined
-    ? progress.totalMembers
-    : (progress?.totalActiveMembers || 368);
+    ? Number(progress.totalMembers)
+    : (progress?.totalActiveMembers !== undefined ? Number(progress.totalActiveMembers) : 43);
   const expectedPendingAmount = progress?.expectedPending ?? progress?.expectedPendingAmount ?? (pendingCount * (progress?.monthlyShare || 1000));
 
   const openPendingReport = () => {
@@ -157,14 +168,19 @@ const Dashboard = () => {
         }}
       >
         <div>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 255, 255, 0.2)', padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', marginBottom: '8px' }}>
-            <ShieldCheck size={14} /> {(groupName || user?.groupName || summary?.groupName || 'BACHAT GAT').toUpperCase()}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 255, 255, 0.2)', padding: '4px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em' }}>
+              <ShieldCheck size={14} /> {(groupName || user?.groupName || summary?.groupName || 'BACHAT GAT').toUpperCase()}
+            </div>
+            <div data-testid="runtime-group-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(0, 0, 0, 0.3)', padding: '4px 10px', borderRadius: 'var(--radius-full)', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.02em', border: '1px solid rgba(255,255,255,0.3)' }}>
+              Runtime Group ID: {DEFAULT_GROUP_ID}
+            </div>
           </div>
           <h1 style={{ color: '#FFFFFF', fontSize: '2.25rem', fontWeight: 800, marginBottom: '4px' }}>
             {formatCurrency(safeTotalGroupFund)}
           </h1>
           <p style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.95rem' }}>
-            Total Group Fund (Member Contributions {formatCurrency(safeTotalSavings)} + Earned Interest {formatCurrency(safeTotalInterest)})
+            Total Group Fund = Available Balance ({formatCurrency(safeAvailableBalance)}) + Active Loan Outstanding ({formatCurrency(safeActiveLoans)})
           </p>
         </div>
 
@@ -203,42 +219,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Member Personal Summary Panel (if logged in as Member) */}
-      {isMember && memberSummary && (
-        <div
-          className="card"
-          style={{
-            background: 'linear-gradient(135deg, #FFF5F8 0%, #FFFFFF 100%)',
-            borderColor: 'var(--primary-light)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <PiggyBank size={20} color="var(--primary)" />
-            <h2 style={{ fontSize: '1.15rem', color: 'var(--primary)' }}>My Personal Portfolio</h2>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>My Total Savings</span>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--success-text)' }}>
-                {formatCurrency(memberSummary.mySavings)}
-              </div>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Active Loan Dues</span>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: (memberSummary.myLoanOutstanding > 0) ? 'var(--danger-text)' : 'var(--text-primary)' }}>
-                {formatCurrency(memberSummary.myLoanOutstanding)}
-              </div>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Interest Paid</span>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary)' }}>
-                {formatCurrency(memberSummary.myInterestPaid)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 4 Financial Metric Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
         <StatCard
@@ -246,7 +226,7 @@ const Dashboard = () => {
           value={formatCurrency(safeTotalSavings)}
           subtitle="Cumulative member savings"
           icon={PiggyBank}
-          colorScheme="pink"
+          colorScheme="saffron"
         />
         <StatCard
           title="Active Loans"
@@ -257,8 +237,8 @@ const Dashboard = () => {
         />
         <StatCard
           title="Total Interest"
-          value={formatCurrency(safeTotalInterest)}
-          subtitle="Revenue generated from loans"
+          value={formatCurrency(safeTotalInterestPaid)}
+          subtitle={safeCurrentMonthlyInterest > 0 ? `Current Monthly Interest: ${formatCurrency(safeCurrentMonthlyInterest)}` : 'Total interest collected from loans'}
           icon={TrendingUp}
           colorScheme="purple"
         />
@@ -477,7 +457,7 @@ const Dashboard = () => {
 
                 {/* Pending Collections or All Paid State */}
                 {pendingCount > 0 ? (
-                  <div style={{ marginTop: '18px', background: '#FFF5F8', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(194, 24, 91, 0.15)' }}>
+                  <div style={{ marginTop: '18px', background: 'var(--accent-soft)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--accent-border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
                         <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: '#FFFFFF', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(239, 68, 68, 0.18)' }}>

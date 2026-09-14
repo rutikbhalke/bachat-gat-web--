@@ -501,6 +501,7 @@ const MemberHistoryModal = ({ isOpen, onClose, member }) => {
                       <table className="custom-table">
                         <thead>
                           <tr>
+                            <th>Scheduled Period</th>
                             <th>Receipt Date</th>
                             <th>Principal Paid</th>
                             <th>Interest Paid (2%)</th>
@@ -511,13 +512,17 @@ const MemberHistoryModal = ({ isOpen, onClose, member }) => {
                         <tbody>
                           {repaymentsList.map((r, idx) => (
                             <tr key={r.id || idx}>
-                              <td style={{ fontWeight: 700 }}>{r.paymentDate ? formatDate(r.paymentDate) : `${r.month}/${r.year}`}</td>
-                              <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{formatCurrency(r.loanPrincipalPaid || 0)}</td>
+                              <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                                {formatMonthYear(r.payment_month || r.paymentMonth || r.month, r.payment_year || r.paymentYear || r.year)}
+                                {(r.installmentNumber || r.installment_number) && ` (Inst #${r.installmentNumber || r.installment_number})`}
+                              </td>
+                              <td>{r.paymentDate || r.payment_date ? formatDate(r.paymentDate || r.payment_date) : '—'}</td>
+                              <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(r.loanPrincipalPaid || r.principalAmount || 0)}</td>
                               <td style={{ fontWeight: 600, color: '#D97706' }}>{formatCurrency(r.interestAmount || 0)}</td>
                               <td style={{ fontWeight: 800, color: 'var(--success-text)' }}>
-                                {formatCurrency((r.loanPrincipalPaid || 0) + (r.interestAmount || 0))}
+                                {formatCurrency((Number(r.loanPrincipalPaid || r.principalAmount || 0)) + (Number(r.interestAmount || 0)))}
                               </td>
-                              <td><span className="badge badge-info">{r.paymentMode || 'UPI'}</span></td>
+                              <td><span className="badge badge-info">{r.paymentMode || r.payment_mode || 'UPI'}</span></td>
                             </tr>
                           ))}
                         </tbody>
@@ -766,6 +771,7 @@ const MemberHistoryModal = ({ isOpen, onClose, member }) => {
               <thead>
                 <tr style={{ background: '#F1F5F9', borderBottom: '1px solid #000' }}>
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'center', width: '35px' }}>अ.क्र.</th>
+                  <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'center' }}>नियोजित हप्ता महिना</th>
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'center' }}>पावती दिनांक</th>
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'right' }}>परतफेड मुद्दल</th>
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'right' }}>जमा व्याज (२%)</th>
@@ -778,17 +784,22 @@ const MemberHistoryModal = ({ isOpen, onClose, member }) => {
                   repaymentsList.map((r, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #ddd' }}>
                       <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'center' }}>{toDevanagariDigits(idx + 1)}</td>
-                      <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'center' }}>{r.paymentDate ? formatDate(r.paymentDate) : `${r.month}/${r.year}`}</td>
-                      <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(r.loanPrincipalPaid || 0)}</td>
+                      <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'center', fontWeight: 700 }}>
+                        {r.payment_month || r.paymentMonth || r.month}/{r.payment_year || r.paymentYear || r.year}
+                        {(r.installmentNumber || r.installment_number) && ` (हप्ता #${r.installmentNumber || r.installment_number})`}
+                      </td>
+                      <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'center' }}>{r.paymentDate || r.payment_date ? formatDate(r.paymentDate || r.payment_date) : '—'}</td>
+                      <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(r.loanPrincipalPaid || r.principalAmount || 0)}</td>
                       <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(r.interestAmount || 0)}</td>
-                      <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'right', fontWeight: 800 }}>{formatCurrency((r.loanPrincipalPaid || 0) + (r.interestAmount || 0))}</td>
-                      <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.paymentMode || 'UPI'}</td>
+                      <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'right', fontWeight: 800 }}>{formatCurrency((Number(r.loanPrincipalPaid || r.principalAmount || 0)) + (Number(r.interestAmount || 0)))}</td>
+                      <td style={{ padding: '4px 6px', textAlign: 'center' }}>{r.paymentMode || r.payment_mode || 'UPI'}</td>
                     </tr>
                   ))
                 ) : (
                   <tr style={{ borderBottom: '1px solid #ddd' }}>
                     <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'center' }}>१</td>
-                    <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'center' }}>चालू हप्ता क्र. #{member.inst || 1}</td>
+                    <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'center', fontWeight: 700 }}>चालू हप्ता क्र. #{member.inst || 1}</td>
+                    <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'center' }}>२० तारीख</td>
                     <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(member.loanHafta || 0)}</td>
                     <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(member.interest || 0)}</td>
                     <td style={{ padding: '4px 6px', borderRight: '1px solid #ddd', textAlign: 'right', fontWeight: 800 }}>{formatCurrency((member.loanHafta || 0) + (member.interest || 0))}</td>

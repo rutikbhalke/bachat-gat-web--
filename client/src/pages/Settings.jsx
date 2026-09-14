@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePopup } from '../context/PopupContext';
 import { groupService } from '../services/dashboardService';
 import { authService } from '../services/authService';
 import Loader from '../components/common/Loader';
@@ -17,6 +18,7 @@ import {
 
 const Settings = () => {
   const { user, refreshUser, updateGroupName, isAdmin } = useAuth();
+  const { showError, askConfirm, showSuccess } = usePopup();
   const outletContext = useOutletContext();
   const triggerRefresh = outletContext?.triggerRefresh;
   const [loading, setLoading] = useState(true);
@@ -78,6 +80,26 @@ const Settings = () => {
 
   const handleGroupSubmit = async (e) => {
     e.preventDefault();
+    if (!groupData.group_name.trim()) {
+      showError({
+        title: 'Validation Error',
+        message: 'Group name cannot be empty.',
+      });
+      return;
+    }
+
+    const confirmed = await askConfirm({
+      title: 'Confirm Group Settings Update',
+      message: 'Are you sure you want to update group settings?',
+      details: [
+        { label: 'Group Name', value: groupData.group_name },
+        { label: 'Monthly Share', value: `₹${groupData.monthly_contribution_per_share}` },
+      ],
+      confirmText: 'Save Settings',
+      confirmVariant: 'primary',
+    });
+    if (!confirmed) return;
+
     try {
       setSaving(true);
       setMessage({ type: '', text: '' });
@@ -94,9 +116,17 @@ const Settings = () => {
         }
         await refreshUser();
         if (triggerRefresh) triggerRefresh();
+        showSuccess({
+          title: 'Settings Saved',
+          message: 'Group settings updated successfully!',
+        });
         setMessage({ type: 'success', text: 'Group settings updated successfully!' });
       }
     } catch (err) {
+      showError({
+        title: 'Update Failed',
+        error: err,
+      });
       setMessage({ type: 'error', text: err.response?.data?.message || 'Failed to update group settings.' });
     } finally {
       setSaving(false);
@@ -105,6 +135,26 @@ const Settings = () => {
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
+    if (!profileData.name.trim()) {
+      showError({
+        title: 'Validation Error',
+        message: 'Name cannot be empty.',
+      });
+      return;
+    }
+
+    const confirmed = await askConfirm({
+      title: 'Confirm Profile Update',
+      message: 'Are you sure you want to save your profile changes?',
+      details: [
+        { label: 'Name', value: profileData.name },
+        { label: 'Phone', value: profileData.phone || 'None' },
+      ],
+      confirmText: 'Update Profile',
+      confirmVariant: 'primary',
+    });
+    if (!confirmed) return;
+
     try {
       setSaving(true);
       setMessage({ type: '', text: '' });
@@ -119,11 +169,19 @@ const Settings = () => {
 
       const res = await authService.updateProfile(payload);
       if (res.success) {
+        showSuccess({
+          title: 'Profile Updated',
+          message: res.message || 'Profile updated successfully!',
+        });
         setMessage({ type: 'success', text: res.message || 'Profile updated successfully!' });
         setProfileData((prev) => ({ ...prev, currentPassword: '', newPassword: '' }));
         await refreshUser();
       }
     } catch (err) {
+      showError({
+        title: 'Profile Update Failed',
+        error: err,
+      });
       setMessage({ type: 'error', text: err.response?.data?.message || err.message || 'Failed to update profile.' });
     } finally {
       setSaving(false);

@@ -8,3 +8,13 @@ server/.env
 **/firebase-adminsdk*.json
 .env.local
 **/.env.local
+playwright-report/
+**/playwright-report/
+test-results/
+**/test-results/
+scratch/
+*.json.log
+e2e_results.json
+edge_case_results.json
+*.png
+

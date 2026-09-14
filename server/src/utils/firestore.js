@@ -11,18 +11,28 @@ function serialize(snapshot) {
 }
 
 async function getCollection(name, groupId = DEFAULT_GROUP_ID) {
-  const snapshot = await db.collection(name).get();
-  return snapshot.docs
-    .map(serialize)
-    .filter((item) => !groupId || !item.groupId || item.groupId === groupId);
+  try {
+    const snapshot = await db.collection(name).get();
+    const items = snapshot.docs.map(serialize);
+    const filtered = items.filter((item) => !groupId || !item.groupId || item.groupId === groupId);
+    console.log(`[Firestore] Fetched ${items.length} items from '${name}', filtered to ${filtered.length} for group '${groupId}'`);
+    return filtered;
+  } catch (err) {
+    console.error(`[Firestore] Error fetching collection '${name}':`, err.message);
+    return [];
+  }
 }
 
 async function writeActivity(groupId, userId, action, description) {
-  await db.collection('activity_logs').add({
+  await db.collection('transactions').add({
     groupId: groupId || DEFAULT_GROUP_ID,
     userId: userId || null,
+    memberId: userId || null,
     action,
+    type: 'activity',
     description,
+    message: description,
+    date: new Date().toISOString(),
     createdAt: new Date().toISOString(),
   });
 }

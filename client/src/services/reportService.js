@@ -1,360 +1,617 @@
-import {
-  collection,
-  getDocs,
-  doc,
-  getDoc,
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
-import { groupQuery } from './dataContract';
-import { groupService } from './groupService';
-import {
-  normalizeSavings,
-  normalizeLoan,
-  normalizeMember,
-  DEFAULT_GROUP_ID,
-} from '../utils/formatters';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { db } from '../config/firebase.js';
+import { groupQuery } from './dataContract.js';
+import { groupService } from './groupService.js';
+import { DEFAULT_GROUP_ID, normalizeMember, normalizeLoan, normalizeSavings } from '../utils/formatters.js';
+import { calculateLoanOutstanding, calculateGroupFinancialSummary } from './financialService.js';
+
+const number = (item) => Number(item) || 0;
+
+export const DEFAULT_TAALEBAND_ROWS = [];
+
+export const normalizeToYYYYMMDD = (val, defaultVal = '') => {
+  if (!val) return defaultVal;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    const matchYMD = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (matchYMD) {
+      return `${matchYMD[1]}-${String(matchYMD[2]).padStart(2, '0')}-${String(matchYMD[3]).padStart(2, '0')}`;
+    }
+    const matchDMY = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (matchDMY) {
+      return `${matchDMY[3]}-${String(matchDMY[2]).padStart(2, '0')}-${String(matchDMY[1]).padStart(2, '0')}`;
+    }
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+  }
+  if (val instanceof Date) {
+    return `${val.getFullYear()}-${String(val.getMonth() + 1).padStart(2, '0')}-${String(val.getDate()).padStart(2, '0')}`;
+  }
+  if (val.seconds) {
+    const d = new Date(val.seconds * 1000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  return defaultVal;
+};
+
+export const resolveRecordDateString = (rec, defaultDay = 10) => {
+  const rawDate = rec.paymentDate || rec.payment_date || rec.loanDate || rec.issueDate || rec.date || rec.createdAt;
+  const recMonth = Number(rec.paymentMonth || rec.payment_month || rec.month);
+  const recYear = Number(rec.paymentYear || rec.payment_year || rec.year);
+
+  let parsedDay = null;
+  let parsedMonth = null;
+  let parsedYear = null;
+
+  if (rawDate) {
+    if (typeof rawDate === 'string') {
+      const trimmed = rawDate.trim();
+      const matchYMD = trimmed.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+      if (matchYMD) {
+        parsedYear = parseInt(matchYMD[1], 10);
+        parsedMonth = parseInt(matchYMD[2], 10);
+        parsedDay = parseInt(matchYMD[3], 10);
+      } else {
+        const matchDMY = trimmed.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+        if (matchDMY) {
+          parsedYear = parseInt(matchDMY[3], 10);
+          parsedMonth = parseInt(matchDMY[2], 10);
+          parsedDay = parseInt(matchDMY[1], 10);
+        } else {
+          const d = new Date(rawDate);
+          if (!isNaN(d.getTime())) {
+            parsedYear = d.getFullYear();
+            parsedMonth = d.getMonth() + 1;
+            parsedDay = d.getDate();
+          }
+        }
+      }
+    } else if (rawDate.seconds) {
+      const d = new Date(rawDate.seconds * 1000);
+      parsedYear = d.getFullYear();
+      parsedMonth = d.getMonth() + 1;
+      parsedDay = d.getDate();
+    } else if (rawDate instanceof Date) {
+      parsedYear = rawDate.getFullYear();
+      parsedMonth = rawDate.getMonth() + 1;
+      parsedDay = rawDate.getDate();
+    }
+  }
+
+  const finalYear = parsedYear || recYear || new Date().getFullYear();
+  const finalMonth = parsedMonth || recMonth || 1;
+  const finalDay = parsedDay || defaultDay;
+
+  return `${finalYear}-${String(finalMonth).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
+};
+
+export const parseFirestoreDate = (dateVal, fallbackMonth, fallbackYear) => {
+  if (!dateVal) {
+    if (fallbackMonth && fallbackYear) {
+      return new Date(Number(fallbackYear), Number(fallbackMonth) - 1, 15);
+    }
+    return null;
+  }
+  if (typeof dateVal.toDate === 'function') {
+    return dateVal.toDate();
+  }
+  if (dateVal.seconds) {
+    return new Date(dateVal.seconds * 1000);
+  }
+  if (dateVal instanceof Date) {
+    return dateVal;
+  }
+  if (typeof dateVal === 'string') {
+    const ymd = dateVal.trim().split('-');
+    if (ymd.length === 3 && ymd[0].length === 4) {
+      return new Date(parseInt(ymd[0], 10), parseInt(ymd[1], 10) - 1, parseInt(ymd[2], 10), 12, 0, 0);
+    }
+    const d = new Date(dateVal);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (fallbackMonth && fallbackYear) {
+    return new Date(Number(fallbackYear), Number(fallbackMonth) - 1, 15);
+  }
+  return null;
+};
+
 
 export const reportService = {
   /**
-   * Monthly Financial and Member Collection Report
+   * Helper to fetch shared baseline data directly from Firestore
+   */
+  _getBaselineData: async (groupId) => {
+    const targetGroupId = groupId || DEFAULT_GROUP_ID;
+    const [contributionsSnap, loansSnap, membersSnap, repaymentsSnap, groupRes] = await Promise.all([
+      getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
+      getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
+      getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
+      getDocs(groupQuery('repayments', targetGroupId)).catch(() => ({ docs: [] })),
+      groupService.getGroupDetails(targetGroupId).catch(() => ({ group: {} })),
+    ]);
+
+    const members = membersSnap.docs.map(d => normalizeMember(d.id, d.data()));
+    const activeMembers = members
+      .filter(m => m.isActive !== false && (m.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && (m.id.startsWith('member_') || m.id.startsWith('test_mem_') || m.memberCode?.startsWith('M-130-') || m.memberCode?.startsWith('TM-') || ((m.role || '').toUpperCase() !== 'ADMIN' && !m.email?.includes('admin'))))
+      .sort((a, b) => (a.memberCode || a.id).localeCompare(b.memberCode || b.id, undefined, { numeric: true }));
+    const loans = loansSnap.docs.map(d => normalizeLoan(d.id, d.data()));
+    const contributions = contributionsSnap.docs.map(d => normalizeSavings(d.id, d.data()));
+    const repayments = repaymentsSnap.docs.map(d => {
+      const data = d.data();
+      const pDate = data.paymentDate || data.payment_date || data.createdAt || data.date;
+      let pMonth = Number(data.paymentMonth || data.payment_month || data.month || 0);
+      let pYear = Number(data.paymentYear || data.payment_year || data.year || 0);
+      if ((!pMonth || !pYear) && pDate) {
+        const dObj = parseFirestoreDate(pDate);
+        if (dObj) {
+          pMonth = pMonth || (dObj.getMonth() + 1);
+          pYear = pYear || dObj.getFullYear();
+        }
+      }
+      return {
+        id: d.id,
+        ...data,
+        paymentMonth: pMonth,
+        payment_month: pMonth,
+        month: pMonth,
+        paymentYear: pYear,
+        payment_year: pYear,
+        year: pYear,
+        principalPaid: Number(data.principalAmount || data.principal_amount || data.principalRepaid || data.loanPrincipalPaid || data.loan_principal_paid || 0),
+        interestPaid: Number(data.interestAmount || data.interest_amount || data.interestPaid || data.interest_paid || data.interest || 0),
+        regularHaptaPaid: Number(data.regularHaftaAmount || data.regular_hafta_amount || data.regularContribution || data.regular_contribution || 0),
+        installmentNumber: Number(data.installmentNumber || 0),
+        paymentDate: pDate,
+        payment_date: pDate,
+      };
+    });
+
+    const membersMap = {};
+    members.forEach(m => { membersMap[m.id] = m; });
+
+    return { members, activeMembers, loans, contributions, repayments, group: groupRes.group || {}, membersMap };
+  },
+
+  /**
+   * Month-wise Financial Report (Calculated on Frontend)
    */
   getMonthlyReport: async (month, year, groupId = DEFAULT_GROUP_ID) => {
     try {
-      const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-      const m = parseInt(month, 10) || (new Date().getMonth() + 1);
-      const y = parseInt(year, 10) || new Date().getFullYear();
+      const { activeMembers, loans, contributions, repayments } = await reportService._getBaselineData(groupId);
 
-      const [contributionsSnap, loansSnap, membersSnap, groupRes] = await Promise.all([
-        getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
-        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
-        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
-        groupService.getGroupDetails(targetGroupId).catch(() => ({ group: {} })),
-      ]);
+      const m = parseInt(month, 10);
+      const y = parseInt(year, 10);
 
-      const group = groupRes.group || {};
-      const defaultMonthlyShare = Number(group.monthlyContribution || 1000);
-
-      // Map active member payment statuses
-      const allMembers = membersSnap.docs.map((d) => normalizeMember(d.id, d.data()));
-      const activeMembers = allMembers.filter((mem) => {
-        const s = (mem.status || 'ACTIVE').toUpperCase();
-        return mem.isActive !== false && s === 'ACTIVE';
+      const monthSavings = contributions.filter((s) => number(s.month) === m && number(s.year) === y);
+      const monthRepayments = repayments.filter((r) => {
+        const rMonth = number(r.paymentMonth || r.payment_month || r.month);
+        const rYear = number(r.paymentYear || r.payment_year || r.year);
+        const dateStr = resolveRecordDateString(r);
+        const dateMatches = dateStr.startsWith(`${y}-${String(m).padStart(2, '0')}`);
+        return (rMonth === m && rYear === y) || dateMatches;
       });
 
-      // Dynamically auto-calculate monthly target from active members
-      const monthlyTarget = activeMembers.reduce((acc, mem) => {
-        const share = Number(mem.monthlyContribution || defaultMonthlyShare);
-        return acc + (share > 0 ? share : defaultMonthlyShare);
-      }, 0);
+      // Authoritative Reconciled Metrics from Central Financial Service
+      const groupFinancials = calculateGroupFinancialSummary(contributions, loans, repayments);
 
-      // Filter contributions for selected month and year
-      const monthContributions = contributionsSnap.docs
-        .map((d) => normalizeSavings(d.id, d.data()))
-        .filter((s) => s.month === m && s.year === y);
+      // Member collections breakdown
+      const collections = activeMembers.map(mem => {
+        const memberId = mem.id;
+        const memberLoans = loans.filter(l => l.memberId === memberId);
+        const memberActiveLoan = memberLoans.find(l => (l.status || '').toUpperCase() === 'ACTIVE') || memberLoans[0];
+        const memberContrib = monthSavings.find(s => s.memberId === memberId);
 
-      const totalSavingsCollected = monthContributions.reduce((acc, s) => acc + (s.paidAmount || 0), 0);
-      const totalInterestCollected = monthContributions.reduce((acc, s) => acc + (s.interestAmount || 0), 0);
-      const totalPrincipalRepaid = monthContributions.reduce((acc, s) => acc + (s.loanPrincipalPaid || 0), 0);
-      const totalRevenueCollected = totalSavingsCollected + totalInterestCollected;
+        // Sum all non-deposit repayments made by this member in this period
+        const memberRepayList = monthRepayments.filter(r => r.memberId === memberId && !r.isDeposit);
+        const totalPrincipalPaid = memberRepayList.reduce((sum, r) => sum + number(r.principalPaid), 0);
+        const totalInterestPaid = memberRepayList.reduce((sum, r) => sum + number(r.interestPaid), 0);
+        const totalHaptaPaid = memberRepayList.reduce((sum, r) => sum + number(r.regularHaptaPaid), 0);
 
-      // Active loans outstanding calculation
-      const loansList = loansSnap.docs.map((d) => normalizeLoan(d.id, d.data()));
-      const activeLoansDocs = loansList.filter((l) => {
-        const s = (l.status || '').toUpperCase();
-        const pending = Number(l.pendingPrincipal !== undefined ? l.pendingPrincipal : (l.remainingAmount || 0));
-        return s === 'ACTIVE' && pending > 0;
-      });
-      const outstandingPrincipal = activeLoansDocs.reduce((acc, l) => {
-        const pending = Number(l.pendingPrincipal !== undefined ? l.pendingPrincipal : (l.remainingAmount || 0));
-        return acc + pending;
-      }, 0);
+        let loanHafta = totalPrincipalPaid;
+        let interestAmount = totalInterestPaid;
+        let fundAmount = totalHaptaPaid > 0 ? totalHaptaPaid : number(memberContrib?.paidAmount || mem.monthlyContribution || 1000);
+        let status = 'PENDING';
 
-      // Centralized Group Balances dynamically aggregated from all contributions
-      const allSavings = contributionsSnap.docs.map((d) => normalizeSavings(d.id, d.data()));
-      const totalSavings = allSavings.filter((c) => c.isPaid || c.paidAmount > 0).reduce((sum, c) => sum + (c.paidAmount || c.amount || 0), 0);
-      const allLoansList = loansSnap.docs.map((d) => normalizeLoan(d.id, d.data()));
-      const totalInterest = Math.round(
-        (allSavings.reduce((sum, c) => sum + (c.interestAmount || c.interest || 0), 0) +
-         allLoansList.reduce((sum, l) => sum + (l.totalInterestPaid || l.total_interest_paid || 0), 0)) * 100
-      ) / 100;
-      const availableGroupBalance = Math.max(0, totalSavings + totalInterest - outstandingPrincipal);
+        const hasRepaid = memberRepayList.length > 0;
+        const hasSavings = Boolean(memberContrib && number(memberContrib.paidAmount) > 0);
 
-      const paidMap = {};
-      monthContributions.forEach((s) => {
-        paidMap[s.memberId] = s;
-      });
+        if (hasRepaid || hasSavings) {
+          status = (totalPrincipalPaid > 0 || totalInterestPaid > 0 || (memberContrib && number(memberContrib.paidAmount) >= number(mem.monthlyContribution || 1000))) ? 'PAID' : 'PARTIAL';
+        } else if (memberActiveLoan && (memberActiveLoan.status || '').toUpperCase() === 'ACTIVE') {
+          // No payment recorded yet: show expected monthly demand
+          const currentOut = calculateLoanOutstanding(memberActiveLoan, repayments);
+          interestAmount = Math.round(currentOut * 0.02 * 100) / 100;
+          loanHafta = Math.round(number(memberActiveLoan.originalPrincipal) / 10);
+        }
 
-      const memberCollections = activeMembers.map((mem) => {
-        const savingRecord = paidMap[mem.id] || null;
-        const expected = Number(mem.monthlyContribution || 1000);
-        const paid = savingRecord ? Number(savingRecord.paidAmount || 0) : 0;
-        const memName = mem.name || mem.fullName || '';
-        const memberLoan = activeLoansDocs.find(
-          (l) => l.memberId === mem.id || (l.memberName && l.memberName.trim() === memName.trim())
-        ) || null;
-        const originalLoan = memberLoan ? Number(memberLoan.principalAmount || memberLoan.originalPrincipal || 0) : 0;
-        const installmentNumber = memberLoan ? Number(memberLoan.installmentNumber || 1) : 0;
-        const loanHafta = originalLoan > 0
-          ? (Number(savingRecord?.loanPrincipalPaid || 0) || Math.round(originalLoan / 10))
-          : 0;
-        const interestAmount = originalLoan > 0
-          ? (Number(savingRecord?.interestAmount || 0) || Math.round((memberLoan.remainingAmount || originalLoan) * 0.02))
-          : 0;
-        const fundAmount = Number(savingRecord?.paidAmount || expected || 1000);
-        const totalDemand = loanHafta + interestAmount + fundAmount;
+        const lastRepay = memberRepayList[memberRepayList.length - 1];
+        const inst = lastRepay ? (Number(lastRepay.installmentNumber) || 1) : (memberActiveLoan ? (Number(memberActiveLoan.lastInstallmentPaid) || 0) + 1 : 0);
 
         return {
-          id: mem.id,
-          member_id: mem.id,
-          memberId: mem.id,
-          member_name: memName,
-          memberName: memName,
-          member_code: mem.memberCode,
+          id: memberId,
+          memberId,
+          name: mem.name,
+          memberName: mem.name,
           memberCode: mem.memberCode,
-          phone: mem.phone || '',
-          expected_amount: expected,
-          paid_amount: paid,
-          amount: paid,
-          originalLoan,
-          installmentNumber,
+          loan: memberActiveLoan ? memberActiveLoan.originalPrincipal : 0,
+          inst,
           loanHafta,
-          interestAmount,
-          fundAmount,
-          totalDemand,
-          month: m,
-          year: y,
-          status: paid >= expected ? 'PAID' : paid > 0 ? 'PARTIAL' : 'PENDING',
-          payment_date: savingRecord ? savingRecord.paymentDate : null,
-          paymentDate: savingRecord ? savingRecord.paymentDate : null,
-          payment_mode: savingRecord ? savingRecord.paymentMode : 'UPI',
-          paymentMode: savingRecord ? savingRecord.paymentMode : 'UPI',
+          haptaPaid: loanHafta,
+          principalPaid: loanHafta,
+          principalRepaid: loanHafta,
+          loanPrincipalPaid: loanHafta,
+          interest: interestAmount,
+          interestPaid: interestAmount,
+          fund: fundAmount,
+          fundDeposit: fundAmount,
+          regularHapta: fundAmount,
+          regularHaptaPaid: totalHaptaPaid,
+          loanDeposit: 0,
+          total: loanHafta + interestAmount + fundAmount,
+          status
         };
       });
-
-      const totalPaidMembers = memberCollections.filter((m) => m.status === 'PAID').length;
-      const totalPendingMembers = memberCollections.filter((m) => m.status === 'PENDING').length;
 
       return {
         success: true,
         summary: {
-          month: m,
-          year: y,
-          monthSavings: totalSavingsCollected,
-          totalSavingsCollected,
-          monthInterest: totalInterestCollected,
-          totalInterestCollected,
-          totalPrincipalRepaid,
-          totalRevenueCollected,
-          outstandingPrincipal,
-          availableGroupBalance,
-          monthlyTarget,
-          targetAchievement: monthlyTarget > 0 ? Math.round((totalSavingsCollected / monthlyTarget) * 100) : 0,
-          totalActiveMembers: activeMembers.length || 363,
-          totalPaidMembers,
-          totalPendingMembers,
+          monthSavings: monthSavings.reduce((sum, s) => sum + number(s.paidAmount || s.amount), 0),
+          monthPrincipalPaid: monthRepayments.filter(r => !r.isDeposit).reduce((sum, r) => sum + r.principalPaid, 0),
+          monthInterestPaid: monthRepayments.filter(r => !r.isDeposit).reduce((sum, r) => sum + r.interestPaid, 0),
+          monthInterest: monthRepayments.filter(r => !r.isDeposit).reduce((sum, r) => sum + r.interestPaid, 0),
+          ...groupFinancials,
+          totalSavings: groupFinancials.totalGroupSavings,
+          totalSavingsCollected: groupFinancials.totalGroupSavings,
+          totalPrincipalRepaid: groupFinancials.totalPrincipalRepaid,
+          totalInterestPaid: groupFinancials.totalInterestPaid,
+          totalInterestCollected: groupFinancials.totalInterestPaid,
+          currentMonthlyInterest: groupFinancials.currentMonthlyInterest,
+          outstandingPrincipal: groupFinancials.activeLoansOutstanding,
+          activeLoans: groupFinancials.activeLoansOutstanding,
+          totalGroupFund: groupFinancials.totalGroupFund,
+          availableBalance: groupFinancials.availableBalance,
+          availableGroupBalance: groupFinancials.availableBalance,
+          totalPaidMembers: collections.filter(c => c.status === 'PAID').length,
+          totalPendingMembers: collections.filter(c => c.status === 'PENDING').length
         },
-        collections: memberCollections,
-        savingsTransactions: monthContributions.filter((c) => c.paidAmount > 0),
+        collections,
+        savingsTransactions: monthSavings
       };
     } catch (err) {
       console.error('Failed to generate monthly report from Firestore:', err);
-      return {
-        success: true,
-        summary: {
-          month: month || (new Date().getMonth() + 1),
-          year: year || new Date().getFullYear(),
-          monthSavings: 0,
-          totalSavingsCollected: 0,
-          monthInterest: 0,
-          totalInterestCollected: 0,
-          totalPrincipalRepaid: 0,
-          totalRevenueCollected: 0,
-          outstandingPrincipal: 1710,
-          availableGroupBalance: 1290,
-          monthlyTarget: 363000,
-          targetAchievement: 0,
-          totalActiveMembers: 363,
-          totalPaidMembers: 0,
-          totalPendingMembers: 363,
-        },
-        collections: [],
-        savingsTransactions: [],
-      };
+      return { success: false };
     }
   },
 
   /**
-   * Pending Dues / Defaulters Report
+   * Pending Dues Report (Calculated on Frontend)
    */
   getPendingDuesReport: async (month, year, search = '', groupId = DEFAULT_GROUP_ID) => {
     try {
-      const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-      const m = parseInt(month, 10) || (new Date().getMonth() + 1);
-      const y = parseInt(year, 10) || new Date().getFullYear();
+      const { activeMembers, contributions, loans } = await reportService._getBaselineData(groupId);
+      const m = parseInt(month, 10);
+      const y = parseInt(year, 10);
 
-      const [contributionsSnap, loansSnap, membersSnap] = await Promise.all([
-        getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
-        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
-        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
-      ]);
+      const duesList = activeMembers.map(mem => {
+        const paid = contributions.some(s => s.memberId === mem.id && number(s.month) === m && number(s.year) === y);
+        const loan = loans.find(l => l.memberId === mem.id && l.status === 'ACTIVE');
 
-      const monthContributions = contributionsSnap.docs
-        .map((d) => normalizeSavings(d.id, d.data()))
-        .filter((s) => s.month === m && s.year === y);
+        const outstandingPrincipal = loan ? loan.pendingPrincipal : 0;
+        const pendingHafta = paid ? 0 : number(mem.monthlyContribution || 1000);
+        const pendingInterest = Math.round(outstandingPrincipal * 0.02 * 100) / 100;
 
-      const paidMemberIds = new Set(
-        monthContributions.filter((s) => s.paidAmount > 0 || s.isPaid).map((s) => s.memberId)
-      );
+        return {
+          memberId: mem.id,
+          memberName: mem.name,
+          memberCode: mem.memberCode,
+          pendingHafta,
+          outstandingPrincipal,
+          pendingInterest,
+          totalPending: pendingHafta + outstandingPrincipal + pendingInterest,
+          isPending: pendingHafta > 0 || outstandingPrincipal > 0
+        };
+      }).filter(m => m.isPending);
 
-      const allMembers = membersSnap.docs.map((d) => normalizeMember(d.id, d.data()));
-      const activeMembers = allMembers.filter((mem) => mem.isActive);
-      const allLoans = loansSnap.docs.map((d) => normalizeLoan(d.id, d.data()));
-
-      let pending = activeMembers
-        .filter((mem) => !paidMemberIds.has(mem.id))
-        .map((mem) => {
-          const memberLoans = allLoans.filter((l) => l.memberId === mem.id && l.status === 'ACTIVE');
-          const loanOutstanding = memberLoans.reduce((sum, l) => sum + (l.pendingPrincipal || 0), 0);
-          const loanInterestRate = memberLoans.length > 0 ? (memberLoans[0].interestRate || 2.0) : 2.0;
-          const pendingInterest = (loanOutstanding * loanInterestRate) / 100;
-          const hafta = mem.monthlyContribution || 1000;
-          const totalPending = hafta + loanOutstanding + pendingInterest;
-
-          return {
-            id: mem.id,
-            member_id: mem.id,
-            memberId: mem.id,
-            member_name: mem.name || mem.fullName,
-            memberName: mem.name || mem.fullName,
-            member_code: mem.memberCode,
-            memberCode: mem.memberCode,
-            memberPhone: mem.phone || '',
-            phone: mem.phone || '',
-            monthly_contribution: hafta,
-            pendingHafta: hafta,
-            outstandingPrincipal: loanOutstanding,
-            pendingInterest: Math.round(pendingInterest * 100) / 100,
-            interestRate: loanInterestRate,
-            due_amount: totalPending,
-            totalPending: Math.round(totalPending * 100) / 100,
-            status: 'UNPAID',
-          };
-        });
-
+      let filtered = duesList;
       if (search) {
         const s = search.toLowerCase();
-        pending = pending.filter(
-          (p) => p.memberName.toLowerCase().includes(s) || p.memberCode.toLowerCase().includes(s) || p.phone.includes(s)
-        );
+        filtered = duesList.filter(d => d.memberName.toLowerCase().includes(s) || d.memberCode.toLowerCase().includes(s));
       }
 
-      const totalPendingAmount = pending.reduce((acc, p) => acc + (p.totalPending || 0), 0);
-
       return {
         success: true,
-        count: pending.length,
-        totalPendingAmount,
+        duesList: filtered,
         summary: {
-          totalPendingMembers: pending.length,
-          totalPendingAmount,
-        },
-        pendingMembers: pending,
-        duesList: pending,
+          totalPendingMembers: filtered.length,
+          totalPendingAmount: filtered.reduce((sum, d) => sum + d.totalPending, 0)
+        }
       };
     } catch (err) {
-      console.error('Failed to generate pending dues report:', err);
-      return {
-        success: true,
-        count: 0,
-        totalPendingAmount: 0,
-        summary: {
-          totalPendingMembers: 0,
-          totalPendingAmount: 0,
-        },
-        pendingMembers: [],
-        duesList: [],
-      };
+      console.error('Failed to fetch pending dues from Firestore:', err);
+      return { success: false };
     }
   },
 
   /**
-   * Loans Portfolio and Risk Overview Report
+   * Loans Overview Report (Direct Read)
    */
   getLoansOverviewReport: async (groupId = DEFAULT_GROUP_ID) => {
     try {
-      const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
+      const { loans, repayments } = await reportService._getBaselineData(groupId);
+      const totalPrincipalDisbursed = loans.reduce((sum, l) => sum + number(l.originalPrincipal ?? l.principalAmount), 0);
+      const totalPrincipalCollected = repayments.reduce((sum, r) => sum + number(r.principalPaid), 0);
+      const totalInterestCollected = repayments.reduce((sum, r) => sum + number(r.interestPaid), 0);
+      const totalOutstanding = Math.max(0, totalPrincipalDisbursed - totalPrincipalCollected);
+      const currentMonthlyInterest = Math.round(totalOutstanding * 0.02 * 100) / 100;
 
-      const [loansSnap, membersSnap] = await Promise.all([
-        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
-        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
-      ]);
-
-      const membersMap = {};
-      membersSnap.docs.forEach((docSnap) => {
-        const d = docSnap.data();
-        membersMap[docSnap.id] = d.name || d.fullName || 'Member';
-        if (d.userId) membersMap[d.userId] = d.name || d.fullName || 'Member';
-        if (d.authUid) membersMap[d.authUid] = d.name || d.fullName || 'Member';
-      });
-
-      const loans = loansSnap.docs.map((docSnap) => {
-        const raw = docSnap.data();
-        const normalized = normalizeLoan(docSnap.id, raw);
-        const memberName = membersMap[normalized.memberId] || normalized.memberName;
-
+      const enrichedLoans = loans.map(l => {
+        const loanRepayments = repayments.filter(r => r.loanId === l.id || r.loan_id === l.id);
+        const princPaid = loanRepayments.reduce((sum, r) => sum + r.principalPaid, 0);
+        const intPaid = loanRepayments.reduce((sum, r) => sum + r.interestPaid, 0);
+        const totalPrincipalPaid = princPaid > 0 ? princPaid : (l.totalPrincipalPaid || 0);
+        const totalInterestPaid = intPaid > 0 ? intPaid : (l.totalInterestPaid || 0);
+        const outstanding = Math.max(0, (l.originalPrincipal || l.principalAmount) - totalPrincipalPaid);
         return {
-          ...normalized,
-          member_name: memberName,
-          memberName: memberName,
+          ...l,
+          total_principal_paid: totalPrincipalPaid,
+          totalPrincipalPaid,
+          total_interest_paid: totalInterestPaid,
+          totalInterestPaid,
+          outstanding_amount: outstanding,
+          outstandingAmount: outstanding,
+          pendingPrincipal: outstanding,
+          repayments_count: loanRepayments.length > 0 ? loanRepayments.length : (l.repayments?.length || 0),
+          status: outstanding <= 0 ? 'CLOSED' : 'ACTIVE'
         };
       });
 
-      const activeLoans = loans.filter((l) => l.status === 'ACTIVE');
-      const closedLoans = loans.filter((l) => l.status === 'CLOSED');
-
-      const totalPrincipalDisbursed = loans.reduce((acc, l) => acc + (l.originalPrincipal || 0), 0);
-      const totalOutstanding = activeLoans.reduce((acc, l) => acc + (l.pendingPrincipal || 0), 0);
-      const totalPrincipalRecovered = loans.reduce((acc, l) => acc + (l.totalPrincipalPaid || 0), 0);
-      const totalInterestEarned = loans.reduce((acc, l) => acc + (l.totalInterestPaid || 0), 0);
-
       return {
         success: true,
+        loans: enrichedLoans,
         summary: {
           totalLoans: loans.length,
           totalLoansCount: loans.length,
-          activeLoansCount: activeLoans.length,
-          closedLoansCount: closedLoans.length,
           totalPrincipalDisbursed,
+          totalPrincipalCollected,
+          totalPrincipalRecovered: totalPrincipalCollected,
+          totalInterestCollected,
+          totalInterestPaid: totalInterestCollected,
+          totalInterestEarned: totalInterestCollected,
           totalOutstanding,
-          totalPrincipalRecovered,
-          totalPrincipalCollected: totalPrincipalRecovered,
-          totalInterestEarned,
-          totalInterestCollected: totalInterestEarned,
-        },
-        loans,
-        activeLoans,
-        closedLoans,
+          activeLoans: totalOutstanding,
+          currentMonthlyInterest,
+        }
       };
     } catch (err) {
-      console.error('Failed to generate loans overview report:', err);
+      console.error('Failed to fetch loans overview from Firestore:', err);
+      return { success: false };
+    }
+  },
+
+  /**
+   * Monthly Balance Report (Taaleband) - Dynamic from Live Firestore Records
+   * Strictly matches the 8-column Bachat Gat Physical Register format.
+   * Inclusive Date-Range Filtering with Partial-Month and Running Available Balance support.
+   */
+  getDateWiseBachatGatTaalebandReport: async (fromDate, toDate, groupId = DEFAULT_GROUP_ID) => {
+    try {
+      const { contributions, loans, repayments, group } = await reportService._getBaselineData(groupId);
+
+      const currentYear = new Date().getFullYear();
+      const startStr = normalizeToYYYYMMDD(fromDate, `${currentYear}-01-01`);
+      const endStr = normalizeToYYYYMMDD(toDate, `${currentYear}-12-31`);
+
+      // Classify and normalize transaction records with timezone-immune YYYY-MM-DD strings
+      const datedSavings = contributions.map(s => ({
+        ...s,
+        dateStr: resolveRecordDateString(s, 10),
+        amount: number(s.paidAmount || s.amount),
+      }));
+
+      const isBaselineLoan = (l) => Boolean(
+        (l.id && l.id.startsWith('L_REG_')) ||
+        l.isOpeningLoan ||
+        l.isBaseline ||
+        l.isImported
+      );
+
+      const datedLoans = loans.filter(l => (l.status || '').toUpperCase() !== 'REJECTED').map(l => ({
+        ...l,
+        dateStr: resolveRecordDateString(l, 10),
+        principal: number(l.originalPrincipal || l.principalAmount),
+      }));
+
+      const datedRepayments = repayments.map(r => {
+        // Genuine loan capital deposits / lump-sum closures / bank loans vs regular monthly installments
+        const isDeposit = Boolean(
+          r.isLumpSum ||
+          r.isPrepayment ||
+          r.transactionType === 'LOAN_DEPOSIT' ||
+          r.type === 'LOAN_DEPOSIT' ||
+          r.transactionType === 'BANK_LOAN' ||
+          r.type === 'BANK_LOAN' ||
+          r.type === 'LUMP_SUM_LOAN_PAYMENT' ||
+          r.type === 'LOAN_PREPAYMENT'
+        );
+        return {
+          ...r,
+          dateStr: resolveRecordDateString(r, 10),
+          principal: number(r.principalPaid || r.principalAmount),
+          interest: number(r.interestPaid || r.interestAmount),
+          isDeposit,
+        };
+      });
+
+      // Inclusive date filtering: only records whose actual transaction date falls within [startStr, endStr]
+      const filteredSavings = datedSavings.filter(s => s.dateStr >= startStr && s.dateStr <= endStr);
+      const filteredLoans = datedLoans.filter(l => l.dateStr >= startStr && l.dateStr <= endStr && !isBaselineLoan(l));
+      const filteredRepayments = datedRepayments.filter(r => r.dateStr >= startStr && r.dateStr <= endStr);
+
+      // Collect all distinct active month keys (YYYY-MM) present within the selected date range
+      const activeMonthKeysSet = new Set();
+      filteredSavings.forEach(s => activeMonthKeysSet.add(s.dateStr.substring(0, 7)));
+      filteredLoans.forEach(l => activeMonthKeysSet.add(l.dateStr.substring(0, 7)));
+      filteredRepayments.forEach(r => activeMonthKeysSet.add(r.dateStr.substring(0, 7)));
+
+      const activeMonthKeys = Array.from(activeMonthKeysSet).sort();
+
+      // Prior cash balance before startStr (Opening Balance for range)
+      const priorSavings = datedSavings.filter(s => s.dateStr < startStr).reduce((sum, s) => sum + s.amount, 0);
+      const priorRepayments = datedRepayments.filter(r => r.dateStr < startStr);
+      const priorPrincipalRepaid = priorRepayments.filter(r => !r.isDeposit).reduce((sum, r) => sum + r.principal, 0);
+      const priorLoanDeposits = priorRepayments.filter(r => r.isDeposit).reduce((sum, r) => sum + r.principal, 0);
+      const priorInterestPaid = priorRepayments.reduce((sum, r) => sum + r.interest, 0);
+      const priorDisbursed = datedLoans.filter(l => l.dateStr < startStr && !isBaselineLoan(l)).reduce((sum, l) => sum + l.principal, 0);
+
+      let runningBalance = Math.round((priorSavings + priorLoanDeposits + priorPrincipalRepaid + priorInterestPaid - priorDisbursed) * 100) / 100;
+
+      // Build report rows month-wise chronologically
+      const reportRows = activeMonthKeys.map((mKey, idx) => {
+        const [yearStr, monthStr] = mKey.split('-');
+        const year = parseInt(yearStr, 10);
+        const month = parseInt(monthStr, 10);
+
+        // 1. Column: निधी जमा (Savings contributions in this month and in selected date range)
+        const fundDeposit = filteredSavings
+          .filter(s => s.dateStr.startsWith(mKey))
+          .reduce((sum, s) => sum + s.amount, 0);
+
+        // 2. Column: कर्ज जमा (Genuine loan deposit / lump-sum prepayment / bank loan)
+        const rawLoanDeposit = filteredRepayments
+          .filter(r => r.dateStr.startsWith(mKey) && r.isDeposit)
+          .reduce((sum, r) => sum + r.principal, 0);
+        const loanDeposit = Number.isFinite(Number(rawLoanDeposit)) ? Number(rawLoanDeposit) : 0;
+
+        // 3. Column: हप्ता जमा (Regular installment principal repayment)
+        const haptaPaid = filteredRepayments
+          .filter(r => r.dateStr.startsWith(mKey) && !r.isDeposit)
+          .reduce((sum, r) => sum + r.principal, 0);
+
+        // 4. Column: व्याज जमा (Actual interest collected)
+        const interestPaid = filteredRepayments
+          .filter(r => r.dateStr.startsWith(mKey))
+          .reduce((sum, r) => sum + r.interest, 0);
+
+        // 5. Column: कर्ज वाटप (Genuine new loan principal disbursed)
+        const loanDisbursed = filteredLoans
+          .filter(l => l.dateStr.startsWith(mKey))
+          .reduce((sum, l) => sum + l.principal, 0);
+
+        // 6. Column: एकूण शिल्लक (Running Available Balance at end of this period)
+        // Exact cash accounting formula:
+        // Closing Balance = Opening Balance + Total Inflow - Total Outflow
+        // Opening Balance of Month N+1 = Closing Balance of Month N
+        const monthNetCash = fundDeposit + loanDeposit + haptaPaid + interestPaid - loanDisbursed;
+        runningBalance = Math.round((runningBalance + monthNetCash) * 100) / 100;
+
+        // 7. Column: तारीख (Actual transaction/meeting date in DD/MM/YYYY)
+        const monthTxDates = [
+          ...filteredSavings.filter(s => s.dateStr.startsWith(mKey)).map(s => s.dateStr),
+          ...filteredLoans.filter(l => l.dateStr.startsWith(mKey)).map(l => l.dateStr),
+          ...filteredRepayments.filter(r => r.dateStr.startsWith(mKey)).map(r => r.dateStr),
+        ].sort();
+
+        const latestTxDate = monthTxDates.length > 0 ? monthTxDates[monthTxDates.length - 1] : `${yearStr}-${monthStr}-20`;
+        const [dY, dM, dD] = latestTxDate.split('-');
+        const dateLabel = `${dD}/${dM}/${dY}`;
+
+        return {
+          sr: idx + 1,
+          month,
+          year,
+          dateLabel,
+          fundDeposit,
+          regularSavings: fundDeposit,
+          regularHapta: fundDeposit,
+          loanDeposit,
+          haptaPaid,
+          principalRepaid: haptaPaid,
+          loanPrincipalRepaid: haptaPaid,
+          loanPrincipalPaid: haptaPaid,
+          interestPaid,
+          loanDisbursed,
+          totalBalance: runningBalance,
+          availableBalance: runningBalance,
+        };
+      });
+
+      // Period Transaction Totals (Sum of rows for the selected range)
+      const totalFundDeposit = reportRows.reduce((sum, r) => sum + r.fundDeposit, 0);
+      const totalLoanDeposit = reportRows.reduce((sum, r) => sum + r.loanDeposit, 0);
+      const totalHaptaPaid = reportRows.reduce((sum, r) => sum + r.haptaPaid, 0);
+      const totalInterestPaid = reportRows.reduce((sum, r) => sum + r.interestPaid, 0);
+      const totalLoanDisbursed = reportRows.reduce((sum, r) => sum + r.loanDisbursed, 0);
+
+      // Financial Position at the closing date of the selected range (up to endStr)
+      const cumulativeSavingsAtEnd = datedSavings
+        .filter(s => s.dateStr <= endStr)
+        .reduce((sum, s) => sum + s.amount, 0);
+
+      // Outstanding loan principal across all active loans (authoritative pendingPrincipal)
+      const activeLoansList = loans.filter(l => (l.status || '').toUpperCase() !== 'REJECTED' && (l.status || '').toUpperCase() !== 'CLOSED');
+      const closingOutstanding = activeLoansList.reduce((sum, l) => sum + calculateLoanOutstanding(l, repayments), 0);
+      const closingMonthlyInterest = Math.round(closingOutstanding * 0.02 * 100) / 100;
+      const closingAvailableBalance = reportRows.length > 0 ? reportRows[reportRows.length - 1].totalBalance : runningBalance;
+      const closingGroupFund = Math.round((closingAvailableBalance + closingOutstanding) * 100) / 100;
+
+      // Footer ending balance reconciles to closing Available Balance
+      const grandTotalBalance = closingAvailableBalance;
+
       return {
         success: true,
+        groupName: group.name || 'श्री सदुबाबा युवा स्वयम सहाय्य बचतगट',
+        address: group.address || 'कोल्हेवाडी रोड ,समनापूर,ता. संगमनेर,जि. अहमदनगर',
+        phone: group.phone || '7020825028',
+        email: group.email || 'sadubaba@gmail.com',
+        reportRows,
         summary: {
-          totalLoans: 0,
-          totalLoansCount: 0,
-          activeLoansCount: 0,
-          closedLoansCount: 0,
-          totalPrincipalDisbursed: 0,
-          totalOutstanding: 0,
-          totalPrincipalRecovered: 0,
-          totalPrincipalCollected: 0,
-          totalInterestEarned: 0,
-          totalInterestCollected: 0,
-        },
-        loans: [],
-        activeLoans: [],
-        closedLoans: [],
+          totalSavings: totalFundDeposit,
+          allTimeSavings: cumulativeSavingsAtEnd,
+          periodSavings: totalFundDeposit,
+          totalFundDeposit,
+          loanDisbursed: totalLoanDisbursed,
+          totalLoanDisbursed,
+          loanDeposit: totalLoanDeposit,
+          totalLoanDeposit,
+          principalRepaid: totalHaptaPaid,
+          totalHaptaPaid,
+          totalInterestPaid,
+          currentMonthlyInterest: closingMonthlyInterest,
+          outstandingPrincipal: closingOutstanding,
+          activeLoans: closingOutstanding,
+          totalGroupFund: closingGroupFund,
+          availableBalance: closingAvailableBalance,
+          finalAvailableBalance: closingAvailableBalance,
+          grandTotalBalance,
+        }
       };
+    } catch (err) {
+      console.error('Failed to generate Taaleband from Firestore:', err);
+      return { success: false };
     }
+  },
+
+  getPrintableRegisterReport: async (month, year, groupId = DEFAULT_GROUP_ID) => {
+    const res = await reportService.getMonthlyReport(month, year, groupId);
+    return res.collections || [];
+  },
+
+  getMonthWiseBachatGatRegisterReport: async (month, year, memberId = '', loanId = '', groupId = DEFAULT_GROUP_ID) => {
+    const res = await reportService.getMonthlyReport(month, year, groupId);
+    let rows = res.collections || [];
+    if (memberId) rows = rows.filter(r => r.memberId === memberId);
+    return rows;
+  },
+
+  getNewBachatGatRegisterReport: async (month, year, memberFilter = '', groupId = DEFAULT_GROUP_ID) => {
+    const res = await reportService.getMonthlyReport(month, year, groupId);
+    let rows = res.collections || [];
+    if (memberFilter) {
+      const f = memberFilter.toLowerCase();
+      rows = rows.filter(r => (r.memberName || '').toLowerCase().includes(f) || (r.memberId || '').toLowerCase().includes(f) || (r.memberCode || '').toLowerCase().includes(f));
+    }
+    return rows;
   },
 };

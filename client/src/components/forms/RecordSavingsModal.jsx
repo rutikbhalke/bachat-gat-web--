@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../common/Modal';
 import { memberService } from '../../services/memberService';
-import { savingsService } from '../../services/savingsService';
-import { formatCurrency } from '../../utils/formatters';
-import { CheckCircle2, AlertCircle, PiggyBank } from 'lucide-react';
+import { savingsService, calculateNextUnpaidSavingsPeriod } from '../../services/savingsService';
+import { formatCurrency, formatMonthYear } from '../../utils/formatters';
+import { usePopup } from '../../context/PopupContext';
+import { CheckCircle2, AlertCircle, PiggyBank, Calendar, Info } from 'lucide-react';
 
 const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null }) => {
   const currentDate = new Date();
+  const { showError, askConfirm, showSuccess } = usePopup();
   const [members, setMembers] = useState([]);
+  const [periodHint, setPeriodHint] = useState('');
   const [formData, setFormData] = useState({
     member_id: initialMemberId || '',
     amount: '1000',
@@ -22,71 +25,185 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Auto-detect next unpaid month/year for a selected member
+  const updateMemberPeriod = useCallback(async (selectedMemberId, memberList = members) => {
+    if (!selectedMemberId) {
+      setPeriodHint('');
+      return;
+    }
+    try {
+      const savings = await savingsService.getMemberSavings(selectedMemberId);
+      const { month: nextM, year: nextY } = calculateNextUnpaidSavingsPeriod(savings);
+
+      const targetMem = memberList.find(
+        (m) => String(m.member_id) === String(selectedMemberId) || String(m.id) === String(selectedMemberId)
+      );
+      const defaultShare = targetMem
+        ? Number(targetMem.monthly_contribution || targetMem.monthlyContribution || targetMem.monthly_share || targetMem.monthlyShare || 1000)
+        : 1000;
+
+      setFormData((prev) => ({
+        ...prev,
+        member_id: selectedMemberId,
+        month: nextM.toString(),
+        year: nextY.toString(),
+        amount: (targetMem?.current_due !== undefined && targetMem.current_due > 0 ? targetMem.current_due : defaultShare).toString(),
+      }));
+
+      if (savings && savings.length > 0) {
+        setPeriodHint(`Auto-selected next unpaid period: ${formatMonthYear(nextM, nextY)}`);
+      } else {
+        setPeriodHint(`First contribution period: ${formatMonthYear(nextM, nextY)}`);
+      }
+    } catch (err) {
+      console.error('Failed to resolve member next savings period:', err);
+    }
+  }, [members]);
+
   useEffect(() => {
     if (isOpen) {
-      const fetchMembers = async () => {
+      setError('');
+      setSuccess('');
+      setPeriodHint('');
+
+      const initializeModal = async () => {
         try {
           const res = await memberService.getAllMembers({ status: 'active' });
-          if (res.success) {
+          if (res.success && res.members) {
             setMembers(res.members);
-            if (initialMemberId) {
-              setFormData((prev) => ({ ...prev, member_id: initialMemberId }));
-            } else if (res.members.length > 0 && !formData.member_id) {
-              setFormData((prev) => ({ ...prev, member_id: res.members[0].member_id }));
+            const targetId = initialMemberId || (res.members.length > 0 ? (res.members[0].member_id || res.members[0].id) : '');
+            if (targetId) {
+              await updateMemberPeriod(targetId, res.members);
             }
           }
         } catch (err) {
-          console.error(err);
+          console.error('Failed to load members for savings modal:', err);
         }
       };
-      fetchMembers();
+      initializeModal();
     }
-  }, [isOpen, initialMemberId]);
+  }, [isOpen, initialMemberId, updateMemberPeriod]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => {
-      const updated = { ...prev, [name]: value };
-      if (name === 'member_id') {
-        const selected = members.find((m) => String(m.member_id) === String(value) || String(m.id) === String(value));
-        if (selected) {
-          const defaultShare = Number(selected.monthly_contribution || selected.monthlyContribution || selected.monthly_share || selected.monthlyShare || 1000);
-          updated.amount = (selected.current_due !== undefined && selected.current_due > 0 ? selected.current_due : defaultShare).toString();
-        }
-      }
-      return updated;
-    });
+    if (name === 'member_id') {
+      updateMemberPeriod(value);
+      setError('');
+      return;
+    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
     setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const numAmount = parseFloat(formData.amount);
-    if (!formData.member_id || isNaN(numAmount) || numAmount <= 0 || !formData.month || !formData.year) {
-      setError('Please enter a valid contribution amount greater than 0.');
+    
+    // 1. Validation checks with popup
+    if (!formData.member_id) {
+      showError({
+        title: 'Validation Error',
+        message: 'Please select a member.',
+      });
       return;
     }
 
+    if (isNaN(numAmount) || numAmount <= 0) {
+      showError({
+        title: 'Validation Error',
+        message: 'Please enter a valid contribution amount greater than ₹0.',
+      });
+      return;
+    }
+
+    const monthNum = parseInt(formData.month, 10);
+    const yearNum = parseInt(formData.year, 10);
+    if (!monthNum || !yearNum || monthNum < 1 || monthNum > 12) {
+      showError({
+        title: 'Validation Error',
+        message: 'Please select a valid scheduled month and year.',
+      });
+      return;
+    }
+
+    const targetMem = members.find(
+      (m) => String(m.member_id) === String(formData.member_id) || String(m.id) === String(formData.member_id)
+    );
+    const memberDisplayName = targetMem ? (targetMem.name || targetMem.fullName) : 'Member';
+    const memberDisplayCode = targetMem ? (targetMem.member_code || targetMem.memberCode || '') : '';
+
+    // 2. Pre-check for duplicate monthly savings
+    try {
+      const existingSavings = await savingsService.getMemberSavings(formData.member_id);
+      const isAlreadyPaid = existingSavings.some(
+        (s) => Number(s.month) === monthNum && Number(s.year) === yearNum && Number(s.paidAmount || s.amount) > 0
+      );
+
+      if (isAlreadyPaid) {
+        showError({
+          title: 'Duplicate Savings Entry',
+          message: 'Savings already recorded for this member for this month.',
+          details: [
+            { label: 'Member', value: `${memberDisplayName} (${memberDisplayCode})` },
+            { label: 'Period', value: formatMonthYear(monthNum, yearNum) },
+            { label: 'Status', value: 'Already Paid', highlight: true },
+          ],
+        });
+        return;
+      }
+    } catch (checkErr) {
+      console.warn('Notice: Savings pre-check:', checkErr);
+    }
+
+    // 3. Confirmation Dialog
+    const confirmed = await askConfirm({
+      title: 'Confirm Monthly Savings',
+      message: 'Are you sure you want to record this monthly savings payment?',
+      details: [
+        { label: 'Member', value: `${memberDisplayName} (${memberDisplayCode})` },
+        { label: 'Scheduled Period', value: formatMonthYear(monthNum, yearNum) },
+        { label: 'Regular Savings / Hapta', value: `₹${numAmount.toLocaleString('en-IN')}`, highlight: true },
+        { label: 'Payment Mode', value: formData.payment_mode },
+        { label: 'Payment Date', value: formData.payment_date },
+      ],
+      confirmText: 'Record Savings',
+      confirmVariant: 'primary',
+    });
+
+    if (!confirmed) {
+      // Clean cancellation: 0 database writes!
+      return;
+    }
+
+    // 4. Persistence
     try {
       setLoading(true);
       setError('');
       const res = await savingsService.recordSavings({
         ...formData,
         amount: numAmount,
-        month: parseInt(formData.month, 10),
-        year: parseInt(formData.year, 10),
+        month: monthNum,
+        year: yearNum,
       });
 
       if (res.success) {
-        setSuccess('Monthly savings recorded successfully!');
-        setTimeout(() => {
-          setSuccess('');
-          onSuccess();
-          onClose();
-        }, 1200);
+        showSuccess({
+          title: 'Savings Recorded',
+          message: `Monthly savings of ₹${numAmount.toLocaleString('en-IN')} for ${formatMonthYear(monthNum, yearNum)} successfully recorded for ${memberDisplayName}.`,
+        });
+        onSuccess();
+        onClose();
       }
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Failed to record savings.');
+      showError({
+        title: 'Payment Failed',
+        error: err,
+        details: [
+          { label: 'Member', value: memberDisplayName },
+          { label: 'Scheduled Period', value: formatMonthYear(monthNum, yearNum) },
+          { label: 'Amount', value: `₹${numAmount.toLocaleString('en-IN')}` },
+        ],
+      });
     } finally {
       setLoading(false);
     }
@@ -132,6 +249,13 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
             ))}
           </select>
         </div>
+
+        {periodHint && (
+          <div style={{ padding: '8px 12px', background: '#F8FAFC', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', marginBottom: '14px', fontSize: '0.8rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+            <Calendar size={14} />
+            <span>{periodHint}</span>
+          </div>
+        )}
 
         <div className="form-grid-2">
           <div className="form-group">

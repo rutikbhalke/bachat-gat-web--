@@ -4,7 +4,9 @@
  * Guaranteed NEVER to throw runtime errors or TypeError on undefined/null values
  */
 
-export const DEFAULT_GROUP_ID = 'shivshahi_group_001';
+export const DEFAULT_GROUP_ID = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GROUP_ID)
+  ? import.meta.env.VITE_GROUP_ID
+  : 'shivshahi_group_001';
 
 /**
  * Format any number or numeric string safely into Indian numbering system (e.g. 1,50,000)
@@ -24,14 +26,24 @@ export const formatCurrency = (value) => {
   if (value === null || value === undefined || value === '') return '₹0';
   const num = typeof value === 'number' ? value : parseFloat(String(value).replace(/,/g, ''));
   if (isNaN(num) || !isFinite(num)) return '₹0';
+
   try {
-    return new Intl.NumberFormat('en-IN', {
+    // Rule 12: Ensure negative values are represented correctly (e.g. -₹26,21,630)
+    const formatted = new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
       maximumFractionDigits: 0,
     }).format(Math.round(num));
+
+    // Fix for environments where Intl might return ₹-100 instead of -₹100
+    if (num < 0 && formatted.startsWith('₹-')) {
+      return '-' + formatted.replace('-', '');
+    }
+    return formatted;
   } catch (err) {
-    return `₹${Math.round(num).toLocaleString('en-IN')}`;
+    const absNum = Math.abs(Math.round(num));
+    const formattedNum = absNum.toLocaleString('en-IN');
+    return num < 0 ? `-₹${formattedNum}` : `₹${formattedNum}`;
   }
 };
 
@@ -90,13 +102,16 @@ export const formatMonthYear = (month, year) => {
  */
 export const normalizeGroup = (id, data = {}) => {
   const groupId = id || data.id || data.groupId || DEFAULT_GROUP_ID;
-  const name = data.name || data.groupName || data.group_name || 'SADUBABA YUVA SWAYAM SAHAYYA BACHATGAT';
+  const name = data.name || data.groupName || data.group_name || 'श्री सदुबाबा युवा स्वयम सहायता बचतगट';
   const monthlyContribution = Number(data.monthlyContributionAmount || data.monthlyContribution || data.monthly_contribution_per_share || 1000);
   const monthlyTarget = Number(data.monthlyTarget || data.monthly_target || 363000);
   const totalSavings = Number(data.totalSavings || data.total_savings || 0);
   const totalOutstandingLoans = Number(data.totalOutstandingLoans || data.total_outstanding_loans || 0);
-  const totalInterestCollected = Number(data.totalInterestCollected || data.total_interest_collected || 0);
-  const totalFund = data.totalFund !== undefined ? Number(data.totalFund) : Math.max(0, totalSavings + totalInterestCollected - totalOutstandingLoans);
+  const totalInterestCollected = Number(data.totalInterestCollected || data.total_interest_collected || data.totalInterestPaid || data.total_interest_paid || 0);
+  const totalInterestPaid = totalInterestCollected;
+  const currentMonthlyInterest = Number(data.currentMonthlyInterest || data.current_monthly_interest || (totalOutstandingLoans * 0.02) || 0);
+  const totalFund = data.totalFund !== undefined ? Number(data.totalFund) : Math.round((totalSavings + currentMonthlyInterest) * 100) / 100;
+  const availableBalance = data.availableBalance !== undefined ? Number(data.availableBalance) : Math.max(0, Math.round((totalFund - totalOutstandingLoans) * 100) / 100);
 
   return {
     id: groupId,
@@ -115,11 +130,18 @@ export const normalizeGroup = (id, data = {}) => {
     total_savings: totalSavings,
     totalOutstandingLoans,
     total_outstanding_loans: totalOutstandingLoans,
+    currentMonthlyInterest,
+    current_monthly_interest: currentMonthlyInterest,
+    totalInterestPaid,
+    total_interest_paid: totalInterestPaid,
     totalInterestCollected,
     total_interest_collected: totalInterestCollected,
+    totalInterest: totalInterestPaid,
+    total_interest: totalInterestPaid,
     totalFund,
     total_fund: totalFund,
-    availableBalance: totalFund,
+    availableBalance,
+    available_balance: availableBalance,
     managerId: data.managerId || 'manager_001',
     description: data.description || '',
     createdAt: data.createdAt || '',
@@ -368,14 +390,49 @@ export const normalizeSavings = (id, data = {}) => {
   };
 };
 
-export const normalizeLoan = (id, data = {}) => {
+export const normalizeLoan = (idOrData, maybeData = {}) => {
+  const isFirstArgObj = idOrData && typeof idOrData === 'object';
+  const data = isFirstArgObj ? idOrData : (maybeData || {});
+  const id = !isFirstArgObj ? idOrData : (data.id || data.loanId || data.loan_id || '');
+
   const loanId = id || data.id || data.loanId || data.loan_id || '';
   const memberId = data.memberId || data.member_id || '';
-  const originalPrincipal = Number(data.originalPrincipal !== undefined ? data.originalPrincipal : (data.principalAmount || data.principal_amount || 0));
-  const pendingPrincipal = Number(data.pendingPrincipal !== undefined ? data.pendingPrincipal : (data.remainingAmount !== undefined ? data.remainingAmount : (data.outstanding_amount || originalPrincipal)));
-  const interestRate = Number(data.interestRate !== undefined ? data.interestRate : (data.interest_rate || 2.0));
-  const status = (data.status || (pendingPrincipal <= 0 ? 'closed' : 'active')).toUpperCase();
-  const totalPrincipalPaid = Math.max(0, originalPrincipal - pendingPrincipal);
+  const originalPrincipal = Math.max(0, Number(data.originalPrincipal !== undefined ? data.originalPrincipal : (data.principalAmount || data.principal_amount || 0)));
+  
+  // Calculate total principal paid from document or repayments
+  let totalPrincipalPaid = Number(data.totalPrincipalPaid !== undefined ? data.totalPrincipalPaid : (data.total_principal_paid !== undefined ? data.total_principal_paid : (data.total_principal_repaid !== undefined ? data.total_principal_repaid : 0)));
+  
+  // Determine outstanding principal
+  let pendingPrincipal;
+  if (data.pendingPrincipal !== undefined) {
+    pendingPrincipal = Number(data.pendingPrincipal);
+  } else if (data.remainingAmount !== undefined) {
+    pendingPrincipal = Number(data.remainingAmount);
+  } else if (data.outstanding_amount !== undefined) {
+    pendingPrincipal = Number(data.outstanding_amount);
+  } else {
+    pendingPrincipal = Math.max(0, originalPrincipal - totalPrincipalPaid);
+  }
+
+  // Ensure consistency: if totalPrincipalPaid equals or exceeds originalPrincipal, pendingPrincipal is 0
+  if (totalPrincipalPaid >= originalPrincipal && originalPrincipal > 0) {
+    pendingPrincipal = 0;
+  }
+  
+  // If pendingPrincipal is 0, totalPrincipalPaid should equal originalPrincipal
+  if (pendingPrincipal <= 0 && originalPrincipal > 0 && totalPrincipalPaid === 0) {
+    totalPrincipalPaid = originalPrincipal;
+  }
+
+  const outstanding = Math.max(0, Math.round(pendingPrincipal * 100) / 100);
+  const actualPrincipalPaid = Math.max(0, Math.round((originalPrincipal - outstanding) * 100) / 100);
+
+  const interestRate = Number(data.interestRate || data.interest_rate || 2.0); // Enforced 2% default
+  
+  // Source of truth: A loan with 0 outstanding is CLOSED. Any loan with outstanding > 0 is ACTIVE.
+  const rawStatus = (data.status || '').toUpperCase();
+  const isClosed = outstanding <= 0 || rawStatus === 'CLOSED';
+  const status = isClosed ? 'CLOSED' : 'ACTIVE';
 
   return {
     id: loanId,
@@ -393,23 +450,27 @@ export const normalizeLoan = (id, data = {}) => {
     originalPrincipal,
     principalAmount: originalPrincipal,
     principal_amount: originalPrincipal,
-    pendingPrincipal,
-    outstandingAmount: pendingPrincipal,
-    outstanding_amount: pendingPrincipal,
+    pendingPrincipal: outstanding,
+    remainingAmount: outstanding,
+    outstandingAmount: outstanding,
+    outstanding_amount: outstanding,
     interestRate,
     interest_rate: interestRate,
-    totalPrincipalPaid,
-    total_principal_paid: totalPrincipalPaid,
-    total_principal_repaid: totalPrincipalPaid,
-    totalInterestPaid: Number(data.totalInterestPaid || data.total_interest_paid || 0),
-    total_interest_paid: Number(data.totalInterestPaid || data.total_interest_paid || 0),
-    durationMonths: parseInt(data.durationMonths || data.duration_months, 10) || 12,
-    duration_months: parseInt(data.durationMonths || data.duration_months, 10) || 12,
+    totalPrincipalPaid: actualPrincipalPaid,
+    total_principal_paid: actualPrincipalPaid,
+    total_principal_repaid: actualPrincipalPaid,
+    totalInterestPaid: Math.max(0, Number(data.totalInterestPaid || data.total_interest_paid || 0)),
+    total_interest_paid: Math.max(0, Number(data.totalInterestPaid || data.total_interest_paid || 0)),
+    durationMonths: parseInt(data.durationMonths || data.duration_months, 10) || 10,
+    duration_months: parseInt(data.durationMonths || data.duration_months, 10) || 10,
     status,
+    isClosed,
+    isFullyPaid: isClosed,
     purpose: data.purpose || 'General',
     issueDate: data.issueDate || data.loanDate || data.loan_date || data.createdAt || new Date().toISOString().split('T')[0],
     loanDate: data.issueDate || data.loanDate || data.loan_date || data.createdAt || new Date().toISOString().split('T')[0],
     loan_date: data.issueDate || data.loanDate || data.loan_date || data.createdAt || new Date().toISOString().split('T')[0],
+    lastInstallmentPaid: parseInt(data.lastInstallmentPaid || data.last_installment_paid || 0, 10),
     createdAt: data.createdAt || '',
     updatedAt: data.updatedAt || '',
     repayments: Array.isArray(data.repayments) ? data.repayments : [],
@@ -417,15 +478,62 @@ export const normalizeLoan = (id, data = {}) => {
 };
 
 export const normalizeActivity = (id, data = {}) => {
+  const type = (data.type || data.transactionType || 'SAVINGS_DEPOSIT').toUpperCase();
+  const memberName = data.memberName || data.member_name || data.name || 'Member';
+  const pAmt = Number(data.principalAmount || data.principal_amount || data.principalRepaid || 0);
+  const iAmt = Number(data.interestAmount || data.interest_amount || data.interestPaid || 0);
+  const explicitRegular = Number(data.regularHaptaAmount || data.regular_hafta_amount || data.regularContribution || 0);
+  
+  let rAmt = explicitRegular;
+  if (rAmt === 0 && (type.includes('REPAY') || type.includes('INSTALLMENT') || type === 'LOAN_REPAYMENT')) {
+    const rawTotal = Number(data.totalAmount || data.amount || data.totalPaid || 0);
+    if (rawTotal > (pAmt + iAmt) && (pAmt + iAmt) > 0) {
+      rAmt = Math.round((rawTotal - (pAmt + iAmt)) * 100) / 100;
+    }
+  }
+
+  let amount = Number(data.totalAmount || data.totalPaid || data.amount || data.paidAmount || (pAmt + iAmt + rAmt));
+  let description = data.description;
+
+  if (type.includes('REPAY') || type.includes('INSTALLMENT') || type === 'LOAN_REPAYMENT') {
+    if (rAmt > 0) {
+      amount = pAmt + iAmt + rAmt;
+      description = `Loan repayment ₹${amount.toLocaleString('en-IN')} (Regular Hapta: ₹${rAmt.toLocaleString('en-IN')}, Principal: ₹${pAmt.toLocaleString('en-IN')}, Interest: ₹${iAmt.toLocaleString('en-IN')}) from ${memberName}`;
+    } else if (pAmt > 0 || iAmt > 0) {
+      amount = Number(data.totalAmount || data.amount || (pAmt + iAmt));
+      description = `Loan repayment ₹${amount.toLocaleString('en-IN')} (Principal: ₹${pAmt.toLocaleString('en-IN')}, Interest: ₹${iAmt.toLocaleString('en-IN')}) from ${memberName}`;
+    }
+  }
+
+  if (!description) {
+    if (type.includes('SAVING') || type === 'MONTHLY_CONTRIBUTION') {
+      description = `Regular savings of ₹${amount.toLocaleString('en-IN')} collected from ${memberName}`;
+    } else if (type.includes('LOAN_DISBURSE') || type === 'LOAN') {
+      description = `Loan of ₹${amount.toLocaleString('en-IN')} disbursed to ${memberName}`;
+    } else if (type.includes('REPAY') || type.includes('INSTALLMENT')) {
+      if (rAmt > 0) {
+        description = `Loan repayment ₹${amount.toLocaleString('en-IN')} (Regular Hapta: ₹${rAmt.toLocaleString('en-IN')}, Principal: ₹${pAmt.toLocaleString('en-IN')}, Interest: ₹${iAmt.toLocaleString('en-IN')}) from ${memberName}`;
+      } else {
+        description = `Loan repayment ₹${amount.toLocaleString('en-IN')} (Principal: ₹${pAmt.toLocaleString('en-IN')}, Interest: ₹${iAmt.toLocaleString('en-IN')}) from ${memberName}`;
+      }
+    } else {
+      description = `Transaction of ₹${amount.toLocaleString('en-IN')} recorded for ${memberName}`;
+    }
+  }
+
+  const rawDate = data.date || data.created_at || data.createdAt || data.paymentDate || data.payment_date || new Date().toISOString();
+
   return {
     id: id || data.id || `ACT_${Date.now()}`,
-    type: (data.type || 'adjustment').toUpperCase(),
-    amount: Number(data.amount || 0),
-    description: data.description || 'Activity recorded',
-    date: data.date || data.created_at || data.createdAt || new Date().toISOString(),
-    created_at: data.date || data.created_at || data.createdAt || new Date().toISOString(),
+    type,
+    amount,
+    description,
+    date: rawDate,
+    created_at: rawDate,
+    createdAt: rawDate,
     memberId: data.memberId || data.member_id || '',
-    memberName: data.memberName || data.member_name || '',
+    memberName,
+    groupId: data.groupId || data.group_id || DEFAULT_GROUP_ID,
     referenceId: data.referenceId || data.reference_id || '',
   };
 };

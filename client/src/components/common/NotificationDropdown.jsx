@@ -193,7 +193,7 @@ const NotificationDropdown = () => {
                     textAlign: 'left',
                     padding: '12px 16px',
                     borderBottom: '1px solid #F1F5F9',
-                    backgroundColor: n.is_read ? '#FFFFFF' : '#FFF5F8',
+                    backgroundColor: n.is_read ? '#FFFFFF' : 'var(--accent-soft)',
                     cursor: n.is_read ? 'default' : 'pointer',
                     display: 'flex',
                     gap: '10px',
