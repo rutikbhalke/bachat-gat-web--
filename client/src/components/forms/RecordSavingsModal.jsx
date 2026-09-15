@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Modal from '../common/Modal';
 import { memberService } from '../../services/memberService';
+import { loanService } from '../../services/loanService';
 import { savingsService, calculateNextUnpaidSavingsPeriod } from '../../services/savingsService';
 import { formatCurrency, formatMonthYear } from '../../utils/formatters';
 import { usePopup } from '../../context/PopupContext';
@@ -10,6 +11,12 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
   const currentDate = new Date();
   const { showError, askConfirm, showSuccess } = usePopup();
   const [members, setMembers] = useState([]);
+  const membersRef = useRef([]);
+  useEffect(() => {
+    membersRef.current = members;
+  }, [members]);
+
+  const [activeLoanMemberIds, setActiveLoanMemberIds] = useState(new Set());
   const [periodHint, setPeriodHint] = useState('');
   const [formData, setFormData] = useState({
     member_id: initialMemberId || '',
@@ -26,7 +33,7 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
   const [success, setSuccess] = useState('');
 
   // Auto-detect next unpaid month/year for a selected member
-  const updateMemberPeriod = useCallback(async (selectedMemberId, memberList = members) => {
+  const updateMemberPeriod = useCallback(async (selectedMemberId, memberList = []) => {
     if (!selectedMemberId) {
       setPeriodHint('');
       return;
@@ -35,7 +42,8 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
       const savings = await savingsService.getMemberSavings(selectedMemberId);
       const { month: nextM, year: nextY } = calculateNextUnpaidSavingsPeriod(savings);
 
-      const targetMem = memberList.find(
+      const availableMembers = (memberList && memberList.length > 0) ? memberList : membersRef.current;
+      const targetMem = availableMembers.find(
         (m) => String(m.member_id) === String(selectedMemberId) || String(m.id) === String(selectedMemberId)
       );
       const defaultShare = targetMem
@@ -58,7 +66,7 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
     } catch (err) {
       console.error('Failed to resolve member next savings period:', err);
     }
-  }, [members]);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -68,13 +76,28 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
 
       const initializeModal = async () => {
         try {
-          const res = await memberService.getAllMembers({ status: 'active' });
-          if (res.success && res.members) {
-            setMembers(res.members);
-            const targetId = initialMemberId || (res.members.length > 0 ? (res.members[0].member_id || res.members[0].id) : '');
+          const [membersRes, loansRes] = await Promise.allSettled([
+            memberService.getAllMembers({ status: 'active' }),
+            loanService.getAllLoans({ status: 'active' }),
+          ]);
+
+          if (membersRes.status === 'fulfilled' && membersRes.value.success && membersRes.value.members) {
+            setMembers(membersRes.value.members);
+            const targetId = initialMemberId || (membersRes.value.members.length > 0 ? (membersRes.value.members[0].member_id || membersRes.value.members[0].id) : '');
             if (targetId) {
-              await updateMemberPeriod(targetId, res.members);
+              await updateMemberPeriod(targetId, membersRes.value.members);
             }
+          }
+
+          // Build Set of member IDs with active loans for instant O(1) lookup
+          if (loansRes.status === 'fulfilled' && loansRes.value.success) {
+            const ids = new Set(
+              (loansRes.value.loans || [])
+                .filter((l) => (l.status || '').toUpperCase() === 'ACTIVE')
+                .map((l) => l.memberId || l.member_id)
+                .filter(Boolean)
+            );
+            setActiveLoanMemberIds(ids);
           }
         } catch (err) {
           console.error('Failed to load members for savings modal:', err);
@@ -82,7 +105,7 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
       };
       initializeModal();
     }
-  }, [isOpen, initialMemberId, updateMemberPeriod]);
+  }, [isOpen, initialMemberId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -98,7 +121,25 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
   const handleSubmit = async (e) => {
     e.preventDefault();
     const numAmount = parseFloat(formData.amount);
-    
+
+    // 0. Block standalone saving for active-loan members — ZERO Firestore writes
+    if (formData.member_id && activeLoanMemberIds.has(formData.member_id)) {
+      const targetMem = members.find(
+        (m) => String(m.member_id) === String(formData.member_id) || String(m.id) === String(formData.member_id)
+      );
+      const memberDisplayName = targetMem ? (targetMem.name || targetMem.fullName) : 'Member';
+      showError({
+        title: 'Active Loan — Use Loan Payment',
+        message: 'This member has an active loan. Please record the loan payment instead — the Regular Saving will be recorded automatically together with the loan repayment.',
+        details: [
+          { label: 'Member', value: memberDisplayName },
+          { label: 'Action Required', value: 'Record Loan Payment', highlight: true },
+          { label: 'Note', value: 'Regular Saving is created automatically when the loan installment is paid.' },
+        ],
+      });
+      return; // ZERO Firestore writes
+    }
+
     // 1. Validation checks with popup
     if (!formData.member_id) {
       showError({
@@ -240,15 +281,28 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
 
         <div className="form-group">
           <label className="form-label">Select Member *</label>
-          <select name="member_id" className="form-select" value={formData.member_id} onChange={handleChange} data-autofocus required>
+          <select name="member_id" className="form-select" value={formData.member_id} onChange={handleChange} required>
             <option value="">-- Choose Member --</option>
-            {members.map((m) => (
-              <option key={m.member_id} value={m.member_id}>
-                {m.name} ({m.member_code}) - Share: {formatCurrency(m.monthly_contribution || m.monthlyContribution)}
-              </option>
-            ))}
+            {members.map((m) => {
+              const mid = m.member_id || m.id;
+              const hasLoan = activeLoanMemberIds.has(mid);
+              return (
+                <option key={mid} value={mid}>
+                  {hasLoan ? '🔴 ' : ''}{m.name} ({m.member_code}) - Share: {formatCurrency(m.monthly_contribution || m.monthlyContribution)}{hasLoan ? ' [Active Loan — Use Loan Payment]' : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
+
+        {formData.member_id && activeLoanMemberIds.has(formData.member_id) && (
+          <div style={{ padding: '10px 14px', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 'var(--radius-md)', marginBottom: '14px', fontSize: '0.825rem', color: '#C2410C', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle size={18} />
+            <div>
+              <strong>Active Loan Member:</strong> Standalone savings cannot be recorded for members with active loans. Regular Savings is recorded automatically when recording their loan payment.
+            </div>
+          </div>
+        )}
 
         {periodHint && (
           <div style={{ padding: '8px 12px', background: '#F8FAFC', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', marginBottom: '14px', fontSize: '0.8rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>

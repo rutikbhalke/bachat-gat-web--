@@ -6,10 +6,15 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px', bodyPaddi
   const dialogRef = useRef(null);
   const bodyRef = useRef(null);
   const previousFocusRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current?.();
       if (e.key !== 'Tab' || !dialogRef.current) return;
 
       const elements = Array.from(dialogRef.current.querySelectorAll(
@@ -45,7 +50,7 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '550px', bodyPaddi
       window.removeEventListener('keydown', handleKeyDown);
       previousFocusRef.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

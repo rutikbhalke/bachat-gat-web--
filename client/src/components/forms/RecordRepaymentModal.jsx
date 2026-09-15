@@ -5,7 +5,7 @@ import { formatCurrency, formatMonthYear } from '../../utils/formatters';
 import { usePopup } from '../../context/PopupContext';
 import { CreditCard, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 
-const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null }) => {
+const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null, initialMemberId = null }) => {
   const currentDate = new Date();
   const { showError, askConfirm, showSuccess } = usePopup();
   const [activeLoans, setActiveLoans] = useState([]);
@@ -79,9 +79,12 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
           const res = await loanService.getAllLoans({ status: 'active' });
           if (res.success && res.loans) {
             setActiveLoans(res.loans);
+            const memberLoan = initialMemberId
+              ? res.loans.find((l) => String(l.memberId || l.member_id) === String(initialMemberId))
+              : null;
             const targetId = initialLoanId
               ? initialLoanId.toString()
-              : (res.loans.length > 0 ? res.loans[0].id.toString() : '');
+              : (memberLoan ? memberLoan.id.toString() : (res.loans.length > 0 ? res.loans[0].id.toString() : ''));
             
             if (targetId) {
               await loadLoanAndPopulate(targetId);
@@ -94,7 +97,7 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
 
       initializeModal();
     }
-  }, [isOpen, initialLoanId, loadLoanAndPopulate]);
+  }, [isOpen, initialLoanId, initialMemberId, loadLoanAndPopulate]);
 
   const selectedLoan = activeLoans.find((l) => l.id.toString() === formData.loan_id.toString()) || loanDetails;
   const currentOutstanding = selectedLoan ? parseFloat(selectedLoan.outstanding_amount || selectedLoan.pendingPrincipal || 0) : 0;
@@ -392,7 +395,7 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
 
           <div className="form-group">
             <label className="form-label">Select Active Loan *</label>
-            <select name="loan_id" className="form-select" value={formData.loan_id} onChange={handleChange} tabIndex={0} data-autofocus required>
+            <select name="loan_id" className="form-select" value={formData.loan_id} onChange={handleChange} tabIndex={0} required>
               <option value="">-- Select Active Loan --</option>
               {activeLoans.map((l) => (
                 <option key={l.id} value={l.id}>
@@ -526,6 +529,30 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
             </div>
           </div>
 
+          {/* Automatic Regular Savings Explanation Banner */}
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: alreadyPaidRegular >= expectedRegularHapta ? '#F0FDF4' : '#FFF7ED',
+              border: `1px solid ${alreadyPaidRegular >= expectedRegularHapta ? '#BBF7D0' : '#FED7AA'}`,
+              marginBottom: '16px',
+              fontSize: '0.825rem',
+              color: alreadyPaidRegular >= expectedRegularHapta ? '#15803D' : '#C2410C',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 500,
+            }}
+          >
+            <Info size={16} />
+            <span>
+              {alreadyPaidRegular >= expectedRegularHapta
+                ? 'Regular Savings: Already Paid for this period (₹0 added). Only loan repayment will be recorded.'
+                : 'Regular Savings (₹1,000) is included and recorded automatically together with this loan payment.'}
+            </span>
+          </div>
+
           {/* 3-Panel Repayment Comparison: Expected vs Actual vs Remaining */}
           <div
             style={{
@@ -586,7 +613,9 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Regular Savings:</span>
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(regularHafta)}</span>
+                <span style={{ fontWeight: 600, color: alreadyPaidRegular >= expectedRegularHapta ? 'var(--success-text)' : 'var(--text-primary)' }}>
+                  {formatCurrency(regularHafta)} {alreadyPaidRegular >= expectedRegularHapta ? '(Already Paid)' : ''}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Loan Principal:</span>
