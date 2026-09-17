@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loanService } from '../services/loanService';
+import { LOAN_INTEREST_RATE } from '../services/financialService';
 import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
 import RecordRepaymentModal from '../components/forms/RecordRepaymentModal';
@@ -173,8 +174,8 @@ const LoanDetails = () => {
 
         <div className="card" style={{ padding: '18px 20px' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>MONTHLY INTEREST RATE</span>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>{loan.interest_rate || loan.interestRate || 2}% / month</div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{formatCurrency(((Number(loan.outstanding_amount || 0)) * Number(loan.interest_rate || 2)) / 100)} on current balance</span>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>{loan.interest_rate || loan.interestRate || LOAN_INTEREST_RATE}% / month</div>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{formatCurrency(((Number(loan.outstanding_amount || 0)) * Number(loan.interest_rate || loan.interestRate || LOAN_INTEREST_RATE)) / 100)} on current balance</span>
         </div>
 
         <div className="card" style={{ padding: '18px 20px' }}>
@@ -227,7 +228,7 @@ const LoanDetails = () => {
                   <th>Month / Year</th>
                   <th style={{ textAlign: 'right' }}>Regular Hapta (Savings)</th>
                   <th style={{ textAlign: 'right' }}>Loan Principal (Hapta)</th>
-                  <th style={{ textAlign: 'right' }}>Interest (2%)</th>
+                  <th style={{ textAlign: 'right' }}>Interest ({loan.interest_rate || loan.interestRate || 1}%)</th>
                   <th style={{ textAlign: 'right', color: 'var(--primary)' }}>Loan Total Due (Prin + Int)</th>
                   <th style={{ textAlign: 'right' }}>Total Member Due</th>
                   <th style={{ textAlign: 'right' }}>Total Paid</th>

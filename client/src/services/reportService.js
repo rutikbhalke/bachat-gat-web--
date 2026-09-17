@@ -4,6 +4,7 @@ import { groupQuery } from './dataContract.js';
 import { groupService } from './groupService.js';
 import { DEFAULT_GROUP_ID, normalizeMember, normalizeLoan, normalizeSavings } from '../utils/formatters.js';
 import { calculateLoanOutstanding, calculateLoanInterest, calculateGroupFinancialSummary, LOAN_INTEREST_RATE } from './financialService.js';
+import { generateLoanRepaymentSchedule } from './loanService.js';
 
 const number = (item) => Number(item) || 0;
 
@@ -230,37 +231,46 @@ export const reportService = {
         const totalInterestPaid = memberRepayList.reduce((sum, r) => sum + number(r.interestPaid), 0);
         const totalHaptaPaid = memberRepayList.reduce((sum, r) => sum + number(r.regularHaptaPaid), 0);
 
-        let loanHafta = totalPrincipalPaid;
-        let interestAmount = totalInterestPaid;
+        const currentOut = memberActiveLoan ? calculateLoanOutstanding(memberActiveLoan, repayments) : 0;
+        const originalLoanAmount = memberActiveLoan ? number(memberActiveLoan.originalPrincipal ?? memberActiveLoan.principalAmount ?? memberActiveLoan.loanAmount ?? 0) : 0;
+
+        // Check if a loan installment is scheduled for this specific (m, y) accounting period
+        let scheduledInst = null;
+        if (memberActiveLoan) {
+          const schedule = generateLoanRepaymentSchedule({ loan: memberActiveLoan, repayments, contributions, member: mem });
+          scheduledInst = schedule.find(s => s.month === m && s.year === y) || null;
+        }
+
+        const isInstallmentScheduled = Boolean(scheduledInst);
+        let inst = scheduledInst ? scheduledInst.installmentNumber : 0;
+        let loanHafta = 0;
+        let interestAmount = 0;
+
+        if (totalPrincipalPaid > 0 || totalInterestPaid > 0) {
+          loanHafta = totalPrincipalPaid;
+          interestAmount = totalInterestPaid;
+        } else if (scheduledInst) {
+          loanHafta = scheduledInst.principalExpected;
+          interestAmount = scheduledInst.interestExpected;
+        }
+
         let fundAmount = totalHaptaPaid > 0 ? totalHaptaPaid : number(memberContrib?.paidAmount || mem.monthlyContribution || 1000);
 
         const hasRepaid = totalPrincipalPaid > 0 || totalInterestPaid > 0;
         const hasSavings = Boolean(memberContrib && number(memberContrib.paidAmount) > 0);
 
-        const currentOut = memberActiveLoan ? calculateLoanOutstanding(memberActiveLoan, repayments) : 0;
-        const originalLoanAmount = memberActiveLoan ? number(memberActiveLoan.originalPrincipal ?? memberActiveLoan.principalAmount ?? memberActiveLoan.loanAmount ?? 0) : 0;
-
-        // If no loan repayment was made for this month but the member has an active loan with outstanding balance,
-        // show expected monthly installment demand (हप्ता) and interest demand (व्याज)
-        if (!hasRepaid && memberActiveLoan && currentOut > 0) {
-          const tenure = parseInt(memberActiveLoan.durationMonths || memberActiveLoan.duration_months || 10, 10) || 10;
-          loanHafta = Math.round(originalLoanAmount / tenure);
-          interestAmount = calculateLoanInterest(currentOut, memberActiveLoan.interestRate || memberActiveLoan.interest_rate || 2.0);
-        }
-
         let status = 'PENDING';
-        if (hasRepaid && hasSavings) {
-          status = 'PAID';
-        } else if (hasRepaid || hasSavings) {
-          status = (memberActiveLoan && currentOut > 0) ? 'PARTIAL' : 'PAID';
-        }
-
-        const lastRepay = memberRepayList[memberRepayList.length - 1];
-        let inst = 0;
-        if (lastRepay && (lastRepay.installmentNumber || lastRepay.installment_number)) {
-          inst = Number(lastRepay.installmentNumber || lastRepay.installment_number);
-        } else if (memberActiveLoan && currentOut > 0) {
-          inst = (Number(memberActiveLoan.lastInstallmentPaid || memberActiveLoan.last_installment_paid || 0)) + 1;
+        if (isInstallmentScheduled) {
+          if (hasRepaid && hasSavings) {
+            status = 'PAID';
+          } else if (hasRepaid || hasSavings) {
+            status = 'PARTIAL';
+          } else {
+            status = 'PENDING';
+          }
+        } else {
+          // No loan installment due in this period (e.g. loan issue month or non-loan member)
+          status = hasSavings ? 'PAID' : 'PENDING';
         }
 
         return {
@@ -320,38 +330,57 @@ export const reportService = {
   },
 
   /**
-   * Pending Dues Report (Calculated on Frontend)
+   * Pending Dues Report (Calculated for Selected Accounting Period)
+   * Enforces:
+   * 1. Loan issue month has NO loan installment due.
+   * 2. Pending dues are based on the selected accounting month/year, NOT total loan balance.
    */
   getPendingDuesReport: async (month, year, search = '', groupId = DEFAULT_GROUP_ID) => {
     try {
-      const { activeMembers, contributions, loans } = await reportService._getBaselineData(groupId);
+      const { activeMembers, contributions, loans, repayments } = await reportService._getBaselineData(groupId);
       const m = parseInt(month, 10);
       const y = parseInt(year, 10);
 
       const duesList = activeMembers.map(mem => {
-        const paid = contributions.some(s => s.memberId === mem.id && number(s.month) === m && number(s.year) === y);
-        const loan = loans.find(l => l.memberId === mem.id && l.status === 'ACTIVE');
+        const paid = contributions.some(s => (s.memberId === mem.id || s.member_id === mem.id) && number(s.month) === m && number(s.year) === y);
+        const memberLoans = loans.filter(l => l.memberId === mem.id || l.member_id === mem.id);
+        const loan = memberLoans.find(l => {
+          const out = calculateLoanOutstanding(l, repayments);
+          const rawStatus = (l.status || '').toUpperCase();
+          return rawStatus !== 'CLOSED' && rawStatus !== 'REJECTED' && out > 0;
+        }) || memberLoans.find(l => (l.status || '').toUpperCase() === 'ACTIVE') || null;
 
-        const outstandingPrincipal = loan ? loan.pendingPrincipal : 0;
+        let scheduledInst = null;
+        if (loan) {
+          const schedule = generateLoanRepaymentSchedule({ loan, repayments, contributions, member: mem });
+          scheduledInst = schedule.find(s => s.month === m && s.year === y) || null;
+        }
+
         const pendingHafta = paid ? 0 : number(mem.monthlyContribution || 1000);
-        const pendingInterest = Math.round(outstandingPrincipal * 0.02 * 100) / 100;
+        const pendingPrincipal = scheduledInst ? Math.max(0, scheduledInst.principalExpected - scheduledInst.principalPaid) : 0;
+        const pendingInterest = scheduledInst ? Math.max(0, scheduledInst.interestExpected - scheduledInst.interestPaid) : 0;
+        const totalPending = pendingHafta + pendingPrincipal + pendingInterest;
 
         return {
           memberId: mem.id,
-          memberName: mem.name,
+          memberName: mem.name || mem.fullName,
           memberCode: mem.memberCode,
+          memberPhone: mem.phone,
           pendingHafta,
-          outstandingPrincipal,
+          outstandingPrincipal: pendingPrincipal,
+          pendingPrincipal,
+          totalLoanOutstanding: loan ? calculateLoanOutstanding(loan, repayments) : 0,
           pendingInterest,
-          totalPending: pendingHafta + outstandingPrincipal + pendingInterest,
-          isPending: pendingHafta > 0 || outstandingPrincipal > 0
+          installmentNumber: scheduledInst ? scheduledInst.installmentNumber : 0,
+          totalPending,
+          isPending: totalPending > 0
         };
       }).filter(m => m.isPending);
 
       let filtered = duesList;
       if (search) {
         const s = search.toLowerCase();
-        filtered = duesList.filter(d => d.memberName.toLowerCase().includes(s) || d.memberCode.toLowerCase().includes(s));
+        filtered = duesList.filter(d => (d.memberName || '').toLowerCase().includes(s) || (d.memberCode || '').toLowerCase().includes(s));
       }
 
       return {

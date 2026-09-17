@@ -1,0 +1,93 @@
+[debug] [2026-09-17T10:49:53.931Z] ----------------------------------------------------------------------
+[debug] [2026-09-17T10:49:53.934Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --only firestore --project bachat-gat-32ffe
+[debug] [2026-09-17T10:49:53.935Z] CLI Version:   15.27.0
+[debug] [2026-09-17T10:49:53.935Z] Platform:      win32
+[debug] [2026-09-17T10:49:53.935Z] Node Version:  v24.14.0
+[debug] [2026-09-17T10:49:53.935Z] Detected Agent: antigravity
+[debug] [2026-09-17T10:49:53.935Z] Time:          Thu Sep 17 2026 16:19:53 GMT+0530 (India Standard Time)
+[debug] [2026-09-17T10:49:53.936Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-09-17T10:49:54.513Z] Error: Cannot find module '@electric-sql/pglite'
+Require stack:
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\dataconnect\pgliteServer.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\dataconnectEmulator.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\controller.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\emulators-start.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1556:12)
+    at require (node:internal/modules/helpers:152:16)
+    at Object.<anonymous> (C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\dataconnect\pgliteServer.js:5:18)
+    at Module._compile (node:internal/modules/cjs/loader:1812:14)
+    at Object..js (node:internal/modules/cjs/loader:1943:10)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-09-17T10:50:13.233Z] ----------------------------------------------------------------------
+[debug] [2026-09-17T10:50:13.235Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --only firestore --project bachat-gat-32ffe
+[debug] [2026-09-17T10:50:13.235Z] CLI Version:   15.27.0
+[debug] [2026-09-17T10:50:13.235Z] Platform:      win32
+[debug] [2026-09-17T10:50:13.235Z] Node Version:  v24.14.0
+[debug] [2026-09-17T10:50:13.235Z] Detected Agent: antigravity
+[debug] [2026-09-17T10:50:13.235Z] Time:          Thu Sep 17 2026 16:20:13 GMT+0530 (India Standard Time)
+[debug] [2026-09-17T10:50:13.235Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-09-17T10:50:13.483Z] Error: Cannot find module '@electric-sql/pglite'
+Require stack:
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\dataconnect\pgliteServer.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\dataconnectEmulator.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\controller.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\emulators-start.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1556:12)
+    at require (node:internal/modules/helpers:152:16)
+    at Object.<anonymous> (C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\dataconnect\pgliteServer.js:5:18)
+    at Module._compile (node:internal/modules/cjs/loader:1812:14)
+    at Object..js (node:internal/modules/cjs/loader:1943:10)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-09-17T10:51:38.115Z] ----------------------------------------------------------------------
+[debug] [2026-09-17T10:51:38.117Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --only firestore --project bachat-gat-32ffe --debug
+[debug] [2026-09-17T10:51:38.117Z] CLI Version:   15.27.0
+[debug] [2026-09-17T10:51:38.117Z] Platform:      win32
+[debug] [2026-09-17T10:51:38.117Z] Node Version:  v24.14.0
+[debug] [2026-09-17T10:51:38.117Z] Detected Agent: antigravity
+[debug] [2026-09-17T10:51:38.117Z] Time:          Thu Sep 17 2026 16:21:38 GMT+0530 (India Standard Time)
+[debug] [2026-09-17T10:51:38.117Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-09-17T10:51:38.389Z] Error: Cannot find module '@electric-sql/pglite'
+Require stack:
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\dataconnect\pgliteServer.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\dataconnectEmulator.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\controller.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\emulators-start.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\index.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\index.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\cli.js
+- C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1456:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1066:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1071:22)
+    at Module._load (node:internal/modules/cjs/loader:1242:25)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+    at Module.require (node:internal/modules/cjs/loader:1556:12)
+    at require (node:internal/modules/helpers:152:16)
+    at Object.<anonymous> (C:\Users\Vaibhav\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\dataconnect\pgliteServer.js:5:18)
+    at Module._compile (node:internal/modules/cjs/loader:1812:14)
+    at Object..js (node:internal/modules/cjs/loader:1943:10)
+[error] 
+[error] Error: An unexpected error has occurred.

@@ -475,7 +475,7 @@ const MemberHistoryModal = ({ isOpen, onClose, member }) => {
                         </div>
                         <div>
                           <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>INTEREST (कर्जाचे व्याज)</div>
-                          <div style={{ fontWeight: 700, color: '#D97706' }}>{formatCurrency(member.interest || 0)} (2%)</div>
+                          <div style={{ fontWeight: 700, color: '#D97706' }}>{formatCurrency(member.interest || 0)}</div>
                         </div>
                         <div>
                           <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>INSTALLMENT #</div>
@@ -504,7 +504,7 @@ const MemberHistoryModal = ({ isOpen, onClose, member }) => {
                             <th>Scheduled Period</th>
                             <th>Receipt Date</th>
                             <th>Principal Paid</th>
-                            <th>Interest Paid (2%)</th>
+                            <th>Interest Paid</th>
                             <th>Total Repaid</th>
                             <th>Payment Mode</th>
                           </tr>
@@ -675,7 +675,7 @@ const MemberHistoryModal = ({ isOpen, onClose, member }) => {
             <div style={{ fontSize: '1.15rem', fontWeight: 900, marginTop: '3px' }}>
               {formatCurrency(currentTotal)}
             </div>
-            <div style={{ fontSize: '0.68rem', color: '#555' }}>निधी + हप्ता + २% व्याज</div>
+            <div style={{ fontSize: '0.68rem', color: '#555' }}>निधी + हप्ता + व्याज</div>
           </div>
         </div>
 
@@ -737,7 +737,7 @@ const MemberHistoryModal = ({ isOpen, onClose, member }) => {
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'right' }}>मंजूर कर्ज मुद्दल</th>
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'right' }}>मासिक हप्ता</th>
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'center' }}>मासिक व्याज दर</th>
-                  <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'right' }}>चालू व्याज (२%)</th>
+                  <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'right' }}>चालू व्याज</th>
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'center' }}>हप्ता प्रगती</th>
                   <th style={{ padding: '4px 6px', textAlign: 'right' }}>शिल्लक मुद्दल</th>
                 </tr>
@@ -774,7 +774,7 @@ const MemberHistoryModal = ({ isOpen, onClose, member }) => {
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'center' }}>नियोजित हप्ता महिना</th>
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'center' }}>पावती दिनांक</th>
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'right' }}>परतफेड मुद्दल</th>
-                  <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'right' }}>जमा व्याज (२%)</th>
+                  <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'right' }}>जमा व्याज</th>
                   <th style={{ padding: '4px 6px', borderRight: '1px solid #000', textAlign: 'right' }}>एकूण जमा</th>
                   <th style={{ padding: '4px 6px', textAlign: 'center' }}>भरणा पद्धत</th>
                 </tr>

@@ -30,13 +30,16 @@ import {
   Eye,
   History,
   ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
+import bonusService from '../services/bonusService';
+import DistributeDiwaliBonusModal from '../components/forms/DistributeDiwaliBonusModal';
 
 const Reports = () => {
   const currentDate = new Date();
   const location = useLocation();
   const reportState = location.state || {};
-  const [activeTab, setActiveTab] = useState(reportState.activeTab || 'monthly'); // 'monthly' | 'pending' | 'loans'
+  const [activeTab, setActiveTab] = useState(reportState.activeTab || 'monthly'); // 'monthly' | 'pending' | 'loans' | 'bonus' | 'taaleband'
   const [selectedMonth, setSelectedMonth] = useState(reportState.selectedMonth || currentDate.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(reportState.selectedYear || currentDate.getFullYear());
   const [search, setSearch] = useState('');
@@ -44,6 +47,8 @@ const Reports = () => {
   const [monthlyData, setMonthlyData] = useState(null);
   const [pendingData, setPendingData] = useState(null);
   const [loansData, setLoansData] = useState(null);
+  const [bonusData, setBonusData] = useState(null);
+  const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showRegisterPreview, setShowRegisterPreview] = useState(false);
   const [selectedMemberForHistory, setSelectedMemberForHistory] = useState(null);
@@ -112,6 +117,9 @@ const Reports = () => {
       } else if (activeTab === 'loans') {
         const res = await reportService.getLoansOverviewReport(targetGroupId);
         if (res.success) setLoansData(res);
+      } else if (activeTab === 'bonus') {
+        const res = await bonusService.getBonusPoolSummary(selectedYear, targetGroupId);
+        if (res.success) setBonusData(res);
       }
     } catch (err) {
       console.error('Failed to load report:', err);
@@ -197,6 +205,17 @@ const Reports = () => {
         Status: l.status,
       }));
       exportToCSV('Loans_Overview_Report', exportList);
+    } else if (activeTab === 'bonus' && bonusData) {
+      const list = bonusData.yearBonuses || [];
+      const exportList = list.map((b, idx) => ({
+        SrNo: idx + 1,
+        DistributionDate: b.distributionDate || b.createdAt || '',
+        MemberCode: b.memberCode || b.member_code || '',
+        MemberName: b.memberName || b.member_name || '',
+        BonusAmount: b.bonusAmount ?? b.amount ?? 0,
+        Remarks: b.remarks || '',
+      }));
+      exportToCSV(`Diwali_Bonus_Report_${selectedYear}`, exportList);
     }
   };
 
@@ -241,6 +260,15 @@ const Reports = () => {
               <Eye size={16} /> {showRegisterPreview ? 'Standard Dashboard' : 'Preview Register Format'}
             </button>
           )}
+          {activeTab === 'bonus' && (user?.role === 'ADMIN' || user?.role === 'admin' || user?.isAdmin) && (
+            <button
+              onClick={() => setIsBonusModalOpen(true)}
+              className="btn-primary"
+              style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Sparkles size={16} /> Distribute Diwali Bonus
+            </button>
+          )}
           <button onClick={handlePrint} className="btn-secondary" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
             <Printer size={16} /> Print Report
           </button>
@@ -275,6 +303,14 @@ const Reports = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('bonus')}
+          className={`tab-btn ${activeTab === 'bonus' ? 'active' : ''}`}
+          style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+        >
+          <Sparkles size={18} /> Diwali Bonus
+        </button>
+
+        <button
           onClick={() => setActiveTab('taaleband')}
           className={`tab-btn ${activeTab === 'taaleband' ? 'active' : ''}`}
           style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
@@ -283,8 +319,8 @@ const Reports = () => {
         </button>
       </div>
 
-      {/* Period Filter for Monthly & Pending Dues */}
-      {(activeTab === 'monthly' || activeTab === 'pending') && (
+      {/* Period Filter for Monthly, Pending Dues, & Bonus */}
+      {(activeTab === 'monthly' || activeTab === 'pending' || activeTab === 'bonus') && (
         <div
           className="card"
           style={{
@@ -296,8 +332,8 @@ const Reports = () => {
             gap: '14px',
           }}
         >
-          {/* Filters (Hidden for Taaleband) */}
-          {activeTab !== 'taaleband' && (
+          {/* Monthly / Pending filters */}
+          {(activeTab === 'monthly' || activeTab === 'pending') && (
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }} className="no-print">
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Select Period:</span>
               <select
@@ -320,6 +356,23 @@ const Reports = () => {
                 onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
                 className="form-select"
                 style={{ width: '100px', fontSize: '0.85rem' }}
+              >
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Bonus Year Filter */}
+          {activeTab === 'bonus' && (
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }} className="no-print">
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Select Distribution Year:</span>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+                className="form-select"
+                style={{ width: '110px', fontSize: '0.85rem' }}
               >
                 {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
                   <option key={year} value={year}>{year}</option>
@@ -437,7 +490,7 @@ const Reports = () => {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1E40AF', fontWeight: 700 }}>
                     <Eye size={20} />
-                    <span>Print Register Format Preview: Showing official 8-column "हप्ता मागणी रिपोर्ट" layout.</span>
+                    <span>Print Register Format Preview: Showing official 8-column "महिना मागणी रिपोर्ट" layout.</span>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={handlePrint} className="btn-primary" style={{ padding: '6px 14px', fontSize: '0.85rem' }}>
@@ -450,7 +503,7 @@ const Reports = () => {
                 </div>
               )}
 
-              {/* OFFICIAL PHYSICAL REGISTER: हप्ता मागणी रिपोर्ट (Visible only on print or preview) */}
+              {/* OFFICIAL PHYSICAL REGISTER: महिना मागणी रिपोर्ट (Visible only on print or preview) */}
               <div
                 className={`card register-print-area ${showRegisterPreview ? '' : 'register-print-only'}`}
                 style={{
@@ -476,7 +529,7 @@ const Reports = () => {
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', textAlign: 'center', borderBottom: '1.5px solid #000' }}>
                     <div style={{ padding: '6px 10px', fontWeight: 800, fontSize: '1.1rem' }}>
-                      हप्ता मागणी रिपोर्ट
+                      महिना मागणी रिपोर्ट
                     </div>
                     <div style={{ borderLeft: '1px solid #000', padding: '6px 12px', textAlign: 'right', fontWeight: 700, fontSize: '0.95rem' }}>
                       तारीख - 20/{selectedMonth}/{selectedYear}
@@ -484,54 +537,6 @@ const Reports = () => {
                   </div>
                 </div>
 
-                {/* Authoritative Financial Reconciliation Banner (Included in Print View) */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(6, 1fr)',
-                  borderBottom: '1.5px solid #000',
-                  background: '#f8fafc',
-                  padding: '6px 4px',
-                  textAlign: 'center',
-                  fontSize: '0.8rem',
-                  color: '#000'
-                }}>
-                  <div style={{ borderRight: '1px solid #ddd', padding: '0 4px' }}>
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>एकूण बचत</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-                      ₹{formatNumber(monthlyData?.summary?.totalSavings || 0)}
-                    </div>
-                  </div>
-                  <div style={{ borderRight: '1px solid #ddd', padding: '0 4px' }}>
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#15803d' }}>जमा व्याज</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#15803d', marginTop: '2px' }}>
-                      ₹{formatNumber(monthlyData?.summary?.totalInterestPaid || 0)}
-                    </div>
-                  </div>
-                  <div style={{ borderRight: '1px solid #ddd', padding: '0 4px' }}>
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#b45309' }}>चालू व्याज</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#b45309', marginTop: '2px' }}>
-                      ₹{formatNumber(monthlyData?.summary?.currentMonthlyInterest || 0)}
-                    </div>
-                  </div>
-                  <div style={{ borderRight: '1px solid #ddd', padding: '0 4px' }}>
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#dc2626' }}>शिल्लक मुद्दल</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#dc2626', marginTop: '2px' }}>
-                      ₹{formatNumber(monthlyData?.summary?.outstandingPrincipal || 0)}
-                    </div>
-                  </div>
-                  <div style={{ borderRight: '1px solid #ddd', padding: '0 4px' }}>
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#475569' }}>एकूण गट निधी</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
-                      ₹{formatNumber(monthlyData?.summary?.totalGroupFund || 0)}
-                    </div>
-                  </div>
-                  <div style={{ padding: '0 4px' }}>
-                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#1d4ed8' }}>उपलब्ध शिल्लक</div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1d4ed8', marginTop: '2px' }}>
-                      ₹{formatNumber(monthlyData?.summary?.availableBalance || 0)}
-                    </div>
-                  </div>
-                </div>
 
                 {/* 8-column Register Table */}
                 <div className="table-responsive" style={{ margin: 0 }}>
@@ -540,7 +545,6 @@ const Reports = () => {
                       <tr style={{ borderBottom: '1.5px solid #000', background: '#f8fafc', fontWeight: 800 }}>
                         <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '45px' }}>स क्र.</th>
                         <th style={{ borderRight: '1px solid #000', padding: '6px 8px', textAlign: 'left' }}>सभासदाचे नाव</th>
-                        <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '90px' }}>कर्ज</th>
                         <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '50px' }}>हप्ता</th>
                         <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '90px' }}>कर्जाचा हप्ता</th>
                         <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '85px' }}>कर्जाचे व्याज</th>
@@ -556,9 +560,6 @@ const Reports = () => {
                           </td>
                           <td style={{ borderRight: '1px solid #000', padding: '5px 8px', textAlign: 'left', fontWeight: 700 }}>
                             {formatMemberWithHonorific(row.name)}
-                          </td>
-                          <td style={{ borderRight: '1px solid #000', padding: '5px 4px' }}>
-                            {toDevanagariDigits(row.loan || 0)}
                           </td>
                           <td style={{ borderRight: '1px solid #000', padding: '5px 4px' }}>
                             {toDevanagariDigits(row.inst || 0)}
@@ -582,7 +583,6 @@ const Reports = () => {
                       <tr style={{ borderTop: '1.5px solid #000', fontWeight: 800, background: '#f1f5f9' }}>
                         <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}></td>
                         <td style={{ borderRight: '1px solid #000', padding: '6px 8px', textAlign: 'left' }}>एकूण</td>
-                        <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>{toDevanagariDigits(registerTotals.loan)}</td>
                         <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>-</td>
                         <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>{toDevanagariDigits(registerTotals.loanHafta)}</td>
                         <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>{toDevanagariDigits(registerTotals.interest)}</td>
@@ -596,50 +596,6 @@ const Reports = () => {
 
               {/* ON-SCREEN STANDARD DASHBOARD (Hidden in Print) */}
               <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* 4 KPI Summary Cards */}
-                {monthlyData && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-                    <div className="card" style={{ padding: '18px' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL SAVINGS</span>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary)', marginTop: '4px' }}>
-                        {formatCurrency(monthlyData.summary?.totalSavings ?? monthlyData.summary?.totalSavingsCollected)}
-                      </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Cumulative member savings only
-                      </span>
-                    </div>
-
-                    <div className="card" style={{ padding: '18px' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>TOTAL INTEREST PAID</span>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
-                        {formatCurrency(monthlyData.summary?.totalInterestPaid ?? monthlyData.summary?.totalInterestCollected)}
-                      </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Current Monthly Interest: {formatCurrency(monthlyData.summary?.currentMonthlyInterest ?? 0)}
-                      </span>
-                    </div>
-
-                    <div className="card" style={{ padding: '18px' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>OUTSTANDING PRINCIPAL</span>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--danger-text)', marginTop: '4px' }}>
-                        {formatCurrency(monthlyData.summary?.outstandingPrincipal)}
-                      </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Current Monthly Interest @ 2%: {formatCurrency(monthlyData.summary?.currentMonthlyInterest ?? 0)}
-                      </span>
-                    </div>
-
-                    <div className="card" style={{ padding: '18px', borderColor: 'var(--success)', background: 'linear-gradient(180deg, #FFFFFF 0%, #F0FDF4 100%)' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>AVAILABLE GROUP BALANCE</span>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-text)', marginTop: '4px' }}>
-                        {formatCurrency(Math.max(0, Number(monthlyData.summary?.availableBalance ?? monthlyData.summary?.availableGroupBalance ?? 0)))}
-                      </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        Total Group Fund: {formatCurrency(monthlyData.summary?.totalGroupFund ?? 0)}
-                      </span>
-                    </div>
-                  </div>
-                )}
 
                 {/* On-Screen Member Demand & Collection Breakdown Table */}
                 <div className="card">
@@ -871,7 +827,7 @@ const Reports = () => {
                         <tr>
                           <th>Member Name</th>
                           <th>Pending Hafta</th>
-                          <th>Loan Outstanding</th>
+                          <th>Principal Due</th>
                           <th>Pending Interest</th>
                           <th>Total Pending</th>
                           <th style={{ textAlign: 'center' }}>History</th>
@@ -1097,8 +1053,135 @@ const Reports = () => {
               selectedYear={selectedYear}
             />
           )}
+
+          {/* TAB 5: DIWALI BONUS REPORT */}
+          {activeTab === 'bonus' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Summary Cards */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                  gap: '16px',
+                }}
+              >
+                <div className="card" style={{ padding: '20px', borderLeft: '4px solid #2563EB' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Total Interest Collected ({selectedYear})
+                  </div>
+                  <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#2563EB', marginTop: '8px' }}>
+                    {formatCurrency(bonusData?.totalInterestCollected || 0)}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Income generated from member loan interest
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: '20px', borderLeft: '4px solid #F59E0B' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Total Diwali Bonus Distributed
+                  </div>
+                  <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#D97706', marginTop: '8px' }}>
+                    {formatCurrency(bonusData?.totalBonusDistributed || 0)}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Distributed to members from interest pool
+                  </div>
+                </div>
+
+                <div className="card" style={{ padding: '20px', borderLeft: '4px solid #10B981' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                    Net / Remaining Interest Pool
+                  </div>
+                  <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#059669', marginTop: '8px' }}>
+                    {formatCurrency(bonusData?.netInterestAvailable || 0)}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Available for future bonus distribution
+                  </div>
+                </div>
+              </div>
+
+              {/* Bonus Distributions Ledger */}
+              <div className="card" style={{ padding: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
+                      Diwali Bonus Distributions — {selectedYear}
+                    </h2>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                      Detailed register of all bonus payouts recorded for the selected year
+                    </p>
+                  </div>
+                </div>
+
+                {(!bonusData?.yearBonuses || bonusData.yearBonuses.length === 0) ? (
+                  <EmptyState
+                    icon={Sparkles}
+                    title="No Diwali Bonuses Distributed"
+                    message={`No bonus distributions have been recorded for the year ${selectedYear} yet.`}
+                  />
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--border-color, #E2E8F0)' }}>
+                          <th style={{ padding: '10px 14px', textAlign: 'left', width: '60px' }}>Sr No</th>
+                          <th style={{ padding: '10px 14px', textAlign: 'left' }}>Distribution Date</th>
+                          <th style={{ padding: '10px 14px', textAlign: 'left' }}>Member Code</th>
+                          <th style={{ padding: '10px 14px', textAlign: 'left' }}>Member Name</th>
+                          <th style={{ padding: '10px 14px', textAlign: 'right' }}>Bonus Amount (₹)</th>
+                          <th style={{ padding: '10px 14px', textAlign: 'left' }}>Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bonusData.yearBonuses.map((b, idx) => (
+                          <tr key={b.id || `bonus_${idx}`} style={{ borderBottom: '1px solid var(--border-color, #F1F5F9)' }}>
+                            <td style={{ padding: '10px 14px', color: 'var(--text-muted)' }}>{idx + 1}</td>
+                            <td style={{ padding: '10px 14px' }}>{formatDate(b.distributionDate || b.createdAt)}</td>
+                            <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                              {b.memberCode || b.member_code || '-'}
+                            </td>
+                            <td style={{ padding: '10px 14px', fontWeight: 700 }}>
+                              {b.memberName || b.member_name}
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 800, color: '#D97706' }}>
+                              {formatCurrency(b.bonusAmount ?? b.amount ?? 0)}
+                            </td>
+                            <td style={{ padding: '10px 14px', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                              {b.remarks || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: 'var(--surface-color, #F8FAFC)', fontWeight: 800, borderTop: '2px solid var(--border-color, #CBD5E1)' }}>
+                          <td colSpan={4} style={{ padding: '12px 14px', textAlign: 'right' }}>
+                            Total Distributed ({selectedYear}):
+                          </td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right', color: '#D97706', fontSize: '1rem' }}>
+                            {formatCurrency(bonusData.totalBonusDistributed || 0)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
+
+      {/* DIWALI BONUS DISTRIBUTION MODAL */}
+      <DistributeDiwaliBonusModal
+        isOpen={isBonusModalOpen}
+        onClose={() => setIsBonusModalOpen(false)}
+        onSuccess={fetchReports}
+        initialYear={selectedYear}
+        targetGroupId={targetGroupId}
+      />
 
       {/* MEMBER FINANCIAL HISTORY MODAL */}
       <MemberHistoryModal

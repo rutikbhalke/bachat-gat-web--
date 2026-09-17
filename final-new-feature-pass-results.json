@@ -1,0 +1,99 @@
+{
+  "testMembers": [
+    {
+      "id": "test_mem_009",
+      "code": "TM-009",
+      "name": "Test Member 09",
+      "action": "CREATED",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "test_mem_010",
+      "code": "TM-010",
+      "name": "Test Member 10",
+      "action": "CREATED",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "test_mem_011",
+      "code": "TM-011",
+      "name": "Test Member 11",
+      "action": "CREATED",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "test_mem_012",
+      "code": "TM-012",
+      "name": "Test Member 12",
+      "action": "CREATED",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "test_mem_013",
+      "code": "TM-013",
+      "name": "Test Member 13",
+      "action": "CREATED",
+      "status": "ACTIVE"
+    }
+  ],
+  "newFeatures": {
+    "loanInterest1Percent": {
+      "status": "PASS",
+      "loanId": "loan_tm_009_test",
+      "principal": 5000,
+      "rate": "1.0%",
+      "installments": 10,
+      "totalInterest": 275,
+      "totalRepayment": 5275,
+      "scheduleMatchesFormula": true
+    },
+    "loanRepayment": {
+      "status": "PASS",
+      "repaymentId": "repay_tm_009_inst_01",
+      "principalPaid": 500,
+      "interestPaid": 50,
+      "outstandingRemaining": 4500,
+      "installment1Status": "PAID",
+      "installment2InterestExpected": 45
+    },
+    "diwaliBonusDistribution": {
+      "status": "PASS",
+      "totalDistributed": 45,
+      "membersBenefited": 3,
+      "validationsPassed": [
+        "Over-budget blocked",
+        "Negative blocked",
+        "Duplicate blocked",
+        "Empty blocked"
+      ],
+      "auditTransactionId": "tx_bonus_BONUS_PASS_1789620000255",
+      "remainingPool": 335
+    },
+    "safeMemberSoftDelete": {
+      "status": "PASS",
+      "blockedWhenLoanActive": true,
+      "allowedWhenSettled": true,
+      "softDeletedMembers": [
+        "test_mem_009 (TM-009)",
+        "test_mem_010 (TM-010)"
+      ],
+      "historicalRecordsPreserved": true,
+      "activeMembersUpdatedTo": 11
+    }
+  },
+  "financialVerification": {
+    "groupDocActiveMembers": 11,
+    "rosterActiveMembersCount": 11,
+    "reconciliationStatus": "PASS",
+    "discrepancyCount": 0
+  },
+  "regression": {},
+  "productionSafety": {
+    "productionGroupId": "shivshahi_group_001",
+    "productionMembersBefore": 44,
+    "productionMembersAfter": 44,
+    "productionDeletions": 0,
+    "productionModifications": 0,
+    "status": "PASS"
+  }
+}

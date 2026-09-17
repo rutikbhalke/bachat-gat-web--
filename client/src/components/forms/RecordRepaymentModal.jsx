@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Modal from '../common/Modal';
 import { loanService, getNextUnpaidInstallment, isLoanFullyPaid, getMemberExpectedRegularHapta, resolveRegularHapta } from '../../services/loanService';
+import { LOAN_INTEREST_RATE } from '../../services/financialService';
 import { formatCurrency, formatMonthYear } from '../../utils/formatters';
 import { usePopup } from '../../context/PopupContext';
 import { CreditCard, AlertCircle, CheckCircle2, Info } from 'lucide-react';
@@ -101,7 +102,7 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
 
   const selectedLoan = activeLoans.find((l) => l.id.toString() === formData.loan_id.toString()) || loanDetails;
   const currentOutstanding = selectedLoan ? parseFloat(selectedLoan.outstanding_amount || selectedLoan.pendingPrincipal || 0) : 0;
-  const interestRate = Number(selectedLoan?.interest_rate || selectedLoan?.interestRate || 2.0);
+  const interestRate = Number(selectedLoan?.interest_rate || selectedLoan?.interestRate || LOAN_INTEREST_RATE);
   const isFullyRepaid = Boolean(selectedLoan && (selectedLoan.status === 'CLOSED' || loanDetails?.isFullyPaid || (currentOutstanding <= 0 && loanDetails?.schedule?.every(s => s.status === 'PAID'))));
 
   // Active schedule installment matching current selected month & year

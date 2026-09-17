@@ -1,0 +1,54 @@
+[Script Info]
+Title: Bachat Gat Digital Savings Group Presentation
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+YCbCr Matrix: TV.601
+PlayResX: 1920
+PlayResY: 1080
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Segoe UI,30,&H00000000,&H000000FF,&H00000000,&H20FFFFFF,-1,0,0,0,100,100,0,0,3,0,0,2,60,60,50,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:03.00,0:00:09.01,Default,,0,0,0,,Welcome to the demonstration of the Bachat Gat Digital Savings Group Management System.
+Dialogue: 0,0:00:09.01,0:00:12.53,Default,,0,0,0,,We begin at the secure admin authentication portal.
+Dialogue: 0,0:00:12.53,0:00:23.09,Default,,0,0,0,,Role-based access control ensures that only authorized administrators can access group accounts, record transactions, and manage microfinance operations.
+Dialogue: 0,0:00:28.00,0:00:35.64,Default,,0,0,0,,Here on the Real-Time Dashboard, administrators get a transparent overview of the group's financial standing.
+Dialogue: 0,0:00:35.64,0:00:39.43,Default,,0,0,0,,At the top, you can see our isolated test group badge.
+Dialogue: 0,0:00:39.43,0:00:49.31,Default,,0,0,0,,The fundamental accounting equation is highlighted here: Total Group Fund equals Available Cash Balance in bank plus Active Loan Outstanding.
+Dialogue: 0,0:00:49.31,0:00:52.74,Default,,0,0,0,,Every rupee collected is reconciled in real time.
+Dialogue: 0,0:01:03.00,0:01:05.64,Default,,0,0,0,,Next, we navigate to Member Management.
+Dialogue: 0,0:01:05.64,0:01:11.47,Default,,0,0,0,,A key architectural principle of our system is mutually exclusive member partitioning.
+Dialogue: 0,0:01:11.47,0:01:20.42,Default,,0,0,0,,Members are categorized into Active Loan Members who are repaying installments, and Non-Loan Members who contribute regular savings.
+Dialogue: 0,0:01:20.42,0:01:24.14,Default,,0,0,0,,The real-time search allows quick lookup of any member.
+Dialogue: 0,0:01:27.00,0:01:33.54,Default,,0,0,0,,For an Active Loan Member with an active ₹5,000 loan, only 'Record Loan Payment' is enabled.
+Dialogue: 0,0:01:33.54,0:01:41.50,Default,,0,0,0,,Standalone savings is disabled because savings are collected with loan installments, ensuring atomic accounting.
+Dialogue: 0,0:01:45.00,0:01:49.54,Default,,0,0,0,,Clicking into the member's profile opens a 360-degree audit view.
+Dialogue: 0,0:01:49.54,0:02:02.95,Default,,0,0,0,,Here, the system maintains a complete lifetime ledger showing cumulative monthly savings, active and closed loans, and an immutable repayment transaction log for total individual transparency.
+Dialogue: 0,0:02:05.00,0:02:08.84,Default,,0,0,0,,Returning to the directory, we inspect a Non-Loan Member.
+Dialogue: 0,0:02:08.84,0:02:13.02,Default,,0,0,0,,Members without active debt display the green 'No Loan' badge.
+Dialogue: 0,0:02:13.02,0:02:20.70,Default,,0,0,0,,For these members, the standalone 'Record Savings' button is active, set to the standardized ₹1,000 monthly share.
+Dialogue: 0,0:02:23.00,0:02:35.99,Default,,0,0,0,,Opening the Record Savings modal reveals an essential accounting distinction: the Scheduled Month and Year represent the accounting accrual period, while the Payment Date tracks actual cash inflow.
+Dialogue: 0,0:02:35.99,0:02:41.53,Default,,0,0,0,,The modal supports Cash, UPI, and Bank transfers, maintaining complete UI stability.
+Dialogue: 0,0:02:47.00,0:02:51.77,Default,,0,0,0,,In the Savings Ledger section, the system logs every monthly contribution.
+Dialogue: 0,0:02:51.77,0:03:02.60,Default,,0,0,0,,To protect data integrity, strict unique constraints prevent duplicate savings entries for the same member within the same month, eliminating accidental double-entries.
+Dialogue: 0,0:03:08.00,0:03:12.85,Default,,0,0,0,,Moving to Loans and Repayments, we see the micro-lending portfolio.
+Dialogue: 0,0:03:12.85,0:03:20.74,Default,,0,0,0,,Each loan card displays key terms: Principal of ₹5,000, 2% monthly interest, and a 10-month installment term.
+Dialogue: 0,0:03:20.74,0:03:24.87,Default,,0,0,0,,Clicking 'View Details' opens the comprehensive schedule.
+Dialogue: 0,0:03:26.00,0:03:32.33,Default,,0,0,0,,On the Loan Details page, the system presents an automated 10-month amortization schedule.
+Dialogue: 0,0:03:32.33,0:03:38.73,Default,,0,0,0,,The system uses reducing-balance interest calculated strictly at 2% on remaining principal.
+Dialogue: 0,0:03:38.73,0:03:44.00,Default,,0,0,0,,As principal is repaid, the monthly interest charge reduces proportionally.
+Dialogue: 0,0:03:48.00,0:03:58.70,Default,,0,0,0,,We execute a live repayment for Installment Number One: ₹500 principal plus ₹100 reducing interest at 2%, totaling ₹600 cash.
+Dialogue: 0,0:03:58.70,0:04:08.54,Default,,0,0,0,,Upon submission, outstanding principal immediately updates from ₹5,000 to ₹4,500, reflected across the loan ledger.
+Dialogue: 0,0:04:27.00,0:04:31.30,Default,,0,0,0,,Navigating to Reports, we examine the Pending Dues tab.
+Dialogue: 0,0:04:31.30,0:04:42.65,Default,,0,0,0,,For September 2026, the loan issue month has zero installments due, and all member savings are fully paid, displaying exact zero pending arrears.
+Dialogue: 0,0:04:46.00,0:04:50.81,Default,,0,0,0,,Switching to the Loans Overview tab, we review macro lending analytics.
+Dialogue: 0,0:04:50.81,0:05:01.46,Default,,0,0,0,,Administrators can track total deployed capital, cumulative interest earnings, overall recovery velocity, and the group's active credit exposure at a glance.
+Dialogue: 0,0:05:05.00,0:05:11.63,Default,,0,0,0,,The cornerstone of Bachat Gat auditing is the Monthly Balance Report, known traditionally as Taaleband.
+Dialogue: 0,0:05:11.63,0:05:22.26,Default,,0,0,0,,Our system enforces strict column separation: Regular Savings, Loan Principal, and Interest Earnings are tracked in mutually exclusive columns with zero commingling.
+Dialogue: 0,0:05:26.00,0:05:39.20,Default,,0,0,0,,Returning to the dashboard, we confirm reconciliation: Available Cash of ₹15,600 plus Active Loans of ₹4,500 matches Total Group Fund of ₹20,100 with zero variance.
+Dialogue: 0,0:05:41.50,0:05:50.77,Default,,0,0,0,,In conclusion, the Bachat Gat platform delivers robust microfinance management, automated lending, and strict Taaleband reconciliation.
+Dialogue: 0,0:05:50.77,0:05:51.46,Default,,0,0,0,,Thank you.

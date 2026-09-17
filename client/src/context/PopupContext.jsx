@@ -77,16 +77,14 @@ export const PopupProvider = ({ children }) => {
   const resolverRef = useRef(null);
 
   const closePopup = useCallback(() => {
-    setPopupState((prev) => {
-      if (prev.onClose) {
-        try {
-          prev.onClose();
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      return { ...prev, isOpen: false, loading: false };
-    });
+    setPopupState((prev) => ({
+      ...prev,
+      isOpen: false,
+      loading: false,
+      onConfirm: null,
+      onCancel: null,
+      onClose: null,
+    }));
 
     if (resolverRef.current) {
       resolverRef.current(false);
@@ -110,8 +108,14 @@ export const PopupProvider = ({ children }) => {
         onConfirm: null,
         onCancel: null,
         onClose: () => {
-          if (onClose) onClose();
           closePopup();
+          if (onClose) {
+            try {
+              onClose();
+            } catch (e) {
+              console.error(e);
+            }
+          }
         },
       });
     },
@@ -133,8 +137,14 @@ export const PopupProvider = ({ children }) => {
         onConfirm: null,
         onCancel: null,
         onClose: () => {
-          if (onClose) onClose();
           closePopup();
+          if (onClose) {
+            try {
+              onClose();
+            } catch (e) {
+              console.error(e);
+            }
+          }
         },
       });
     },
@@ -156,8 +166,14 @@ export const PopupProvider = ({ children }) => {
         onConfirm: null,
         onCancel: null,
         onClose: () => {
-          if (onClose) onClose();
           closePopup();
+          if (onClose) {
+            try {
+              onClose();
+            } catch (e) {
+              console.error(e);
+            }
+          }
         },
       });
     },
@@ -203,12 +219,24 @@ export const PopupProvider = ({ children }) => {
           }
         },
         onCancel: () => {
-          if (onCancel) onCancel();
           closePopup();
+          if (onCancel) {
+            try {
+              onCancel();
+            } catch (e) {
+              console.error(e);
+            }
+          }
         },
         onClose: () => {
-          if (onCancel) onCancel();
           closePopup();
+          if (onCancel) {
+            try {
+              onCancel();
+            } catch (e) {
+              console.error(e);
+            }
+          }
         },
       });
     },
@@ -273,11 +301,68 @@ export const PopupProvider = ({ children }) => {
     []
   );
 
+  const showWarningConfirm = useCallback(
+    ({
+      title = 'Warning',
+      message,
+      details = null,
+      confirmText = 'Proceed',
+      cancelText = 'Cancel',
+      confirmVariant = 'primary',
+      onConfirm,
+      onCancel,
+    }) => {
+      setPopupState({
+        isOpen: true,
+        type: 'warning',
+        title,
+        message,
+        details,
+        confirmText,
+        cancelText,
+        confirmVariant,
+        loading: false,
+        onConfirm: () => {
+          closePopup();
+          if (onConfirm) {
+            try {
+              onConfirm();
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        },
+        onCancel: () => {
+          closePopup();
+          if (onCancel) {
+            try {
+              onCancel();
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        },
+        onClose: () => {
+          closePopup();
+          if (onCancel) {
+            try {
+              onCancel();
+            } catch (e) {
+              console.error(e);
+            }
+          }
+        },
+      });
+    },
+    [closePopup]
+  );
+
   return (
     <PopupContext.Provider
       value={{
         showError,
         showWarning,
+        showWarningConfirm,
         showSuccess,
         showConfirm,
         askConfirm,

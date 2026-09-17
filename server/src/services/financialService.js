@@ -9,7 +9,7 @@
  * 5. AVAILABLE BALANCE = Total Inflows - Cash Disbursed.
  */
 
-const LOAN_INTEREST_RATE = 2.0;
+const LOAN_INTEREST_RATE = 1.0;
 
 const number = (item) => Number(item) || 0;
 
@@ -62,9 +62,11 @@ function calculateLoanInterest(outstandingPrincipal, rate = LOAN_INTEREST_RATE) 
  * @param {Array} repayments - List of repayment records
  * @returns {Object} The financial summary
  */
-function calculateGroupFinancialSummary(savings = [], loans = [], repayments = []) {
-  // 1. TOTAL GROUP SAVINGS
-  const totalGroupSavings = savings.reduce((sum, s) => sum + number(s.paidAmount ?? s.amount ?? s.paid_amount), 0);
+function calculateGroupFinancialSummary(savings = [], loans = [], repayments = [], transactions = []) {
+  // 1. TOTAL GROUP SAVINGS (SUM of actual paid regular contributions)
+  const totalGroupSavings = savings.reduce((sum, s) => {
+    return sum + number(s.paidAmount ?? s.amount ?? s.paid_amount);
+  }, 0);
 
   const isRepayDeposit = (r) => Boolean(
     r.isDeposit ||
@@ -85,6 +87,7 @@ function calculateGroupFinancialSummary(savings = [], loans = [], repayments = [
     return sum + number(r.principalAmount ?? r.principalPaid ?? r.amount);
   }, 0);
 
+  // Total principal collected from regular installments
   const totalPrincipalRepaid = regularRepayments.reduce((sum, r) => {
     return sum + number(r.principalAmount ?? r.principalPaid ?? r.principal_amount ?? r.loanPrincipalPaid ?? 0);
   }, 0);
@@ -127,9 +130,31 @@ function calculateGroupFinancialSummary(savings = [], loans = [], repayments = [
     .filter(l => !isBaselineLoan(l) && (l.status || '').toUpperCase() !== 'REJECTED')
     .reduce((sum, l) => sum + number(l.originalPrincipal ?? l.principalAmount), 0);
 
+  // Extract Diwali Bonus distribution payouts from transactions/ledger records (Cash Outflow)
+  let totalBonusDistributed = 0;
+  if (Array.isArray(transactions)) {
+    const bonusTxs = transactions.filter(t =>
+      t.type === 'DIWALI_BONUS_DISTRIBUTED' || t.action === 'DIWALI_BONUS_DISTRIBUTED'
+    );
+    if (bonusTxs.length > 0) {
+      totalBonusDistributed = bonusTxs.reduce((sum, t) => sum + number(t.amount), 0);
+    } else {
+      totalBonusDistributed = transactions.reduce((sum, t) => sum + number(t.bonusAmount), 0);
+    }
+  } else if (typeof transactions === 'number') {
+    totalBonusDistributed = transactions;
+  } else if (transactions && typeof transactions === 'object') {
+    totalBonusDistributed = number(transactions.totalBonusDistributed ?? transactions.amount);
+  }
+  totalBonusDistributed = Math.round(totalBonusDistributed * 100) / 100;
+
   // 6. AVAILABLE BALANCE
+  // Total Cash Inflow = Savings + Deposits + Principal Repaid + Interest Paid
+  // Total Cash Outflow = Total Loans Disbursed + Total Diwali Bonus Distributed
+  // Available Balance = Total Cash Inflow - Total Cash Outflow
   const totalCashInflow = totalGroupSavings + totalLoanDeposits + totalPrincipalRepaid + totalInterestPaid;
-  const availableBalance = Math.max(0, Math.round((totalCashInflow - totalNewDisbursed) * 100) / 100);
+  const totalCashOutflow = totalNewDisbursed + totalBonusDistributed;
+  const availableBalance = Math.max(0, Math.round((totalCashInflow - totalCashOutflow) * 100) / 100);
 
   // 7. TOTAL GROUP FUND
   const totalGroupFund = Math.round((availableBalance + activeLoansOutstanding) * 100) / 100;
@@ -147,6 +172,7 @@ function calculateGroupFinancialSummary(savings = [], loans = [], repayments = [
     totalInterestPaid,
     totalInterestCollected: totalInterestPaid,
     totalInterest: totalInterestPaid,
+    totalBonusDistributed,
     totalGroupFund,
     totalFund: totalGroupFund,
     rawAvailableBalance: availableBalance,

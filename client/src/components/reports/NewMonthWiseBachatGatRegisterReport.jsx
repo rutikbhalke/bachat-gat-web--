@@ -110,7 +110,7 @@ const NewMonthWiseBachatGatRegisterReport = ({ selectedMonth, selectedYear }) =>
                 <tr style={{ borderBottom: '1.5px solid #000', fontWeight: 800 }}>
                   <th style={{ borderRight: '1px solid #000', padding: '10px 4px', width: '60px' }}>अ. क्र.<br/>Sr. No.</th>
                   <th style={{ borderRight: '1px solid #000', padding: '10px 8px', textAlign: 'left' }}>सभासदाचे नाव<br/>Member Name</th>
-                  <th style={{ borderRight: '1px solid #000', padding: '10px 4px', width: '120px' }}>कर्ज रक्कम<br/>Loan Amount</th>
+
                   <th style={{ borderRight: '1px solid #000', padding: '10px 4px', width: '100px' }}>हप्ता क्रमांक<br/>Installment No.</th>
                   <th style={{ borderRight: '1px solid #000', padding: '10px 4px', width: '110px' }}>कर्ज हप्ता<br/>Principal Paid</th>
                   <th style={{ borderRight: '1px solid #000', padding: '10px 4px', width: '100px' }}>व्याज<br/>Interest</th>
@@ -123,7 +123,7 @@ const NewMonthWiseBachatGatRegisterReport = ({ selectedMonth, selectedYear }) =>
                   <tr key={row.id || idx} style={{ borderBottom: '1px solid #000' }}>
                     <td style={{ borderRight: '1px solid #000', padding: '8px 4px', fontWeight: 700 }}>{idx + 1}</td>
                     <td style={{ borderRight: '1px solid #000', padding: '8px 8px', textAlign: 'left', fontWeight: 700 }}>{row.memberName}</td>
-                    <td style={{ borderRight: '1px solid #000', padding: '8px 4px' }}>{row.loanDisbursed === 0 ? '-' : formatCurrency(row.loanDisbursed)}</td>
+
                     <td style={{ borderRight: '1px solid #000', padding: '8px 4px', fontWeight: 700 }}>{row.installmentNumber && row.installmentNumber !== '-' ? row.installmentNumber : '-'}</td>
                     <td style={{ borderRight: '1px solid #000', padding: '8px 4px' }}>{row.haptaPaid === 0 ? '-' : formatCurrency(row.haptaPaid)}</td>
                     <td style={{ borderRight: '1px solid #000', padding: '8px 4px' }}>{row.interestPaid === 0 ? '-' : formatCurrency(row.interestPaid)}</td>
@@ -140,7 +140,7 @@ const NewMonthWiseBachatGatRegisterReport = ({ selectedMonth, selectedYear }) =>
               {data.length > 0 && (
                 <tfoot>
                   <tr style={{ borderTop: '2px solid #000', fontWeight: 900 }}>
-                    <td colSpan="4" style={{ borderRight: '1px solid #000', padding: '10px 8px', textAlign: 'right' }}>एकूण / Grand Total:</td>
+                    <td colSpan="3" style={{ borderRight: '1px solid #000', padding: '10px 8px', textAlign: 'right' }}>एकूण / Grand Total:</td>
                     <td style={{ borderRight: '1px solid #000', padding: '10px 4px' }}>{formatCurrency(totalHaptaPaid)}</td>
                     <td style={{ borderRight: '1px solid #000', padding: '10px 4px' }}>{formatCurrency(totalInterestPaid)}</td>
                     <td style={{ borderRight: '1px solid #000', padding: '10px 4px' }}>{formatCurrency(totalFundDeposit)}</td>

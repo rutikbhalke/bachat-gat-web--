@@ -107,7 +107,7 @@ export const memberService = {
    */
   getAllMembers: async (params = {}, groupId = DEFAULT_GROUP_ID) => {
     try {
-      const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
+      const targetGroupId = (params?.groupId && params.groupId !== 'group_001') ? params.groupId : ((groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId);
       const m = parseInt(params.month, 10) || (new Date().getMonth() + 1);
       const y = parseInt(params.year, 10) || new Date().getFullYear();
 
@@ -151,13 +151,19 @@ export const memberService = {
           monthlyShare: defaultMonthlyShare,
         });
 
+        const isMemberInactive = Boolean(normalized.isDeleted) || normalized.isActive === false || normalized.is_active === 0 || normalized.is_active === false || (normalized.status || '').toLowerCase() === 'inactive' || (normalized.status || '').toLowerCase() === 'deleted';
+        const canonicalStatus = isMemberInactive ? 'inactive' : 'active';
+
         return {
           ...normalized,
           ...dueInfo,
-          account_status: normalized.status || 'ACTIVE',
-          accountStatus: normalized.status || 'ACTIVE',
-          member_status: normalized.status || 'ACTIVE',
-          memberStatus: normalized.status || 'ACTIVE',
+          isDeleted: Boolean(normalized.isDeleted),
+          isActive: !isMemberInactive,
+          is_active: !isMemberInactive ? 1 : 0,
+          account_status: canonicalStatus,
+          accountStatus: canonicalStatus,
+          member_status: canonicalStatus,
+          memberStatus: canonicalStatus,
           total_savings: memberSavingsTotal,
           totalSavings: memberSavingsTotal,
           outstanding_loans: memberLoanOutstanding,
@@ -173,7 +179,7 @@ export const memberService = {
           pendingAmount: dueInfo.currentDues,
           remaining_due: dueInfo.currentDues,
           remainingDue: dueInfo.currentDues,
-          status: dueInfo.status,
+          status: isMemberInactive ? 'inactive' : dueInfo.status,
           due_status: dueInfo.status,
           dueStatus: dueInfo.status,
           payment_status: dueInfo.status,
@@ -188,9 +194,11 @@ export const memberService = {
       // Filter by search / status if passed
       let filtered = members;
       if (params.status === 'active') {
-        filtered = filtered.filter((m) => m.isActive);
+        filtered = filtered.filter((m) => m.isActive && !m.isDeleted);
       } else if (params.status === 'inactive') {
-        filtered = filtered.filter((m) => !m.isActive);
+        filtered = filtered.filter((m) => !m.isActive || m.isDeleted);
+      } else if (!params.includeDeleted && !params.all) {
+        filtered = filtered.filter((m) => !m.isDeleted && m.isActive);
       }
 
       if (params.search) {
@@ -888,7 +896,10 @@ export const memberService = {
       return response.data;
     } catch (err) {
       console.error('Failed to delete member:', err);
-      throw new Error(err.response?.data?.message || err.message || 'Failed to delete member.');
+      const customErr = new Error(err.response?.data?.message || err.message || 'Failed to delete member.');
+      customErr.outstandingLoan = err.response?.data?.outstandingLoan;
+      customErr.activeLoanId = err.response?.data?.activeLoanId;
+      throw customErr;
     }
   },
 

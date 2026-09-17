@@ -144,7 +144,7 @@ async function resolveUserProfile(currentFirebaseUser) {
     phone: phone,
     role: rawRole,
     role_name: rawRole.toUpperCase(),
-    groupId: DEFAULT_GROUP_ID,
+    groupId: userData?.groupId || memberData?.groupId || DEFAULT_GROUP_ID,
     groupName: currentGroupName,
     memberId: memberId || userData?.memberId || '',
     memberCode: memberData?.memberCode || userData?.memberCode || memberId || '',
@@ -165,7 +165,7 @@ async function resolveUserProfile(currentFirebaseUser) {
         isActive: true,
         memberId: memberId || '',
         memberCode: memberData?.memberCode || memberId || '',
-        groupId: DEFAULT_GROUP_ID,
+        groupId: userData?.groupId || memberData?.groupId || DEFAULT_GROUP_ID,
         groupName: currentGroupName,
         createdAt: userData?.createdAt || serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -185,7 +185,7 @@ export const AuthProvider = ({ children }) => {
       const stored = localStorage.getItem('bachat_user');
       if (stored) {
         const parsed = JSON.parse(stored);
-        parsed.groupId = DEFAULT_GROUP_ID;
+        parsed.groupId = parsed.groupId || DEFAULT_GROUP_ID;
         return parsed;
       }
       return null;
@@ -209,7 +209,8 @@ export const AuthProvider = ({ children }) => {
 
   // 1. Listen for real-time changes to the active Group document in Firestore
   useEffect(() => {
-    const groupDocRef = doc(db, 'groups', DEFAULT_GROUP_ID);
+    const activeGroupId = user?.groupId || DEFAULT_GROUP_ID;
+    const groupDocRef = doc(db, 'groups', activeGroupId);
     const unsubscribeGroup = onSnapshot(groupDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -218,7 +219,7 @@ export const AuthProvider = ({ children }) => {
           setGroupName(liveName);
           setUser((prev) => {
             if (!prev) return prev;
-            const updated = { ...prev, groupName: liveName, groupId: DEFAULT_GROUP_ID };
+            const updated = { ...prev, groupName: liveName, groupId: prev.groupId || activeGroupId };
             localStorage.setItem('bachat_user', JSON.stringify(updated));
             return updated;
           });
@@ -229,7 +230,7 @@ export const AuthProvider = ({ children }) => {
     });
 
     return () => unsubscribeGroup();
-  }, []);
+  }, [user?.groupId]);
 
   // 2. Listen for Firebase Authentication state changes
   useEffect(() => {
@@ -247,7 +248,6 @@ export const AuthProvider = ({ children }) => {
           // Asynchronously resolve user profile before concluding loading state
           const resolved = await resolveUserProfile(currentFirebaseUser);
           if (resolved) {
-            resolved.groupId = DEFAULT_GROUP_ID;
             setUser(resolved);
             if (resolved.groupName) setGroupName(resolved.groupName);
             localStorage.setItem('bachat_user', JSON.stringify(resolved));
@@ -267,7 +267,7 @@ export const AuthProvider = ({ children }) => {
                   name: uData.fullName || uData.name || prev?.name || currentFirebaseUser.displayName || 'Member',
                   role: rawRole,
                   role_name: rawRole.toUpperCase(),
-                  groupId: DEFAULT_GROUP_ID,
+                  groupId: uData.groupId || prev?.groupId || DEFAULT_GROUP_ID,
                 };
                 localStorage.setItem('bachat_user', JSON.stringify(updated));
                 return updated;

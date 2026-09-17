@@ -153,8 +153,10 @@ export const normalizeMember = (id, data = {}) => {
   const memberId = id || data.id || data.memberId || data.member_id || '';
   const name = data.name || data.fullName || data.full_name || 'Member';
   const monthlyContribution = Number(data.monthlyContribution || data.monthlyContributionPerShare || data.monthlyHaftaAmount || data.monthly_contribution || 1000);
+  const isDeleted = Boolean(data.isDeleted);
+  const isInactive = data.isActive === false || data.is_active === false || (data.status || '').toLowerCase() === 'inactive' || (data.status || '').toLowerCase() === 'deleted' || isDeleted;
+  const status = isInactive ? 'INACTIVE' : (data.status || 'ACTIVE').toUpperCase();
   const shares = Number(data.shares || data.shareCount || 1);
-  const status = (data.status || (data.isActive !== false ? 'ACTIVE' : 'INACTIVE')).toUpperCase();
 
   return {
     id: memberId,
@@ -169,8 +171,9 @@ export const normalizeMember = (id, data = {}) => {
     monthlyContributionPerShare: monthlyContribution,
     monthly_contribution: monthlyContribution,
     status: status,
-    isActive: status === 'ACTIVE' || status === 'active',
-    is_active: (status === 'ACTIVE' || status === 'active') ? 1 : 0,
+    isDeleted: isDeleted,
+    isActive: !isInactive,
+    is_active: !isInactive ? 1 : 0,
     joinDate: data.joinDate || data.joinedAt || data.joined_date || '',
     joinedAt: data.joinDate || data.joinedAt || data.joined_date || '',
     joined_date: data.joinDate || data.joinedAt || data.joined_date || '',
@@ -427,7 +430,7 @@ export const normalizeLoan = (idOrData, maybeData = {}) => {
   const outstanding = Math.max(0, Math.round(pendingPrincipal * 100) / 100);
   const actualPrincipalPaid = Math.max(0, Math.round((originalPrincipal - outstanding) * 100) / 100);
 
-  const interestRate = Number(data.interestRate || data.interest_rate || 2.0); // Enforced 2% default
+  const interestRate = Number(data.interestRate || data.interest_rate || 1.0); // Dynamic fallback
   
   // Source of truth: A loan with 0 outstanding is CLOSED. Any loan with outstanding > 0 is ACTIVE.
   const rawStatus = (data.status || '').toUpperCase();

@@ -1,0 +1,392 @@
+{
+  "en": [
+    {
+      "scene_id": "scene_01",
+      "title": "Admin Login & Role-Based Security",
+      "start": 3.0,
+      "duration": 20.088,
+      "text": "Welcome to the demonstration of the Bachat Gat Digital Savings Group Management System. We begin at the secure admin authentication portal. Role-based access control ensures that only authorized administrators can access group accounts, record transactions, and manage microfinance operations.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_01_en.mp3"
+    },
+    {
+      "scene_id": "scene_02",
+      "title": "Real-Time Dashboard & Core Accounting Equation",
+      "start": 28.0,
+      "duration": 24.744,
+      "text": "Here on the Real-Time Dashboard, administrators get a transparent overview of the group's financial standing. At the top, you can see our isolated test group badge. The fundamental accounting equation is highlighted here: Total Group Fund equals Available Cash Balance in bank plus Active Loan Outstanding. Every rupee collected is reconciled in real time.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_02_en.mp3"
+    },
+    {
+      "scene_id": "scene_03",
+      "title": "Member Management & Mutually Exclusive Partitioning",
+      "start": 63.0,
+      "duration": 21.144,
+      "text": "Next, we navigate to Member Management. A key architectural principle of our system is mutually exclusive member partitioning. Members are categorized into Active Loan Members who are repaying installments, and Non-Loan Members who contribute regular savings. The real-time search allows quick lookup of any member.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_03_en.mp3"
+    },
+    {
+      "scene_id": "scene_04",
+      "title": "Active Loan Member Workflow",
+      "start": 87.0,
+      "duration": 14.496,
+      "text": "For an Active Loan Member with an active ₹5,000 loan, only 'Record Loan Payment' is enabled. Standalone savings is disabled because savings are collected with loan installments, ensuring atomic accounting.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_04_en.mp3"
+    },
+    {
+      "scene_id": "scene_05",
+      "title": "Comprehensive Member 360 Profile",
+      "start": 105.0,
+      "duration": 17.952,
+      "text": "Clicking into the member's profile opens a 360-degree audit view. Here, the system maintains a complete lifetime ledger showing cumulative monthly savings, active and closed loans, and an immutable repayment transaction log for total individual transparency.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_05_en.mp3"
+    },
+    {
+      "scene_id": "scene_06",
+      "title": "Non-Loan Member Workflow",
+      "start": 125.0,
+      "duration": 15.696,
+      "text": "Returning to the directory, we inspect a Non-Loan Member. Members without active debt display the green 'No Loan' badge. For these members, the standalone 'Record Savings' button is active, set to the standardized ₹1,000 monthly share.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_06_en.mp3"
+    },
+    {
+      "scene_id": "scene_07",
+      "title": "Monthly Savings Modal & Accrual vs Payment Date",
+      "start": 143.0,
+      "duration": 18.528,
+      "text": "Opening the Record Savings modal reveals an essential accounting distinction: the Scheduled Month and Year represent the accounting accrual period, while the Payment Date tracks actual cash inflow. The modal supports Cash, UPI, and Bank transfers, maintaining complete UI stability.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_07_en.mp3"
+    },
+    {
+      "scene_id": "scene_08",
+      "title": "Group Savings Ledger & Duplicate Prevention",
+      "start": 167.0,
+      "duration": 15.6,
+      "text": "In the Savings Ledger section, the system logs every monthly contribution. To protect data integrity, strict unique constraints prevent duplicate savings entries for the same member within the same month, eliminating accidental double-entries.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_08_en.mp3"
+    },
+    {
+      "scene_id": "scene_09",
+      "title": "Micro-Lending Portfolio Management",
+      "start": 188.0,
+      "duration": 16.872,
+      "text": "Moving to Loans and Repayments, we see the micro-lending portfolio. Each loan card displays key terms: Principal of ₹5,000, 2% monthly interest, and a 10-month installment term. Clicking 'View Details' opens the comprehensive schedule.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_09_en.mp3"
+    },
+    {
+      "scene_id": "scene_10",
+      "title": "10-Month Schedule & 2% Reducing-Balance Interest",
+      "start": 206.0,
+      "duration": 18.0,
+      "text": "On the Loan Details page, the system presents an automated 10-month amortization schedule. The system uses reducing-balance interest calculated strictly at 2% on remaining principal. As principal is repaid, the monthly interest charge reduces proportionally.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_10_en.mp3"
+    },
+    {
+      "scene_id": "scene_11",
+      "title": "Live Combined Loan Repayment Execution",
+      "start": 228.0,
+      "duration": 20.544,
+      "text": "We execute a live repayment for Installment Number One: ₹500 principal plus ₹100 reducing interest at 2%, totaling ₹600 cash. Upon submission, outstanding principal immediately updates from ₹5,000 to ₹4,500, reflected across the loan ledger.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_11_en.mp3"
+    },
+    {
+      "scene_id": "scene_12",
+      "title": "Automated Pending Dues Audit — September 2026",
+      "start": 267.0,
+      "duration": 15.648,
+      "text": "Navigating to Reports, we examine the Pending Dues tab. For September 2026, the loan issue month has zero installments due, and all member savings are fully paid, displaying exact zero pending arrears.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_12_en.mp3"
+    },
+    {
+      "scene_id": "scene_13",
+      "title": "Group Lending Analytics",
+      "start": 286.0,
+      "duration": 15.456,
+      "text": "Switching to the Loans Overview tab, we review macro lending analytics. Administrators can track total deployed capital, cumulative interest earnings, overall recovery velocity, and the group's active credit exposure at a glance.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_13_en.mp3"
+    },
+    {
+      "scene_id": "scene_14",
+      "title": "Taaleband / Monthly Balance Strict Separation",
+      "start": 305.0,
+      "duration": 17.256,
+      "text": "The cornerstone of Bachat Gat auditing is the Monthly Balance Report, known traditionally as Taaleband. Our system enforces strict column separation: Regular Savings, Loan Principal, and Interest Earnings are tracked in mutually exclusive columns with zero commingling.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_14_en.mp3"
+    },
+    {
+      "scene_id": "scene_15",
+      "title": "Final Reconciliation & Balance Check",
+      "start": 326.0,
+      "duration": 13.2,
+      "text": "Returning to the dashboard, we confirm reconciliation: Available Cash of ₹15,600 plus Active Loans of ₹4,500 matches Total Group Fund of ₹20,100 with zero variance.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_15_en.mp3"
+    },
+    {
+      "scene_id": "scene_16",
+      "title": "Project Summary & Conclusion",
+      "start": 341.5,
+      "duration": 9.96,
+      "text": "In conclusion, the Bachat Gat platform delivers robust microfinance management, automated lending, and strict Taaleband reconciliation. Thank you.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_16_en.mp3"
+    }
+  ],
+  "hi": [
+    {
+      "scene_id": "scene_01",
+      "title": "Admin Login & Role-Based Security",
+      "start": 3.0,
+      "duration": 20.664,
+      "text": "बचत गट डिजिटल सेविंग्स ग्रुप मैनेजमेंट सिस्टम के इस डेमोंस्ट्रेशन में आपका स्वागत है। सबसे पहले हम एडमिन लॉगिन पोर्टल पर आते हैं। यहाँ रोल-बेस्ड एक्सेस कंट्रोल लागू है, जिससे केवल अधिकृत एडमिन ही ग्रुप के खाते और वित्तीय लेन-देन संभाल सकते हैं।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_01_hi.mp3"
+    },
+    {
+      "scene_id": "scene_02",
+      "title": "Real-Time Dashboard & Core Accounting Equation",
+      "start": 28.0,
+      "duration": 26.256,
+      "text": "रियल-टाइम डैशबोर्ड पर हमें पूरे बचत गट की वित्तीय स्थिति का पारदर्शी विवरण मिलता है। ऊपर हमारे टेस्ट ग्रुप का बैज दिखाई दे रहा है। यहाँ बुनियादी अकाउंटिंग समीकरण प्रदर्शित है: टोटल ग्रुप फंड बराबर है उपलब्ध कैश बैलेंस जमा एक्टिव लोन आउटस्टैंडिंग। सदस्यों की बचत और लोन अदायगी का हर रुपया रियल टाइम में संतुलित रहता है।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_02_hi.mp3"
+    },
+    {
+      "scene_id": "scene_03",
+      "title": "Member Management & Mutually Exclusive Partitioning",
+      "start": 63.0,
+      "duration": 22.992,
+      "text": "अब हम मेंबर मैनेजमेंट सेक्शन पर चलते हैं। हमारे सिस्टम का मुख्य नियम है मेंबर्स का स्पष्ट विभाजन। सदस्यों को दो श्रेणियों में बांटा गया है: एक्टिव लोन मेंबर्स जो लोन की किस्त चुका रहे हैं, और नॉन-लोन मेंबर्स जो केवल नियमित बचत जमा करते हैं। सर्च बार से किसी भी सदस्य को तुरंत खोजा जा सकता है।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_03_hi.mp3"
+    },
+    {
+      "scene_id": "scene_04",
+      "title": "Active Loan Member Workflow",
+      "start": 87.0,
+      "duration": 16.008,
+      "text": "एक्टिव लोन मेंबर का ₹5,000 का एक्टिव लोन दिखाई दे रहा है। यहाँ केवल 'रेकॉर्ड लोन पेमेंट' विकल्प चालू है। अलग से बचत जमा करना बंद है, क्योंकि बचत और लोन किस्त एक साथ जमा होती है।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_04_hi.mp3"
+    },
+    {
+      "scene_id": "scene_05",
+      "title": "Comprehensive Member 360 Profile",
+      "start": 105.0,
+      "duration": 15.0,
+      "text": "मेंबर कार्ड पर क्लिक करने पर 360-डिग्री प्रोफाइल ऑडिट पेज खुलता है। यहाँ सदस्य की कुल संचित बचत, पुराने और चालू लोन, तथा सभी किस्तों का पारदर्शी इतिहास देखा जा सकता है।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_05_hi.mp3"
+    },
+    {
+      "scene_id": "scene_06",
+      "title": "Non-Loan Member Workflow",
+      "start": 125.0,
+      "duration": 15.504,
+      "text": "वापस आकर हम नॉन-लोन मेंबर को देखते हैं। बिना लोन वाले सदस्यों पर हरा 'नो लोन' बैज है। इनके लिए 'रेकॉर्ड सेविंग्स' बटन उपलब्ध है, जिसमें ₹1,000 की मासिक बचत जमा की जाती है।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_06_hi.mp3"
+    },
+    {
+      "scene_id": "scene_07",
+      "title": "Monthly Savings Modal & Accrual vs Payment Date",
+      "start": 143.0,
+      "duration": 18.888,
+      "text": "रेकॉर्ड सेविंग्स मॉडल खोलने पर एक महत्वपूर्ण नियम दिखता है: शेड्यूल्ड महीना और साल अकाउंटिंग अवधि को दर्शाते हैं, जबकि पेमेंट डेट असल कैश जमा होने का दिन। यह मॉडल कैश, यूपीआई और बैंक ट्रांसफर सपोर्ट करता है, बिना किसी स्क्रीन फ्लिकर के।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_07_hi.mp3"
+    },
+    {
+      "scene_id": "scene_08",
+      "title": "Group Savings Ledger & Duplicate Prevention",
+      "start": 167.0,
+      "duration": 15.192,
+      "text": "सेविंग्स लेजर सेक्शन में हर महीने की बचत का ऑडिट रिकॉर्ड रहता है। डेटा की शुद्धता के लिए सिस्टम एक ही सदस्य की एक महीने में दोहरी बचत प्रविष्टि को ब्लॉक करता है, जिससे डुप्लीकेट एंट्री नहीं हो सकती।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_08_hi.mp3"
+    },
+    {
+      "scene_id": "scene_09",
+      "title": "Micro-Lending Portfolio Management",
+      "start": 188.0,
+      "duration": 16.704,
+      "text": "लोन्स और रिपेमेंट्स पेज पर संपूर्ण लोन पोर्टफोलियो दिखता है। यहाँ ₹5,000 मूलधन, 2% प्रतिमाह ब्याज दर, और 10 महीने की अवधि दर्ज है। 'व्यू डिटेल्स' पर क्लिक करके हम पूरे शेड्यूल का अध्ययन करते हैं।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_09_hi.mp3"
+    },
+    {
+      "scene_id": "scene_10",
+      "title": "10-Month Schedule & 2% Reducing-Balance Interest",
+      "start": 206.0,
+      "duration": 17.472,
+      "text": "लोन डिटेल्स पेज पर 10 महीने का पारदर्शी अमॉर्टाइजेशन शेड्यूल उपलब्ध है। यहाँ घटते मूलधन पर 2% ब्याज की सटीक गणना होती है। जैसे-जैसे मूलधन कम होता है, हर महीने का ब्याज भी घटता जाता है।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_10_hi.mp3"
+    },
+    {
+      "scene_id": "scene_11",
+      "title": "Live Combined Loan Repayment Execution",
+      "start": 228.0,
+      "duration": 20.808,
+      "text": "हम पहली किस्त का वास्तविक भुगतान दर्ज करते हैं: ₹500 मूलधन और 2% की दर से ₹100 ब्याज, यानी कुल ₹600 कैश। सबमिट करते ही लोन आउटस्टैंडिंग ₹5,000 से घटकर ₹4,500 हो जाता है, और लेजर में पूरी प्रविष्टि तुरंत अपडेट हो जाती है।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_11_hi.mp3"
+    },
+    {
+      "scene_id": "scene_12",
+      "title": "Automated Pending Dues Audit — September 2026",
+      "start": 267.0,
+      "duration": 15.696,
+      "text": "रिपोर्ट्स में हम 'पेंडिंग ड्यूज' टैब देखते हैं। सितंबर 2026 में लोन जारी होने के कारण कोई किस्त देय नहीं है, और सभी सदस्यों की बचत पूर्ण होने से कुल पेंडिंग बकाया बिल्कुल शून्य दिखाई देता है।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_12_hi.mp3"
+    },
+    {
+      "scene_id": "scene_13",
+      "title": "Group Lending Analytics",
+      "start": 286.0,
+      "duration": 12.936,
+      "text": "लोन्स ओवरव्यू टैब में ग्रुप के कर्जों का समग्र विश्लेषण मिलता है। यहाँ कुल वितरित राशि, ब्याज से हुई कुल कमाई, और रिकवरी की गति की स्पष्ट रिपोर्ट उपलब्ध है।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_13_hi.mp3"
+    },
+    {
+      "scene_id": "scene_14",
+      "title": "Taaleband / Monthly Balance Strict Separation",
+      "start": 305.0,
+      "duration": 16.992,
+      "text": "बचत गट ऑडिट का सबसे महत्वपूर्ण हिस्सा है मासिक ताळेबंद रिपोर्ट। हमारा सिस्टम सख्त नियम का पालन करता है: नियमित बचत, लोन मूलधन, और ब्याज—इन तीनों के अलग-अलग कॉलम होते हैं। कोई भी फंड आपस में नहीं मिलता।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_14_hi.mp3"
+    },
+    {
+      "scene_id": "scene_15",
+      "title": "Final Reconciliation & Balance Check",
+      "start": 326.0,
+      "duration": 11.808,
+      "text": "डैशबोर्ड पर हम मिलान देखते हैं: ₹15,600 बैंक बैलेंस और ₹4,500 एक्टिव लोन मिलकर कुल ₹20,100 ग्रुप फंड के बराबर हैं, शून्य अंतर के साथ।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_15_hi.mp3"
+    },
+    {
+      "scene_id": "scene_16",
+      "title": "Project Summary & Conclusion",
+      "start": 341.5,
+      "duration": 11.304,
+      "text": "निष्कर्ष रूप में, यह बचत गट मैनेजमेंट सिस्टम दोहरे सदस्य विभाजन, 10 महीने के लोन, और ताळेबंद समाधान को पूरी तरह स्वचालित करता है। धन्यवाद।",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_16_hi.mp3"
+    }
+  ],
+  "mr": [
+    {
+      "scene_id": "scene_01",
+      "title": "Admin Login & Role-Based Security",
+      "start": 3.0,
+      "duration": 19.536,
+      "text": "बचत गट डिजिटल सेव्हिंग्ज ग्रुप मॅनेजमेंट सिस्टीमच्या या प्रात्यक्षिकामध्ये आपले स्वागत आहे. आपण सुरुवातीला सुरक्षित अ‍ॅडमिन लॉगिन पोर्टलवर आलो आहोत. येथे रोल-बेस्ड अ‍ॅक्सेस कंट्रोलमुळे केवळ अधिकृत अ‍ॅडमिनच गटाचे हिशोब आणि आर्थिक व्यवहार हाताळू शकतात.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_01_mr.mp3"
+    },
+    {
+      "scene_id": "scene_02",
+      "title": "Real-Time Dashboard & Core Accounting Equation",
+      "start": 28.0,
+      "duration": 25.056,
+      "text": "रिअल-टाईम डॅशबोर्डवर आपल्याला बचत गटाच्या संपूर्ण आर्थिक स्थितीचा पारदर्शक आढावा मिळतो. वर आपल्या टेस्ट ग्रुपचा बॅज दिसत आहे. येथे मूलभूत अकाउंटिंग समीकरण स्पष्ट दिसते: एकूण गट निधी बरोबर उपलब्ध रोख शिल्लक अधिक थकीत कर्ज येणे. मासिक बचत आणि कर्ज परताव्याचा प्रत्येक रुपया रिअल टाइममध्ये जुळवला जातो.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_02_mr.mp3"
+    },
+    {
+      "scene_id": "scene_03",
+      "title": "Member Management & Mutually Exclusive Partitioning",
+      "start": 63.0,
+      "duration": 23.4,
+      "text": "आता आपण मेंबर मॅनेजमेंट विभागात आलो आहोत. आपल्या प्रणालीचे मुख्य वैशिष्ट्य म्हणजे सभासदांचे अचूक वर्गीकरण. सभासदांची विभागणी दोन गटांत केली आहे: कर्ज परतफेड करणारे अ‍ॅक्टिव्ह लोन मेंबर्स, आणि केवळ नियमित बचत जमा करणारे नॉन-लोन मेंबर्स. सर्च बारद्वारे सभासदांची माहिती त्वरित शोधता येते.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_03_mr.mp3"
+    },
+    {
+      "scene_id": "scene_04",
+      "title": "Active Loan Member Workflow",
+      "start": 87.0,
+      "duration": 14.088,
+      "text": "अ‍ॅक्टिव्ह लोन मेंबरचे ₹5,000 चे सक्रिय कर्ज दिसते. येथे केवळ 'रेकॉर्ड लोन पेमेंट' चालू आहे. स्वतंत्र बचत बंद ठेवली आहे, कारण बचत ही कर्जाच्या हप्त्यासोबतच जमा होते.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_04_mr.mp3"
+    },
+    {
+      "scene_id": "scene_05",
+      "title": "Comprehensive Member 360 Profile",
+      "start": 105.0,
+      "duration": 15.504,
+      "text": "मेंबर कार्डवर क्लिक केल्यावर ३६०-डिग्री प्रोफाइल ऑडिट पेज उघडते. येथे सभासदाची एकूण जमा बचत, मागील व चालू कर्जे, आणि सर्व हप्त्यांच्या नोंदींचा संपूर्ण पारदर्शक इतिहास उपलब्ध असतो.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_05_mr.mp3"
+    },
+    {
+      "scene_id": "scene_06",
+      "title": "Non-Loan Member Workflow",
+      "start": 125.0,
+      "duration": 15.24,
+      "text": "परत आल्यावर आपण नॉन-लोन मेंबर पाहतो. ज्यांच्यावर कर्ज नाही त्यांना हिरवा 'नो लोन' बॅज दिसतो. अशा सभासदांसाठी 'रेकॉर्ड सेव्हिंग्ज' बटन उपलब्ध असते, ज्यातून ₹1,000 मासिक बचत जमा होते.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_06_mr.mp3"
+    },
+    {
+      "scene_id": "scene_07",
+      "title": "Monthly Savings Modal & Accrual vs Payment Date",
+      "start": 143.0,
+      "duration": 18.6,
+      "text": "रेकॉर्ड सेव्हिंग्ज डायलॉग उघडल्यावर एक महत्त्वाचा नियम दिसून येतो: शेड्यूल्ड महिना आणि वर्ष हे हिशोबाचा कालावधी ठरवतात, तर पेमेंट तारीख प्रत्यक्ष पैसे जमा झाल्याचा दिवस दर्शवते. हे कॅश, यूपीआय आणि बँक ट्रान्सफर पर्याय स्थिरतेसह देते.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_07_mr.mp3"
+    },
+    {
+      "scene_id": "scene_08",
+      "title": "Group Savings Ledger & Duplicate Prevention",
+      "start": 167.0,
+      "duration": 14.736,
+      "text": "सेव्हिंग्ज लेजर विभागात प्रत्येक महिन्याच्या बचतीची नोंद असते. सुरक्षिततेसाठी प्रणाली एकाच सभासदाची एकाच महिन्याची दुबार बचत नोंदवण्यास प्रतिबंध करते, ज्यामुळे कोणतीही चूक होत नाही.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_08_mr.mp3"
+    },
+    {
+      "scene_id": "scene_09",
+      "title": "Micro-Lending Portfolio Management",
+      "start": 188.0,
+      "duration": 16.8,
+      "text": "लोन्स आणि रिपेमेंट्स पानावर संपूर्ण कर्ज पोर्टफोलिओ दिसतो. येथे ₹5,000 मुद्दल, दरमहा 2% व्याजदर, आणि 10 महिन्यांची मुदत नोंदवली आहे. 'व्ह्यू डिटेल्स' वर क्लिक करून आपण संपूर्ण वेळापत्रक पाहतो.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_09_mr.mp3"
+    },
+    {
+      "scene_id": "scene_10",
+      "title": "10-Month Schedule & 2% Reducing-Balance Interest",
+      "start": 206.0,
+      "duration": 16.056,
+      "text": "कर्ज तपशील पानावर 10 महिन्यांचे पारदर्शी अमॉर्टायझेशन वेळापत्रक दिसते. येथे कमी होणाऱ्या मुद्दलावर दरमहा 2% व्याज आकारले जाते. मुद्दलाची परतफेड होताच मासिक व्याजही आपोआप कमी होते.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_10_mr.mp3"
+    },
+    {
+      "scene_id": "scene_11",
+      "title": "Live Combined Loan Repayment Execution",
+      "start": 228.0,
+      "duration": 16.8,
+      "text": "आता आपण पहिल्या हप्त्याची प्रत्यक्ष परतफेड नोंदवत आहोत: ₹500 मुद्दल आणि 2% दराने ₹100 व्याज, एकूण ₹600 रोख. सबमिट करताच थकीत कर्ज ₹5,000 वरून ₹4,500 वर येते आणि कर्ज नोंदवहीत त्याची अचूक नोंद होते.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_11_mr.mp3"
+    },
+    {
+      "scene_id": "scene_12",
+      "title": "Automated Pending Dues Audit — September 2026",
+      "start": 267.0,
+      "duration": 16.08,
+      "text": "रिपोर्ट्स विभागात आपण 'पेंडिंग ड्यूज' टॅब पाहतो. सप्टेंबर 2026 हा कर्ज वितरणाचा महिना असल्याने कोणताही हप्ता देय नाही, आणि सर्व सभासदांची बचत पूर्ण असल्याने थकीत रक्कम तंतोतंत शून्य दिसते.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_12_mr.mp3"
+    },
+    {
+      "scene_id": "scene_13",
+      "title": "Group Lending Analytics",
+      "start": 286.0,
+      "duration": 14.16,
+      "text": "लोन्स ओव्हरव्ह्यू टॅबमध्ये कर्जांचे एकत्रित विश्लेषण दिसते. गटाने वाटप केलेले एकूण भांडवल, व्याजातून झालेली कमाई, आणि कर्ज वसुलीची गती येथे एका दृष्टिक्षेपात पाहता येते.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_13_mr.mp3"
+    },
+    {
+      "scene_id": "scene_14",
+      "title": "Taaleband / Monthly Balance Strict Separation",
+      "start": 305.0,
+      "duration": 16.992,
+      "text": "बचत गट तपासणीचा मुख्य आधार म्हणजे मासिक ताळेबंद अहवाल. आपली प्रणाली काटेकोर नियमांचे पालन करते: नियमित बचत, कर्ज मुद्दल, आणि व्याज हे तीन स्वतंत्र स्तंभांमध्ये नोंदवले जातात, ज्यामुळे शासकीय ऑडिटची पूर्तता होते.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_14_mr.mp3"
+    },
+    {
+      "scene_id": "scene_15",
+      "title": "Final Reconciliation & Balance Check",
+      "start": 326.0,
+      "duration": 11.88,
+      "text": "डॅशबोर्डवर आपण हिशोब पाहतो: बँकेतील ₹15,600 शिल्लक आणि ₹4,500 कर्ज मिळून एकूण ₹20,100 निधीची तंतोतंत जुळणी होते, शून्य फरकासह.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_15_mr.mp3"
+    },
+    {
+      "scene_id": "scene_16",
+      "title": "Project Summary & Conclusion",
+      "start": 341.5,
+      "duration": 10.44,
+      "text": "थोडक्यात सांगायचे तर, ही प्रणाली सभासद वर्गीकरण, १० महिन्यांचे कर्ज वाटप, आणि मासिक ताळेबंद पूर्णपणे स्वयंचलित करते. धन्यवाद.",
+      "file": "C:\\Users\\Vaibhav\\StudioProjects\\bachat-gat-web--\\demo-output\\temp_audio\\scene_16_mr.mp3"
+    }
+  ]
+}

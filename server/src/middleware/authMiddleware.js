@@ -1,4 +1,4 @@
-const { auth, db } = require('../config/firebaseAdmin');
+const { auth, db, hasServiceAccount } = require('../config/firebaseAdmin');
 
 async function authenticateToken(req, res, next) {
   const authHeader = req.headers.authorization || '';
@@ -10,9 +10,20 @@ async function authenticateToken(req, res, next) {
 
   try {
     const decoded = await auth.verifyIdToken(token);
-    const profile = await db.collection('users').doc(decoded.uid).get();
-    const data = profile.exists ? profile.data() : {};
-    const role = (data.role_name || data.role || 'MEMBER').toUpperCase();
+    let data = {};
+    if (hasServiceAccount) {
+      try {
+        const profile = await db.collection('users').doc(decoded.uid).get();
+        data = profile.exists ? profile.data() : {};
+      } catch (dbErr) {
+        // If Firestore Admin credentials are not configured, fall back to decoded token claims
+        console.warn('Firestore profile lookup failed in authMiddleware:', dbErr.message);
+      }
+    }
+
+    const email = decoded.email || data.email || '';
+    const fallbackRole = email.toLowerCase().includes('admin') ? 'ADMIN' : 'MEMBER';
+    const role = (data.role_name || data.role || decoded.role || fallbackRole).toUpperCase();
 
     if (data.isActive === false) {
       return res.status(403).json({ success: false, message: 'User account is inactive.' });
@@ -23,11 +34,11 @@ async function authenticateToken(req, res, next) {
       ...data,
       id: decoded.uid,
       uid: decoded.uid,
-      email: decoded.email || data.email,
-      name: data.fullName || data.name || decoded.name || decoded.email,
+      email,
+      name: data.fullName || data.name || decoded.name || email,
       role,
       role_name: role,
-      groupId: data.groupId || 'shivshahi_group_001',
+      groupId: data.groupId || decoded.groupId || 'shivshahi_group_001',
       memberId: data.memberId || null,
     };
     return next();

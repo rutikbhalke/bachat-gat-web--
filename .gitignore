@@ -17,4 +17,7 @@ scratch/
 e2e_results.json
 edge_case_results.json
 *.png
-
+serviceAccountKey.json
+**/serviceAccountKey.json
+google-services.json
+**/google-services.json

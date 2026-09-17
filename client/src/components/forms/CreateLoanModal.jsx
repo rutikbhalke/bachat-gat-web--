@@ -14,7 +14,7 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
   const [formData, setFormData] = useState({
     member_id: initialMemberId || '',
     principal_amount: '10000',
-    interest_rate: '2.0',
+    interest_rate: '1.0',
     duration_months: '10',
     loan_date: new Date().toISOString().split('T')[0],
     purpose: '',
@@ -30,7 +30,7 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
       setFormData({
         member_id: initialMemberId || '',
         principal_amount: '10000',
-        interest_rate: '2.0',
+        interest_rate: '1.0',
         duration_months: '10',
         loan_date: new Date().toISOString().split('T')[0],
         purpose: '',
@@ -130,7 +130,7 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
       details: [
         { label: 'Borrowing Member', value: `${memberName} (${memberCode})` },
         { label: 'Loan Principal', value: formatCurrency(principal), highlight: true },
-        { label: 'Interest Rate', value: '2.0% per month (Reducing Balance)' },
+        { label: 'Interest Rate', value: '1.0% per month (Reducing Balance)' },
         { label: 'Loan Duration', value: '10 installments' },
         { label: 'First Month Interest', value: `${formatCurrency(monthlyInterest)}` },
         { label: 'Disbursement Date', value: formData.loan_date },
@@ -230,10 +230,10 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
               type="number"
               name="interest_rate"
               className="form-input"
-              value="2.0"
+              value="1.0"
               readOnly
               style={{ background: '#f1f5f9', cursor: 'not-allowed' }}
-              title="Interest rate is fixed at 2% per Bachat Gat rules"
+              title="Interest rate is fixed at 1% per Bachat Gat rules"
             />
           </div>
         </div>

@@ -1,0 +1,156 @@
+1
+00:00:03,000 --> 00:00:09,006
+Welcome to the demonstration of the Bachat Gat Digital Savings Group Management System.
+
+2
+00:00:09,006 --> 00:00:12,526
+We begin at the secure admin authentication portal.
+
+3
+00:00:12,526 --> 00:00:23,088
+Role-based access control ensures that only authorized administrators can access group accounts, record transactions, and manage microfinance operations.
+
+4
+00:00:28,000 --> 00:00:35,640
+Here on the Real-Time Dashboard, administrators get a transparent overview of the group's financial standing.
+
+5
+00:00:35,640 --> 00:00:39,426
+At the top, you can see our isolated test group badge.
+
+6
+00:00:39,426 --> 00:00:49,309
+The fundamental accounting equation is highlighted here: Total Group Fund equals Available Cash Balance in bank plus Active Loan Outstanding.
+
+7
+00:00:49,309 --> 00:00:52,744
+Every rupee collected is reconciled in real time.
+
+8
+00:01:03,000 --> 00:01:05,643
+Next, we navigate to Member Management.
+
+9
+00:01:05,643 --> 00:01:11,471
+A key architectural principle of our system is mutually exclusive member partitioning.
+
+10
+00:01:11,471 --> 00:01:20,417
+Members are categorized into Active Loan Members who are repaying installments, and Non-Loan Members who contribute regular savings.
+
+11
+00:01:20,417 --> 00:01:24,144
+The real-time search allows quick lookup of any member.
+
+12
+00:01:27,000 --> 00:01:33,537
+For an Active Loan Member with an active ₹5,000 loan, only 'Record Loan Payment' is enabled.
+
+13
+00:01:33,537 --> 00:01:41,496
+Standalone savings is disabled because savings are collected with loan installments, ensuring atomic accounting.
+
+14
+00:01:45,000 --> 00:01:49,540
+Clicking into the member's profile opens a 360-degree audit view.
+
+15
+00:01:49,540 --> 00:02:02,952
+Here, the system maintains a complete lifetime ledger showing cumulative monthly savings, active and closed loans, and an immutable repayment transaction log for total individual transparency.
+
+16
+00:02:05,000 --> 00:02:08,840
+Returning to the directory, we inspect a Non-Loan Member.
+
+17
+00:02:08,840 --> 00:02:13,016
+Members without active debt display the green 'No Loan' badge.
+
+18
+00:02:13,016 --> 00:02:20,696
+For these members, the standalone 'Record Savings' button is active, set to the standardized ₹1,000 monthly share.
+
+19
+00:02:23,000 --> 00:02:35,989
+Opening the Record Savings modal reveals an essential accounting distinction: the Scheduled Month and Year represent the accounting accrual period, while the Payment Date tracks actual cash inflow.
+
+20
+00:02:35,989 --> 00:02:41,528
+The modal supports Cash, UPI, and Bank transfers, maintaining complete UI stability.
+
+21
+00:02:47,000 --> 00:02:51,770
+In the Savings Ledger section, the system logs every monthly contribution.
+
+22
+00:02:51,770 --> 00:03:02,600
+To protect data integrity, strict unique constraints prevent duplicate savings entries for the same member within the same month, eliminating accidental double-entries.
+
+23
+00:03:08,000 --> 00:03:12,852
+Moving to Loans and Repayments, we see the micro-lending portfolio.
+
+24
+00:03:12,852 --> 00:03:20,745
+Each loan card displays key terms: Principal of ₹5,000, 2% monthly interest, and a 10-month installment term.
+
+25
+00:03:20,745 --> 00:03:24,872
+Clicking 'View Details' opens the comprehensive schedule.
+
+26
+00:03:26,000 --> 00:03:32,328
+On the Loan Details page, the system presents an automated 10-month amortization schedule.
+
+27
+00:03:32,328 --> 00:03:38,727
+The system uses reducing-balance interest calculated strictly at 2% on remaining principal.
+
+28
+00:03:38,727 --> 00:03:44,000
+As principal is repaid, the monthly interest charge reduces proportionally.
+
+29
+00:03:48,000 --> 00:03:58,700
+We execute a live repayment for Installment Number One: ₹500 principal plus ₹100 reducing interest at 2%, totaling ₹600 cash.
+
+30
+00:03:58,700 --> 00:04:08,544
+Upon submission, outstanding principal immediately updates from ₹5,000 to ₹4,500, reflected across the loan ledger.
+
+31
+00:04:27,000 --> 00:04:31,303
+Navigating to Reports, we examine the Pending Dues tab.
+
+32
+00:04:31,303 --> 00:04:42,648
+For September 2026, the loan issue month has zero installments due, and all member savings are fully paid, displaying exact zero pending arrears.
+
+33
+00:04:46,000 --> 00:04:50,813
+Switching to the Loans Overview tab, we review macro lending analytics.
+
+34
+00:04:50,813 --> 00:05:01,456
+Administrators can track total deployed capital, cumulative interest earnings, overall recovery velocity, and the group's active credit exposure at a glance.
+
+35
+00:05:05,000 --> 00:05:11,632
+The cornerstone of Bachat Gat auditing is the Monthly Balance Report, known traditionally as Taaleband.
+
+36
+00:05:11,632 --> 00:05:22,256
+Our system enforces strict column separation: Regular Savings, Loan Principal, and Interest Earnings are tracked in mutually exclusive columns with zero commingling.
+
+37
+00:05:26,000 --> 00:05:39,200
+Returning to the dashboard, we confirm reconciliation: Available Cash of ₹15,600 plus Active Loans of ₹4,500 matches Total Group Fund of ₹20,100 with zero variance.
+
+38
+00:05:41,500 --> 00:05:50,773
+In conclusion, the Bachat Gat platform delivers robust microfinance management, automated lending, and strict Taaleband reconciliation.
+
+39
+00:05:50,773 --> 00:05:51,460
+Thank you.
+

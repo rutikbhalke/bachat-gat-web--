@@ -342,7 +342,7 @@ const StatusPopup = ({
             flexWrap: 'wrap',
           }}
         >
-          {type === 'confirm' ? (
+          {(type === 'confirm' || (Boolean(onConfirm) && Boolean(confirmText))) ? (
             <>
               <button
                 ref={cancelBtnRef}

@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 
 /**
  * Firebase Web Configuration
@@ -23,6 +23,18 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Connect to local emulator if enabled
+if (env.VITE_USE_FIREBASE_EMULATOR === 'true' || env.VITE_FIRESTORE_EMULATOR_HOST) {
+  const host = env.VITE_FIRESTORE_EMULATOR_HOST || '127.0.0.1';
+  const port = Number(env.VITE_FIRESTORE_EMULATOR_PORT || 8080);
+  try {
+    connectFirestoreEmulator(db, host, port);
+    console.log(`[Firebase] Connected Firestore to local emulator at ${host}:${port}`);
+  } catch (e) {
+    console.warn('[Firebase] Firestore emulator connection notice:', e.message);
+  }
+}
 
 // Log active connection for development verification
 if (typeof window !== 'undefined') {

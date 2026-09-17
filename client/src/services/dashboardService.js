@@ -37,25 +37,27 @@ export const dashboardService = {
       const targetGroupId = groupId || DEFAULT_GROUP_ID;
       console.log(`[dashboardService] Fetching summary for: ${targetGroupId}`);
 
-      const [savingsSnap, loansSnap, membersSnap, groupSnap, repaymentsSnap] = await Promise.all([
+      const [savingsSnap, loansSnap, membersSnap, groupSnap, repaymentsSnap, txSnap] = await Promise.all([
         getDocs(collection(db, 'monthlyContributions')),
         getDocs(collection(db, 'loans')),
         getDocs(collection(db, 'users')),
         getDoc(doc(db, 'groups', targetGroupId)),
         getDocs(collection(db, 'repayments')).catch(() => ({ docs: [] })),
+        getDocs(collection(db, 'transactions')).catch(() => ({ docs: [] })),
       ]);
 
       const savings = savingsSnap.docs.map(d => normalizeSavings(d.id, d.data())).filter(s => (s.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
       const loans = loansSnap.docs.map(d => normalizeLoan(d.id, d.data())).filter(l => (l.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
       const repayments = repaymentsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => (r.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
+      const transactions = (txSnap?.docs || []).map(d => ({ id: d.id, ...d.data() })).filter(t => (t.groupId || t.group_id || '').toLowerCase() === targetGroupId.toLowerCase());
       const members = membersSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(m => (m.groupId || '').toLowerCase() === targetGroupId.toLowerCase() && (m.id.startsWith('member_') || m.id.startsWith('test_mem_') || m.memberCode?.startsWith('M-130-') || m.memberCode?.startsWith('TM-') || ((m.role || '').toUpperCase() !== 'ADMIN' && !m.email?.includes('admin'))));
       const groupData = groupSnap.exists() ? groupSnap.data() : {};
 
-      console.log(`[dashboardService] Records found: ${savings.length} savings, ${loans.length} loans, ${repayments.length} repayments, ${members.length} members`);
+      console.log(`[dashboardService] Records found: ${savings.length} savings, ${loans.length} loans, ${repayments.length} repayments, ${transactions.length} transactions, ${members.length} members`);
 
-      const summary = calculateGroupFinancialSummary(savings, loans, repayments);
+      const summary = calculateGroupFinancialSummary(savings, loans, repayments, transactions);
 
       let memberSummary = null;
       if (memberId) {
@@ -78,6 +80,7 @@ export const dashboardService = {
       mergedSummary.totalInterestPaid = summary.totalInterestPaid ?? 0;
       mergedSummary.totalInterestCollected = summary.totalInterestPaid ?? 0;
       mergedSummary.totalInterest = summary.totalInterestPaid ?? 0;
+      mergedSummary.totalBonusDistributed = summary.totalBonusDistributed ?? 0;
       mergedSummary.totalMembers = members.length;
 
       return {

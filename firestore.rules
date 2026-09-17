@@ -56,5 +56,10 @@ service cloud.firestore {
       allow create: if isAdmin() || managesMoney();
       allow update, delete: if isAdmin();
     }
+
+    match /diwaliBonuses/{bonusId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
   }
 }

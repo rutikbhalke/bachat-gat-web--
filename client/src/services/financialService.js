@@ -3,7 +3,7 @@
  * Strictly enforces authoritative Bachat Gat business rules.
  */
 
-export const LOAN_INTEREST_RATE = 2.0; // Enforced global business rule: 2%
+export const LOAN_INTEREST_RATE = 1.0; // Enforced global business rule: 1%
 
 export const number = (val) => Number(val) || 0;
 
@@ -68,7 +68,7 @@ export const calculateAvailableBalance = (totalGroupFund, activeLoans) => {
 /**
  * Group Financial Summary
  */
-export const calculateGroupFinancialSummary = (savings = [], loans = [], repayments = []) => {
+export const calculateGroupFinancialSummary = (savings = [], loans = [], repayments = [], transactions = []) => {
   // 1. Total Group Savings = sum of actual paid regular contributions
   const totalGroupSavings = savings.reduce((sum, s) => {
     return sum + number(s.paidAmount ?? s.amount ?? s.paid_amount);
@@ -136,10 +136,29 @@ export const calculateGroupFinancialSummary = (savings = [], loans = [], repayme
     .filter(l => !isBaselineLoan(l) && (l.status || '').toUpperCase() !== 'REJECTED')
     .reduce((sum, l) => sum + number(l.originalPrincipal ?? l.principalAmount), 0);
 
+  // Extract Diwali Bonus distribution payouts from transactions/ledger records (Cash Outflow)
+  let totalBonusDistributed = 0;
+  if (Array.isArray(transactions)) {
+    const bonusTxs = transactions.filter(t =>
+      t.type === 'DIWALI_BONUS_DISTRIBUTED' || t.action === 'DIWALI_BONUS_DISTRIBUTED'
+    );
+    if (bonusTxs.length > 0) {
+      totalBonusDistributed = bonusTxs.reduce((sum, t) => sum + number(t.amount), 0);
+    } else {
+      totalBonusDistributed = transactions.reduce((sum, t) => sum + number(t.bonusAmount), 0);
+    }
+  } else if (typeof transactions === 'number') {
+    totalBonusDistributed = transactions;
+  } else if (transactions && typeof transactions === 'object') {
+    totalBonusDistributed = number(transactions.totalBonusDistributed ?? transactions.amount);
+  }
+  totalBonusDistributed = Math.round(totalBonusDistributed * 100) / 100;
+
   // 6. Authoritative Cash Accounting:
-  // Available Balance = Total Cash Collected (Savings + Deposits + Principal Repaid + Interest) - Total Cash Disbursed
+  // Available Balance = Total Cash Inflow (Savings + Deposits + Principal Repaid + Interest) - Total Cash Outflow (Disbursements + Bonus Payouts)
   const totalCashInflow = totalGroupSavings + totalLoanDeposits + totalPrincipalRepaid + totalInterestPaid;
-  const availableBalance = Math.max(0, Math.round((totalCashInflow - totalNewDisbursed) * 100) / 100);
+  const totalCashOutflow = totalNewDisbursed + totalBonusDistributed;
+  const availableBalance = Math.max(0, Math.round((totalCashInflow - totalCashOutflow) * 100) / 100);
 
   // 7. Total Group Fund = Available Balance (Cash) + Active Loans Outstanding (Receivables)
   const totalGroupFund = Math.round((availableBalance + activeLoansOutstanding) * 100) / 100;
@@ -157,6 +176,7 @@ export const calculateGroupFinancialSummary = (savings = [], loans = [], repayme
     totalInterestPaid,
     totalInterestCollected: totalInterestPaid,
     totalInterest: totalInterestPaid,
+    totalBonusDistributed,
     totalGroupFund,
     totalFund: totalGroupFund,
     rawAvailableBalance: availableBalance,

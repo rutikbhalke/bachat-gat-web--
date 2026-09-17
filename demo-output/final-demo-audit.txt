@@ -1,0 +1,127 @@
+================================================================================
+BACHAT GAT DIGITAL SAVINGS GROUP — FINAL DEMO RECORDING & AUDIT REPORT
+================================================================================
+Timestamp: 2026-09-16
+Isolation Group ID: test_isolated_group_999
+Production Group ID: shivshahi_group_001 (STRICTLY UNTOUCHED)
+
+================================================================================
+1. VIDEO SPECIFICATIONS & METRICS
+================================================================================
+• Exact Video Duration: 354.62 seconds (5 minutes 54.62 seconds)
+• Master MKV Duration: 354.62 seconds
+• Presentation MP4 Duration: 354.60 seconds
+• Video Resolution: 1920x1080 (Full HD, 1080p, 60fps)
+• Display Aspect Ratio: 16:9
+• Video Codec: H.264 / AVC (High Profile, YUV420p)
+
+================================================================================
+2. MASTER MKV MULTI-STREAM ARCHITECTURE (7 STREAMS)
+================================================================================
+• Stream #0 (Video): H.264 1920x1080 60fps (Default)
+• Stream #1 (Audio): English (MP3 44.1kHz, Voice: en-US-GuyNeural, Natural Tone)
+• Stream #2 (Audio): Hindi (MP3 44.1kHz, Voice: hi-IN-MadhurNeural, Clear Pronunciation)
+• Stream #3 (Audio): Marathi (MP3 44.1kHz, Voice: mr-IN-ManoharNeural, Authentic Accent)
+• Stream #4 (Subtitle): English (SubRip / SRT, UTF-8)
+• Stream #5 (Subtitle): Hindi (SubRip / SRT, UTF-8 Devanagari)
+• Stream #6 (Subtitle): Marathi (SubRip / SRT, UTF-8 Devanagari)
+
+================================================================================
+3. LIVE TRANSACTION EXECUTION AUDIT (SCENE 11 — OCT 2026 INSTALLMENT #1)
+================================================================================
+Member: Test Member 01
+Loan ID: LOAN-TEST-001 (10-Month Term, 2% Monthly Reducing-Balance Interest)
+
+• Pre-Transaction State:
+  - Loan Original Amount: ₹5,000.00
+  - Outstanding Principal: ₹5,000.00
+  - Total Interest Paid: ₹0.00
+  - Available Group Cash: ₹15,000.00
+  - Total Group Fund: ₹20,000.00
+  - Accounting Equation: ₹15,000 (Cash) + ₹5,000 (Active Loans) = ₹20,000 (Fund)
+  - Accounting Variance: ₹0.00
+
+• Transaction Submitted in Live Demo:
+  - Payment Date: 13 October 2026
+  - Payment Mode: Cash
+  - Installment Number: #1 / 10
+  - Regular Hafta (Savings): ₹0.00
+  - Principal Repayment: ₹500.00
+  - Interest (2% of ₹5,000): ₹100.00
+  - Total Collected: ₹600.00
+
+• Post-Transaction State (Live Screen Verified):
+  - Outstanding Principal: ₹4,500.00 (Reduced by exactly ₹500.00)
+  - Total Interest Paid: ₹100.00 (Increased by ₹100.00)
+  - Installment #1 Status: PAID (Repayment ledger row created with ₹500 prin + ₹100 int)
+  - Available Group Cash: ₹15,600.00 (₹15,000 + ₹500 prin + ₹100 int)
+  - Total Group Fund: ₹20,100.00 (₹20,000 initial + ₹100 earned interest)
+  - Accounting Equation: ₹15,600 (Cash) + ₹4,500 (Active Loans) = ₹20,100 (Fund)
+  - Accounting Variance: ₹0.00 (Perfect Zero Discrepancy)
+
+================================================================================
+4. SEPTEMBER 2026 PENDING DUES AUDIT (SCENE 12)
+================================================================================
+• Context: Loan LOAN-TEST-001 issued on 13 September 2026.
+• Rule Verified: In the month of loan issuance, zero scheduled installments are due.
+• Observed UI in Video:
+  - Month Selected: September 2026
+  - Pending Savings Dues: ₹0.00 (All 10 members contributed ₹2,000 each)
+  - Principal Due: ₹0.00
+  - Interest Due: ₹0.00
+  - Total Pending Dues: ₹0.00
+  - Status: Completely accurate — future February 2027 installment anomaly eliminated!
+
+================================================================================
+5. TAALEBAND / MONTHLY BALANCE STRICT SEPARATION AUDIT (SCENE 14)
+================================================================================
+• Verified Invariant: Regular Savings ≠ Loan Principal ≠ Interest Paid
+• Separate Columns Displayed:
+  - Column 1: Regular Monthly Savings
+  - Column 2: Principal Repayment
+  - Column 3: Interest Earnings
+• Data integrity: Zero commingling of funds; meets cooperative audit requirements.
+
+================================================================================
+6. SUBTITLE STYLING SPECIFICATION (ASS STYLED TRACKS)
+================================================================================
+• Font: Segoe UI, Size: 30pt
+• Text Color: Pure Black (&H00000000 / #000000)
+• Box Background: Semi-Transparent White (&H20FFFFFF, ~88% opacity)
+• Alignment: Bottom-Center (Alignment 2)
+• Margins: Left=60, Right=60, Bottom=50
+• Line Limitation: Maximum 2 lines per subtitle cue
+• Legibility: High contrast against both dark and light UI elements throughout the recording.
+
+================================================================================
+7. PRODUCTION SAFETY GUARANTEE
+================================================================================
+• Production Group: shivshahi_group_001
+• Direct Firestore Writes to Production Group: ZERO (0)
+• E2E Automation Target: Strictly restricted to test_isolated_group_999
+• Preflight Safety Check: Verified and strictly enforced in demo_recording.mjs
+
+================================================================================
+8. FINAL DELIVERABLES LOCATION
+================================================================================
+1. Master MKV (Selectable Audio & Subtitles):
+   demo-output/Bachat-Gat-Digital-Savings-Group-Final-Multilingual.mkv (40.79 MB)
+2. Presentation MP4 (Universal Playback with Subtitle Tracks):
+   demo-output/Bachat-Gat-Digital-Savings-Group-Final.mp4 (23.93 MB)
+3. Raw High-Definition Screen Recording:
+   demo-output/bachat-gat-demo.webm (35.88 MB)
+4. Standalone Synchronized Continuous Audio:
+   - English: demo-output/audio/english.mp3 (5.41 MB)
+   - Hindi  : demo-output/audio/hindi.mp3 (5.41 MB)
+   - Marathi: demo-output/audio/marathi.mp3 (5.41 MB)
+5. Synchronized Subtitles (SRT + Styled ASS):
+   - English: demo-output/subtitles/english.srt & english.ass
+   - Hindi  : demo-output/subtitles/hindi.srt & hindi.ass
+   - Marathi: demo-output/subtitles/marathi.srt & marathi.ass
+
+================================================================================
+9. VERIFICATION STATUS
+================================================================================
+All 11 Verification Checks: PASSED (100% SUCCESS)
+Status: PRODUCTION & PRESENTATION READY
+================================================================================

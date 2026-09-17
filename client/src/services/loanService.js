@@ -22,7 +22,7 @@ import {
   DEFAULT_GROUP_ID,
 } from '../utils/formatters.js';
 import { calculateInterest } from '../utils/calculations.js';
-import { calculateGroupFinancialSummary } from './financialService.js';
+import { calculateGroupFinancialSummary, LOAN_INTEREST_RATE } from './financialService.js';
 
 /**
  * Calculate dynamic installment Month and Year using zero-based modular arithmetic.
@@ -75,7 +75,7 @@ export const generateLoanRepaymentSchedule = ({
 
   const originalPrincipal = Number(loan.originalPrincipal || loan.principalAmount || loan.principal_amount || 0);
   const tenure = 10; // Enforced Bachat Gat rule: loan duration is fixed at 10 installments
-  const interestRate = Number(loan.interestRate || loan.interest_rate || 2.0);
+  const interestRate = Number(loan.interestRate || loan.interest_rate || LOAN_INTEREST_RATE);
   const regularHaptaExpected = 1000;
 
   // Exact equal-principal distribution ensuring sum(expected) === originalPrincipal
@@ -661,7 +661,7 @@ export const loanService = {
       const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
       const memberId = loanData.member_id || loanData.memberId;
       const principal = parseFloat(loanData.principal_amount || loanData.principalAmount || loanData.originalPrincipal);
-      const interestRate = parseFloat(loanData.interest_rate || loanData.interestRate) || 2.0;
+      const interestRate = parseFloat(loanData.interest_rate || loanData.interestRate) || LOAN_INTEREST_RATE;
       const purpose = (loanData.purpose || 'General').trim();
       const dateStr = loanData.loan_date || loanData.loanDate || new Date().toISOString();
       const durationMonths = parseInt(loanData.duration_months || loanData.durationMonths, 10) || 10;

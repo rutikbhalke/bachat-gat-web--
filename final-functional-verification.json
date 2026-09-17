@@ -1,0 +1,173 @@
+{
+  "step1": {
+    "membersCreated": [
+      "TM-006 (Test Member 06)",
+      "TM-007 (Test Member 07)",
+      "TM-008 (Test Member 08)"
+    ],
+    "ids": [
+      "test_mem_006",
+      "test_mem_007",
+      "test_mem_008"
+    ],
+    "status": "ACTIVE",
+    "activeMemberCountIncrease": 3
+  },
+  "step2": {
+    "loanId": "loan_tm_006_test",
+    "amount": 5000,
+    "interestRate": "1.0%",
+    "installments": 10,
+    "monthlyPrincipal": 500,
+    "interestSchedule": [
+      50,
+      45,
+      40,
+      35,
+      30,
+      25,
+      20,
+      15,
+      10,
+      5
+    ],
+    "totalPrincipal": 5000,
+    "totalInterest": 275,
+    "totalRepayment": 5275
+  },
+  "step3": {
+    "repaymentId": "repay_tm_006_inst_01",
+    "principalPaid": 500,
+    "interestPaid": 50,
+    "totalCashPaid": 550,
+    "outstandingPrincipalBefore": 5000,
+    "outstandingPrincipalAfter": 4500,
+    "installment1Status": "PAID"
+  },
+  "step4_7": {
+    "totalInterestCollected": 150,
+    "existingBonusDistributed": 0,
+    "netInterestAvailable": 150,
+    "equalShareCalculated": 16,
+    "manualAllocationsTested": [
+      {
+        "memberId": "test_mem_006",
+        "memberCode": "TM-006",
+        "memberName": "Test Member 06",
+        "bonusAmount": 10
+      },
+      {
+        "memberId": "test_mem_007",
+        "memberCode": "TM-007",
+        "memberName": "Test Member 07",
+        "bonusAmount": 15
+      },
+      {
+        "memberId": "test_mem_008",
+        "memberCode": "TM-008",
+        "memberName": "Test Member 08",
+        "bonusAmount": 20
+      }
+    ],
+    "manualTotal": 45,
+    "validationsPassed": [
+      "Over-budget blocked",
+      "Negative blocked",
+      "Duplicate blocked",
+      "Empty blocked"
+    ]
+  },
+  "step8": {
+    "batchId": "BONUS_TEST_1789559800491",
+    "distributions": [
+      {
+        "memberId": "test_mem_006",
+        "memberCode": "TM-006",
+        "memberName": "Test Member 06",
+        "bonusAmount": 10
+      },
+      {
+        "memberId": "test_mem_007",
+        "memberCode": "TM-007",
+        "memberName": "Test Member 07",
+        "bonusAmount": 15
+      },
+      {
+        "memberId": "test_mem_008",
+        "memberCode": "TM-008",
+        "memberName": "Test Member 08",
+        "bonusAmount": 20
+      }
+    ],
+    "totalDistributed": 45,
+    "remainingPool": 105,
+    "auditTransactionId": "tx_bonus_BONUS_TEST_1789559800491"
+  },
+  "step9": {
+    "memberId": "test_mem_006",
+    "outstandingLoan": 4500,
+    "deletionBlocked": true,
+    "warningDialogShown": "⚠️ Cannot Delete Member",
+    "actionButtons": [
+      "[Cancel]",
+      "[View Loan]"
+    ],
+    "writesPerformed": 0
+  },
+  "step10": {
+    "loanId": "loan_tm_006_test",
+    "outstandingPrincipal": 0,
+    "loanStatus": "CLOSED",
+    "totalPrincipalPaid": 5000,
+    "totalInterestPaid": 275
+  },
+  "step11": {
+    "confirmationModalShown": true,
+    "cancelActionVerified": true,
+    "writesOnCancel": 0,
+    "memberStatusAfterCancel": "active"
+  },
+  "step12": {
+    "memberId": "test_mem_006",
+    "softDeleted": true,
+    "isActive": false,
+    "status": "inactive",
+    "isDeleted": true,
+    "deletedAt": "2026-09-16T11:56:41.408Z",
+    "auditTransactionId": "tx_soft_del_tm_006_1789559801484"
+  },
+  "step13": {
+    "originalLoanPreserved": true,
+    "repaymentsPreservedCount": 2,
+    "bonusRecordPreserved": true,
+    "transactionsPreservedCount": 2,
+    "hardDeletions": 0
+  },
+  "step14": {
+    "memberId": "test_mem_007",
+    "softDeleted": true,
+    "isActive": false,
+    "status": "inactive",
+    "isDeleted": true
+  },
+  "step15": {
+    "memberId": "test_mem_008",
+    "status": "ACTIVE",
+    "isActive": true,
+    "isDeleted": false
+  },
+  "step16": {
+    "tm006": "SOFT DELETED",
+    "tm007": "SOFT DELETED",
+    "tm008": "ACTIVE",
+    "tm001_tm005": "UNTOUCHED & ACTIVE"
+  },
+  "step17": {
+    "productionGroupId": "shivshahi_group_001",
+    "initialCount": 44,
+    "finalCount": 44,
+    "deletedCount": 0,
+    "writesPerformed": 0,
+    "status": "PRISTINE & UNTOUCHED"
+  }
+}

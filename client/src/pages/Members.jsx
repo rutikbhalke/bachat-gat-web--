@@ -130,7 +130,7 @@ const Members = () => {
 
   useEffect(() => {
     fetchMembers();
-  }, [refreshTrigger, selectedMonth, selectedYear]);
+  }, [refreshTrigger, selectedMonth, selectedYear, location.key]);
 
   const isMemberPending = (m) =>
     m.status === 'Pending' ||
@@ -141,10 +141,20 @@ const Members = () => {
     m.is_pending_dues ||
     m.isPendingDues;
 
-  // Filter out Admins from the regular member list as required
+  // Filter out Admins and inactive/deleted members from regular active member list
   const nonAdminMembers = members.filter((m) => {
     const role = (m.role_name || m.role || '').toUpperCase();
-    return role !== 'ADMIN' && !m.email?.includes('admin');
+    const isInactive =
+      m.isActive === false ||
+      m.is_active === 0 ||
+      m.is_active === false ||
+      m.isDeleted === true ||
+      Boolean(m.deletedAt) ||
+      (m.status || '').toLowerCase() === 'inactive' ||
+      (m.status || '').toLowerCase() === 'deleted' ||
+      (m.memberStatus || '').toLowerCase() === 'inactive' ||
+      (m.account_status || '').toLowerCase() === 'inactive';
+    return role !== 'ADMIN' && !m.email?.includes('admin') && !isInactive;
   });
 
   // Mutually Exclusive Partitioning

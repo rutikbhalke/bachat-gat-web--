@@ -1,5 +1,6 @@
 const { auth, db, admin } = require('../config/firebaseAdmin');
 const legacyController = require('./firebaseController');
+const { calculateLoanOutstanding } = require('../services/financialService');
 
 const DEFAULT_GROUP_ID = 'shivshahi_group_001';
 const ALLOWED_ROLES = new Set(['ADMIN', 'MEMBER', 'TREASURER', 'SECRETARY']);
@@ -145,35 +146,122 @@ async function deleteMember(req, res, next) {
       return res.status(400).json({ success: false, message: 'You cannot delete your own signed-in admin account.' });
     }
 
-    const memberIds = [...new Set([found.snap.id, member.memberId, member.member_id].filter(Boolean))];
-    const refs = new Map([[found.ref.path, found.ref]]);
-    if (authUid) refs.set(`users/${authUid}`, db.collection('users').doc(authUid));
+    const memberIds = [...new Set([found.snap.id, member.memberId, member.member_id, member.id].filter(Boolean))];
+    const groupId = member.groupId || req.user.groupId || DEFAULT_GROUP_ID;
 
-    for (const collectionName of ['monthlyContributions', 'loans', 'repayments', 'transactions']) {
-      for (const field of ['memberId', 'member_id']) {
-        for (const id of memberIds) {
-          const snapshot = await db.collection(collectionName).where(field, '==', id).get();
-          snapshot.docs.forEach((document) => refs.set(document.ref.path, document.ref));
+    // 1. Check for Active / Outstanding Loans
+    const memberLoans = [];
+    for (const mid of memberIds) {
+      const q1 = await db.collection('loans').where('memberId', '==', mid).get();
+      const q2 = await db.collection('loans').where('member_id', '==', mid).get();
+      q1.docs.forEach(d => memberLoans.push({ id: d.id, ...d.data() }));
+      q2.docs.forEach(d => memberLoans.push({ id: d.id, ...d.data() }));
+    }
+
+    const uniqueLoansMap = new Map();
+    memberLoans.forEach(l => uniqueLoansMap.set(l.id, l));
+    const uniqueLoans = [...uniqueLoansMap.values()];
+
+    let activeOrOutstandingLoan = null;
+    let totalOutstanding = 0;
+
+    for (const loan of uniqueLoans) {
+      const rep1 = await db.collection('repayments').where('loanId', '==', loan.id).get();
+      const rep2 = await db.collection('repayments').where('loan_id', '==', loan.id).get();
+      const repMap = new Map();
+      [...rep1.docs, ...rep2.docs].forEach(d => repMap.set(d.id, d.data()));
+      const reps = [...repMap.values()];
+
+      const outstanding = calculateLoanOutstanding(loan, reps);
+      const rawStatus = (loan.status || '').toUpperCase();
+      const isClosed = outstanding <= 0 && (rawStatus === 'CLOSED' || rawStatus === 'REJECTED');
+
+      if (!isClosed && (outstanding > 0 || rawStatus === 'ACTIVE')) {
+        totalOutstanding += outstanding;
+        if (!activeOrOutstandingLoan) {
+          activeOrOutstandingLoan = loan;
         }
       }
     }
 
-    const references = [...refs.values()];
-    for (let index = 0; index < references.length; index += 450) {
-      const batch = db.batch();
-      references.slice(index, index + 450).forEach((reference) => batch.delete(reference));
-      await batch.commit();
-    }
-    if (authUid) {
-      await auth.deleteUser(authUid).catch((error) => {
-        if (error.code !== 'auth/user-not-found') throw error;
+    if (activeOrOutstandingLoan || totalOutstanding > 0) {
+      const formattedAmount = Math.round(totalOutstanding).toLocaleString('en-IN');
+      return res.status(400).json({
+        success: false,
+        message: `This member has an outstanding loan of ₹${formattedAmount}. Please fully repay the loan before deleting this member.`,
+        outstandingLoan: totalOutstanding,
+        activeLoanId: activeOrOutstandingLoan ? activeOrOutstandingLoan.id : null,
       });
+    }
+
+    // 2. Safe Soft Delete (PRESERVE all historical financial data!)
+    const nowIso = new Date().toISOString();
+    const nowServer = admin.firestore.FieldValue.serverTimestamp();
+    const memberName = member.fullName || member.name || 'Member';
+
+    const batch = db.batch();
+
+    // Mark member document as soft-deleted
+    batch.set(found.ref, {
+      isActive: false,
+      is_active: false,
+      status: 'inactive',
+      isDeleted: true,
+      deletedAt: nowIso,
+      updatedAt: nowServer,
+    }, { merge: true });
+
+    // Mark linked auth profile as soft-deleted if separate
+    if (authUid && found.ref.path !== `users/${authUid}`) {
+      const loginRef = db.collection('users').doc(authUid);
+      batch.set(loginRef, {
+        isActive: false,
+        is_active: false,
+        status: 'inactive',
+        isDeleted: true,
+        deletedAt: nowIso,
+        updatedAt: nowServer,
+      }, { merge: true });
+    }
+
+    // Decrement group active members count safely
+    try {
+      const groupRef = db.collection('groups').doc(groupId);
+      batch.update(groupRef, {
+        activeMembers: admin.firestore.FieldValue.increment(-1),
+        active_members: admin.firestore.FieldValue.increment(-1),
+        updatedAt: nowServer,
+      });
+    } catch (e) {
+      // Ignore group increment error if doc doesn't exist
+    }
+
+    // Record Audit Transaction log
+    const actRef = db.collection('transactions').doc();
+    batch.set(actRef, {
+      id: actRef.id,
+      groupId,
+      type: 'MEMBER_SOFT_DELETED',
+      memberId: found.snap.id,
+      memberName,
+      referenceId: found.snap.id,
+      description: `Member soft deleted: ${memberName}`,
+      recordedBy: req.user.uid,
+      date: nowIso,
+      createdAt: nowServer,
+    });
+
+    await batch.commit();
+
+    // Disable Firebase Auth user login without deleting account
+    if (authUid) {
+      await auth.updateUser(authUid, { disabled: true }).catch(() => {});
     }
 
     return res.json({
       success: true,
-      message: 'Member, login account, and related records deleted successfully.',
-      deletedRecords: references.length,
+      message: 'Member deleted successfully. The member has been removed from the active member list. Historical financial records have been preserved.',
+      memberId: found.snap.id,
     });
   } catch (error) {
     return next(error);

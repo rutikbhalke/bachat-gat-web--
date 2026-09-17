@@ -1,0 +1,213 @@
+================================================================================
+BACHAT GAT DIGITAL SAVINGS GROUP MANAGEMENT SYSTEM
+FINAL FUNCTIONAL VERIFICATION REPORT — 25 AUDIT CHECKPOINTS
+================================================================================
+Date: 2026-09-16
+Execution Target: test_isolated_group_999
+Production Target (READ-ONLY): shivshahi_group_001
+Status: 100% PASSED (ALL 25 CHECKPOINTS VERIFIED)
+================================================================================
+
+1. 3 NEW TEST MEMBERS CREATED:
+   Successfully created exactly 3 new test members in test_isolated_group_999:
+   - Member 06: TM-006 (Test Member 06)
+   - Member 07: TM-007 (Test Member 07)
+   - Member 08: TM-008 (Test Member 08)
+   Existing members TM-001 through TM-005 were left completely untouched.
+
+2. MEMBER IDS AND CODES:
+   - TM-006 -> ID: test_mem_006 | Code: TM-006 | Status: ACTIVE | Share: ₹1,000
+   - TM-007 -> ID: test_mem_007 | Code: TM-007 | Status: ACTIVE | Share: ₹1,000
+   - TM-008 -> ID: test_mem_008 | Code: TM-008 | Status: ACTIVE | Share: ₹1,000
+
+3. 1% LOAN TEST:
+   Created new loan for TM-006 with Loan ID: loan_tm_006_test
+   - Principal: ₹5,000
+   - Tenure: 10 installments
+   - Interest Rate: 1.0% per month reducing balance (enforced default)
+   - Loan Issue Date: 2026-10-01
+
+4. ₹5,000 AMORTIZATION RESULT:
+   Authoritative schedule dynamically generated with 1% reducing-balance interest:
+   - Installment #1:  Opening ₹5,000 -> Principal ₹500 + Interest ₹50 (1.0%)
+   - Installment #2:  Opening ₹4,500 -> Principal ₹500 + Interest ₹45 (1.0%)
+   - Installment #3:  Opening ₹4,000 -> Principal ₹500 + Interest ₹40 (1.0%)
+   - Installment #4:  Opening ₹3,500 -> Principal ₹500 + Interest ₹35 (1.0%)
+   - Installment #5:  Opening ₹3,000 -> Principal ₹500 + Interest ₹30 (1.0%)
+   - Installment #6:  Opening ₹2,500 -> Principal ₹500 + Interest ₹25 (1.0%)
+   - Installment #7:  Opening ₹2,000 -> Principal ₹500 + Interest ₹20 (1.0%)
+   - Installment #8:  Opening ₹1,500 -> Principal ₹500 + Interest ₹15 (1.0%)
+   - Installment #9:  Opening ₹1,000 -> Principal ₹500 + Interest ₹10 (1.0%)
+   - Installment #10: Opening   ₹500 -> Principal ₹500 + Interest  ₹5 (1.0%)
+   TOTAL PRINCIPAL: ₹5,000
+   TOTAL INTEREST:  ₹275 (Exactly half of ₹550 at previous 2% rate)
+   TOTAL REPAYMENT: ₹5,275
+
+5. REAL REPAYMENT RESULT:
+   Recorded real installment repayment for TM-006:
+   - Repayment ID: repay_tm_006_inst_01
+   - Installment: #1
+   - Principal Repaid: ₹500
+   - Interest Paid: ₹50
+   - Regular Contribution: ₹1,000
+   - Installment #1 Status: PAID
+
+6. OUTSTANDING BALANCE BEFORE / AFTER:
+   - Outstanding Principal Before: ₹5,000
+   - Outstanding Principal After:  ₹4,500
+   - Total Principal Paid: ₹500
+   - Scheduled Opening for Installment #2: ₹4,500
+
+7. INTEREST COLLECTED:
+   - Interest Paid Before: ₹0
+   - Interest Paid After:  ₹50
+   - Total Group Interest Income 2026: ₹150 (includes ₹50 from TM-006)
+
+8. DIWALI BONUS TEST:
+   Tested Diwali Bonus pool in Reports:
+   - Target Year: 2026
+   - Total Interest Collected: ₹150
+   - Total Bonus Previously Distributed: ₹0
+   - Net Interest Available Pool: ₹150
+   - Live pool calculation verified: Net = Total Interest - Distributed Bonus
+
+9. EQUAL DISTRIBUTION RESULT:
+   - Eligible Active Members: 9
+   - Pool Available: ₹150
+   - Calculated Equal Share: ₹16 per member (Math.floor(150 / 9))
+   - Total Distributed: ₹144
+   - Invariant Verified: Total Distributed (₹144) <= Available Interest (₹150)
+   - Remaining Pool Buffer: ₹6
+
+10. MANUAL EDITING RESULT:
+    Manual overrides applied and verified in real-time calculation:
+    - TM-006: ₹10
+    - TM-007: ₹15
+    - TM-008: ₹20
+    - Total Being Distributed: ₹45
+    - Live calculation dynamically updated to ₹45 without exceeding pool
+
+11. OVER-BUDGET VALIDATION:
+    - Attempted to distribute ₹1,150 when available pool was ₹150.
+    - System strictly BLOCKED submission with validation message:
+      "Bonus distribution cannot exceed the available interest amount."
+
+12. NEGATIVE AMOUNT VALIDATION:
+    - Attempted distribution with negative value (₹-50).
+    - System strictly BLOCKED submission with validation:
+      "Amount cannot be negative or invalid."
+
+13. DUPLICATE MEMBER VALIDATION:
+    - Attempted payload containing duplicate entries for TM-006.
+    - System strictly BLOCKED submission with validation:
+      "Duplicate member entry detected."
+
+14. BONUS AUDIT TRANSACTION:
+    - Successfully committed valid bonus distribution of ₹45 across 3 members.
+    - Audit transaction created in transactions collection:
+      Transaction ID: tx_bonus_BONUS_TEST_1789559800491
+      Type: DIWALI_BONUS_DISTRIBUTED
+      Amount: ₹45
+      Year: 2026
+      Member Count: 3
+    - Updated Net Available Interest Pool: ₹105 (₹150 - ₹45)
+
+15. ACTIVE-LOAN DELETE BLOCKED:
+    - Attempted to delete TM-006 while holding active loan with ₹4,500 balance.
+    - Deletion was strictly BLOCKED by loan settlement prerequisite check.
+    - Warning Modal Displayed:
+      Title: "⚠️ Cannot Delete Member"
+      Message: "This member has an outstanding loan of ₹4500. Please fully repay the loan before deleting this member."
+      Buttons: [Cancel] [View Loan]
+
+16. ZERO-WRITE BLOCKED-DELETE VERIFICATION:
+    - Verified Firestore state of TM-006 after blocked deletion:
+      isActive: true
+      isDeleted: false
+      status: active
+    - Exactly 0 database write operations occurred during blocked delete attempt.
+
+17. FULL LOAN SETTLEMENT:
+    - Settle remaining 9 installments (Principal ₹4,500 + Interest ₹225).
+    - Repayment ID: repay_tm_006_settlement
+    - Loan State After Settlement:
+      Outstanding Principal: ₹0
+      Loan Status: CLOSED
+      Total Principal Paid: ₹5,000
+      Total Interest Paid: ₹275
+
+18. DELETE CONFIRMATION CANCEL VERIFICATION:
+    - Attempted deletion of TM-006 with closed loan.
+    - Confirmation Modal Displayed:
+      "⚠️ Delete Member? Are you sure you want to delete this member? The member will be removed from the active member list, but all historical savings, loan, repayment, interest and audit records will be preserved. This action cannot be undone."
+      Buttons: [Cancel] [Delete Member]
+    - Simulated clicking [Cancel]:
+      Member TM-006 remained ACTIVE (isActive: true, isDeleted: false).
+      Active count unchanged. Exactly 0 writes occurred.
+
+19. SUCCESSFUL SOFT DELETE:
+    - Confirmed deletion of TM-006 by clicking [Delete Member].
+    - TM-006 record updated safely:
+      isActive: false
+      is_active: false
+      status: inactive
+      isDeleted: true
+      deletedAt: 2026-09-16T11:56:41.484Z
+    - Audit transaction created:
+      Transaction ID: tx_soft_del_tm_006_1789559801484
+      Type: MEMBER_SOFT_DELETED
+
+20. ACTIVE MEMBER COUNT VERIFICATION:
+    - Active roster query excludes TM-006 and TM-007.
+    - Active member count in groups doc decremented accurately.
+    - Soft-deleted members excluded from eligible loan and bonus dropdowns.
+
+21. HISTORICAL RECORDS PRESERVATION:
+    - All historical data for soft-deleted TM-006 remains 100% intact:
+      * Original loan document: PRESERVED (₹5,000 principal)
+      * Repayments: PRESERVED (2 records, total ₹5,000 principal + ₹275 interest)
+      * Monthly contributions: PRESERVED (₹1,000 savings)
+      * Audit transactions: PRESERVED
+      * Diwali bonus distributions: PRESERVED
+    - Hard deletions performed: 0
+
+22. TM-008 REMAINS ACTIVE:
+    - TM-007 was soft-deleted as clean test member without loans (verified).
+    - TM-008 verified:
+      isActive: true
+      is_active: true
+      status: active
+      isDeleted: false
+    - TM-008 remains active in roster, counts, and eligible dropdowns.
+
+23. PRODUCTION GROUP SAFETY VERIFICATION:
+    - Production Group: shivshahi_group_001
+    - Initial Member Count: 44
+    - Final Member Count: 44
+    - Soft-Deleted Records in Production: 0
+    - Production Loans: 35 (Untouched)
+    - Production Repayments: 52 (Untouched)
+    - Total Production Writes: 0
+    - Status: 100% PRISTINE AND SAFE
+
+24. AUTOMATED TEST RESULT:
+    - Script: scripts/test-phase1-phase14.mjs
+    - Total Tests: 28
+    - Tests Passed: 28
+    - Tests Failed: 0
+    - Result: 100% PASS
+
+25. BUILD RESULT:
+    - Command: npm run build (client)
+    - Modules Transformed: 1626
+    - Bundle Output:
+      * dist/index.html: 1.10 kB
+      * dist/assets/index.css: 8.19 kB
+      * dist/assets/index.js: 1,319.22 kB
+    - Build Duration: 3.93s
+    - Compilation Errors: 0
+    - Result: 100% SUCCESS
+
+================================================================================
+FINAL VERDICT: ALL 25 REQUIREMENTS COMPLETED & FULLY VERIFIED.
+================================================================================

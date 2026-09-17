@@ -34,6 +34,7 @@ import {
   UserX,
   UserCheck,
   KeyRound,
+  Trash2,
 } from 'lucide-react';
 
 const MemberDetails = () => {
@@ -72,11 +73,90 @@ const MemberDetails = () => {
     }
   };
 
-  const { showError, askConfirm, showSuccess } = usePopup();
+  const { showError, askConfirm, showSuccess, showWarningConfirm } = usePopup();
 
   useEffect(() => {
     fetchMember();
   }, [id]);
+
+  const handleDeleteMember = async () => {
+    // 1. Check for Active / Outstanding Loans
+    const outstanding = Number(member.outstanding_loans || member.activeLoanAmount || member.activeLoanOutstanding || 0);
+    const activeLoan = (member.loans || []).find((l) => {
+      const status = (l.status || '').toUpperCase();
+      const rem = Number(l.pendingPrincipal ?? l.remainingAmount ?? l.outstanding_amount ?? 0);
+      return status === 'ACTIVE' || rem > 0;
+    });
+
+    if (outstanding > 0 || activeLoan) {
+      const activeLoanId = activeLoan ? (activeLoan.id || activeLoan.loanId) : null;
+      showWarningConfirm({
+        title: '⚠️ Cannot Delete Member',
+        message: `This member has an outstanding loan of ₹${Math.round(outstanding || activeLoan?.pendingPrincipal || 0).toLocaleString('en-IN')}.\n\nPlease fully repay the loan before deleting this member.`,
+        cancelText: 'Cancel',
+        confirmText: 'View Loan',
+        confirmVariant: 'primary',
+        onConfirm: () => {
+          if (activeLoanId) {
+            navigate(`/loans/${activeLoanId}`);
+          } else {
+            navigate('/loans');
+          }
+        },
+      });
+      return; // 0 writes!
+    }
+
+    // 2. Settlement passed: Show Delete Confirmation Modal
+    const confirmed = await askConfirm({
+      title: '⚠️ Delete Member?',
+      message: 'Are you sure you want to delete this member?\n\nThe member will be removed from the active member list, but all historical savings, loan, repayment, interest and audit records will be preserved.\n\nThis action cannot be undone.',
+      confirmText: 'Delete Member',
+      cancelText: 'Cancel',
+      confirmVariant: 'danger',
+    });
+
+    if (!confirmed) return; // 0 writes on cancel!
+
+    // 3. Perform Soft Delete
+    try {
+      setLoading(true);
+      const res = await memberService.deleteMember(id);
+      if (res.success) {
+        showSuccess({
+          title: '✓ Member deleted successfully.',
+          message: 'The member has been removed from the active member list. Historical financial records have been preserved.',
+          buttonText: 'Done',
+          onClose: () => navigate('/members'),
+        });
+      }
+    } catch (err) {
+      console.error('Failed to soft delete member:', err);
+      if (err.outstandingLoan > 0 || (err.message && err.message.includes('outstanding loan'))) {
+        showWarningConfirm({
+          title: '⚠️ Cannot Delete Member',
+          message: err.message,
+          cancelText: 'Cancel',
+          confirmText: 'View Loan',
+          confirmVariant: 'primary',
+          onConfirm: () => {
+            if (err.activeLoanId) {
+              navigate(`/loans/${err.activeLoanId}`);
+            } else {
+              navigate('/loans');
+            }
+          },
+        });
+      } else {
+        showError({
+          title: 'Cannot Delete Member',
+          error: err,
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleUpdateRole = async () => {
     const confirmed = await askConfirm({
@@ -340,6 +420,19 @@ const MemberDetails = () => {
                   <UserCheck size={16} /> Reactivate Member
                 </>
               )}
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={handleDeleteMember}
+              className="btn-outline"
+              style={{
+                color: 'var(--danger-text)',
+                borderColor: 'var(--danger)',
+              }}
+              title="Soft delete member while preserving historical records"
+            >
+              <Trash2 size={16} /> Delete Member
             </button>
           )}
         </div>

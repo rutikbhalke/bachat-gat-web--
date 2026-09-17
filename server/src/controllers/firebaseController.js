@@ -60,8 +60,8 @@ async function getAllMembers(req, res) {
   let members = await getCollection('users', groupIdOf(req));
   const { search, status, month, year } = req.query;
   if (search) { const term = search.toLowerCase(); members = members.filter((m) => `${m.fullName || m.name} ${m.email} ${m.phone} ${m.memberCode}`.toLowerCase().includes(term)); }
-  if (status === 'active') members = members.filter((m) => m.status !== 'INACTIVE' && m.isActive !== false);
-  if (status === 'inactive') members = members.filter((m) => m.status === 'INACTIVE' || m.isActive === false);
+  if (status === 'active') members = members.filter((m) => m.status !== 'INACTIVE' && (m.status || '').toLowerCase() !== 'inactive' && m.isActive !== false && !m.isDeleted);
+  if (status === 'inactive') members = members.filter((m) => m.status === 'INACTIVE' || (m.status || '').toLowerCase() === 'inactive' || m.isActive === false || m.isDeleted === true);
   const savings = await getCollection('monthlyContributions', groupIdOf(req));
   const loans = await getCollection('loans', groupIdOf(req));
   members = members.map((m) => ({ ...m, member_id: m.id, name: m.fullName || m.name, member_code: m.memberCode || m.member_code, total_savings: savings.filter((s) => s.memberId === m.id).reduce((sum, s) => sum + number(s.amount), 0), outstanding_loans: loans.filter((l) => l.memberId === m.id && l.status === 'ACTIVE').reduce((sum, l) => sum + number(value(l, 'remainingAmount', 'outstanding_amount')), 0), has_paid_current_month: savings.some((s) => s.memberId === m.id && number(s.month) === number(month) && number(s.year) === number(year)) }));
@@ -113,11 +113,11 @@ async function getLoanRepayments(req, res) { const repayments = (await getCollec
 
 async function getDashboardSummary(req, res) {
   const groupId = groupIdOf(req);
-  const [savings, loans, repayments, members, groups] = await Promise.all([
-    'monthlyContributions', 'loans', 'repayments', 'users', 'groups'
+  const [savings, loans, repayments, members, groups, transactions] = await Promise.all([
+    'monthlyContributions', 'loans', 'repayments', 'users', 'groups', 'transactions'
   ].map((name) => getCollection(name, groupId)));
 
-  const summary = calculateGroupFinancialSummary(savings, loans, repayments);
+  const summary = calculateGroupFinancialSummary(savings, loans, repayments, transactions);
   const group = groups.find(g => g.id === groupId) || groups[0] || {};
 
   let memberSummary = null;
