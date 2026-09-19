@@ -54,6 +54,30 @@ const Reports = () => {
   const [selectedMemberForHistory, setSelectedMemberForHistory] = useState(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
+  const calculateDefaultReportNo = (m, y) => {
+    const diff = (y - 2026) * 12 + (m - 9);
+    return 130 + diff;
+  };
+
+  const [manualReportNumbers, setManualReportNumbers] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('bachatReportNumbers') || '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  const currentReportNo = manualReportNumbers[`${selectedYear}-${selectedMonth}`] ?? calculateDefaultReportNo(selectedMonth, selectedYear);
+
+  const handleReportNoChange = (val) => {
+    const newVal = parseInt(val, 10);
+    if (!isNaN(newVal)) {
+      const newMap = { ...manualReportNumbers, [`${selectedYear}-${selectedMonth}`]: newVal };
+      setManualReportNumbers(newMap);
+      localStorage.setItem('bachatReportNumbers', JSON.stringify(newMap));
+    }
+  };
+
   const handleOpenMemberHistory = (member) => {
     setSelectedMemberForHistory(member);
     setIsHistoryModalOpen(true);
@@ -361,6 +385,18 @@ const Reports = () => {
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
+
+              <div style={{ marginLeft: '10px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)' }}>Report No:</span>
+                <input
+                  type="number"
+                  value={currentReportNo}
+                  onChange={(e) => handleReportNoChange(e.target.value)}
+                  className="form-input"
+                  style={{ width: '80px', fontSize: '0.85rem', padding: '6px 8px' }}
+                  min="1"
+                />
+              </div>
             </div>
           )}
 
@@ -523,9 +559,9 @@ const Reports = () => {
                     <div style={{ padding: '6px 10px', fontWeight: 800, fontSize: '1.25rem' }}>
                       श्री सदुबाबा युवा स्वयम सहाय्य बचतगट
                     </div>
-                    <div style={{ borderLeft: '1px solid #000', padding: '6px 4px', fontWeight: 700, fontSize: '0.95rem' }}>
-                      क्र. 130
-                    </div>
+                      <div style={{ borderLeft: '1px solid #000', padding: '6px 4px', fontWeight: 700, fontSize: '0.95rem' }}>
+                        क्र. {currentReportNo}
+                      </div>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', textAlign: 'center', borderBottom: '1.5px solid #000' }}>
                     <div style={{ padding: '6px 10px', fontWeight: 800, fontSize: '1.1rem' }}>
@@ -543,8 +579,9 @@ const Reports = () => {
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.88rem', color: '#000' }}>
                     <thead>
                       <tr style={{ borderBottom: '1.5px solid #000', background: '#f8fafc', fontWeight: 800 }}>
-                        <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '45px' }}>स क्र.</th>
+                        <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '45px' }}>अ क्र.</th>
                         <th style={{ borderRight: '1px solid #000', padding: '6px 8px', textAlign: 'left' }}>सभासदाचे नाव</th>
+                        <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '65px' }}>कर्ज</th>
                         <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '50px' }}>हप्ता</th>
                         <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '90px' }}>कर्जाचा हप्ता</th>
                         <th style={{ borderRight: '1px solid #000', padding: '6px 4px', width: '85px' }}>कर्जाचे व्याज</th>
@@ -560,6 +597,9 @@ const Reports = () => {
                           </td>
                           <td style={{ borderRight: '1px solid #000', padding: '5px 8px', textAlign: 'left', fontWeight: 700 }}>
                             {formatMemberWithHonorific(row.name)}
+                          </td>
+                          <td style={{ borderRight: '1px solid #000', padding: '5px 4px' }}>
+                            {row.loan ? toDevanagariDigits(row.loan) : '-'}
                           </td>
                           <td style={{ borderRight: '1px solid #000', padding: '5px 4px' }}>
                             {toDevanagariDigits(row.inst || 0)}
@@ -583,6 +623,7 @@ const Reports = () => {
                       <tr style={{ borderTop: '1.5px solid #000', fontWeight: 800, background: '#f1f5f9' }}>
                         <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}></td>
                         <td style={{ borderRight: '1px solid #000', padding: '6px 8px', textAlign: 'left' }}>एकूण</td>
+                        <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>-</td>
                         <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>-</td>
                         <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>{toDevanagariDigits(registerTotals.loanHafta)}</td>
                         <td style={{ borderRight: '1px solid #000', padding: '6px 4px' }}>{toDevanagariDigits(registerTotals.interest)}</td>
@@ -1178,9 +1219,21 @@ const Reports = () => {
       <DistributeDiwaliBonusModal
         isOpen={isBonusModalOpen}
         onClose={() => setIsBonusModalOpen(false)}
-        onSuccess={fetchReports}
+        onSuccess={(res) => {
+          if (res && res.remainingInterest !== undefined) {
+            setBonusData(prev => ({
+              ...prev,
+              totalBonusDistributed: (prev?.totalBonusDistributed || 0) + res.totalDistributed,
+              netInterestAvailable: res.remainingInterest,
+              yearBonuses: [...(prev?.yearBonuses || []), ...(res.records || [])]
+            }));
+          } else {
+            fetchReports();
+          }
+        }}
         initialYear={selectedYear}
         targetGroupId={targetGroupId}
+        preloadedPoolSummary={bonusData}
       />
 
       {/* MEMBER FINANCIAL HISTORY MODAL */}

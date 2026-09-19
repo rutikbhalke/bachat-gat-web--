@@ -31,8 +31,6 @@ import {
   Shield,
   Edit2,
   Save,
-  UserX,
-  UserCheck,
   KeyRound,
   Trash2,
 } from 'lucide-react';
@@ -200,51 +198,6 @@ const MemberDetails = () => {
     }
   };
 
-  const handleToggleDeactivate = async () => {
-    const isCurrentlyActive = member.isActive !== false && (member.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
-    const actionText = isCurrentlyActive ? 'deactivate' : 'reactivate';
-    
-    const confirmed = await askConfirm({
-      title: `Confirm Member ${isCurrentlyActive ? 'Deactivation' : 'Reactivation'}`,
-      message: `Are you sure you want to ${actionText} member "${member.name}"?`,
-      details: [
-        { label: 'Member Name', value: member.name },
-        { label: 'Member Code', value: member.member_code || member.memberCode || id },
-        { label: 'Current Status', value: isCurrentlyActive ? 'ACTIVE' : 'INACTIVE' },
-        { label: 'Target Status', value: isCurrentlyActive ? 'INACTIVE' : 'ACTIVE', highlight: true },
-      ],
-      confirmText: isCurrentlyActive ? 'Deactivate Member' : 'Reactivate Member',
-      confirmVariant: isCurrentlyActive ? 'danger' : 'success',
-    });
-    if (!confirmed) return; // 0 writes on cancel!
-
-    try {
-      const newStatus = isCurrentlyActive ? 'INACTIVE' : 'ACTIVE';
-      const res = await memberService.manageMemberAccess(id, {
-        name: member.name,
-        phone: member.phone || '',
-        memberCode: member.member_code || member.memberCode || id,
-        email: member.email,
-        role: member.role || 'member',
-        isActive: !isCurrentlyActive,
-        status: newStatus,
-      });
-      if (res.success) {
-        showSuccess({
-          title: `Member ${isCurrentlyActive ? 'Deactivated' : 'Reactivated'}`,
-          message: `Member "${member.name}" has been ${isCurrentlyActive ? 'deactivated' : 'reactivated'}.`,
-        });
-        await fetchMember();
-      }
-    } catch (err) {
-      console.error(`Failed to ${actionText} member:`, err);
-      showError({
-        title: `Failed to ${actionText} Member`,
-        error: err,
-      });
-    }
-  };
-
   const getRoleBadge = (role) => {
     const r = (role || 'MEMBER').toUpperCase();
     if (r === 'ADMIN') return <span className="badge badge-pink">ADMIN</span>;
@@ -400,26 +353,6 @@ const MemberDetails = () => {
           {isAdmin && (
             <button onClick={() => setIsMemberLoginOpen(true)} className="btn-outline">
               <KeyRound size={16} /> Edit / Add Login
-            </button>
-          )}
-          {isAdmin && (
-            <button
-              onClick={handleToggleDeactivate}
-              className="btn-outline"
-              style={{
-                color: (member.isActive !== false && (member.status || 'ACTIVE').toUpperCase() === 'ACTIVE') ? 'var(--danger-text)' : 'var(--success)',
-                borderColor: (member.isActive !== false && (member.status || 'ACTIVE').toUpperCase() === 'ACTIVE') ? 'var(--danger)' : 'var(--success)',
-              }}
-            >
-              {(member.isActive !== false && (member.status || 'ACTIVE').toUpperCase() === 'ACTIVE') ? (
-                <>
-                  <UserX size={16} /> Deactivate Member
-                </>
-              ) : (
-                <>
-                  <UserCheck size={16} /> Reactivate Member
-                </>
-              )}
             </button>
           )}
           {isAdmin && (

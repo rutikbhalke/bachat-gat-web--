@@ -27,9 +27,10 @@ export const bonusService = {
     const targetYear = parseInt(year, 10) || new Date().getFullYear();
 
     try {
-      // Primary: backend authoritative calculation
+      // Primary: backend authoritative calculation (with 1.5s timeout to avoid blocking)
       const res = await api.get('/bonus/summary', {
         params: { year: targetYear, groupId: targetGroupId },
+        timeout: 250,
       });
       if (res.data && res.data.success) {
         return res.data;
@@ -38,42 +39,24 @@ export const bonusService = {
       console.warn('Backend bonus summary unavailable, using Firestore client read fallback:', err.message);
     }
 
-    // Fallback: direct Firestore read
+    // Fallback: direct Firestore read (Concurrent fetching)
     try {
-      const repaymentsSnap = await getDocs(
-        query(collection(db, 'repayments'), where('groupId', '==', targetGroupId))
-      ).catch(() => ({ docs: [] }));
+      const [repaymentsSnap, bonusSnap, txSnap] = await Promise.all([
+        getDocs(query(collection(db, 'repayments'), where('groupId', '==', targetGroupId))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'diwaliBonuses'), where('groupId', '==', targetGroupId))).catch(() => ({ docs: [] })),
+        getDocs(query(collection(db, 'transactions'), where('groupId', '==', targetGroupId))).catch(() => ({ docs: [] }))
+      ]);
 
       let repayments = repaymentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (repayments.length === 0) {
-        const fallbackSnap = await getDocs(
-          query(collection(db, 'repayments'), where('group_id', '==', targetGroupId))
-        ).catch(() => ({ docs: [] }));
-        repayments = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      }
-
       const yearRepayments = repayments.filter(r => getRepaymentYear(r) === targetYear);
       const totalInterestCollected = Math.round(
         yearRepayments.reduce((sum, r) => sum + number(r.interestAmount ?? r.interest_amount ?? r.interestPaid ?? 0), 0) * 100
       ) / 100;
 
-      const bonusSnap = await getDocs(
-        query(collection(db, 'diwaliBonuses'), where('groupId', '==', targetGroupId))
-      ).catch(() => ({ docs: [] }));
-
       let allBonuses = bonusSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      if (allBonuses.length === 0) {
-        const fallbackBonusSnap = await getDocs(
-          query(collection(db, 'diwaliBonuses'), where('group_id', '==', targetGroupId))
-        ).catch(() => ({ docs: [] }));
-        allBonuses = fallbackBonusSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      }
 
       // Check transactions collection for DIWALI_BONUS_DISTRIBUTED
       if (allBonuses.length === 0) {
-        const txSnap = await getDocs(
-          query(collection(db, 'transactions'), where('groupId', '==', targetGroupId))
-        ).catch(() => ({ docs: [] }));
         const bonusTxs = txSnap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(t => t.type === 'DIWALI_BONUS_DISTRIBUTED');

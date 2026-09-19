@@ -183,7 +183,7 @@ const NewBachatGatRegisterReport = ({ selectedMonth: initialMonth, selectedYear:
                       {row.memberName}
                     </td>
                     <td style={{ border: '1px solid #000', padding: '6px' }}>
-                      {formatCurrency(row.loanAmount)}
+                      {(row.loan || row.loanAmount) ? formatCurrency(row.loan || row.loanAmount) : '-'}
                     </td>
                     <td style={{ border: '1px solid #000', padding: '6px' }}>
                       {row.installmentNumber}
@@ -208,9 +208,11 @@ const NewBachatGatRegisterReport = ({ selectedMonth: initialMonth, selectedYear:
               </tbody>
               <tfoot>
                 <tr style={{ backgroundColor: '#e2e8f0', borderTop: '2px solid #000', fontWeight: 'bold' }}>
-                  <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }} colSpan={4}>
+                  <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }} colSpan={2}>
                     Grand Total
                   </td>
+                  <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>-</td>
+                  <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>-</td>
                   <td style={{ border: '1px solid #000', padding: '8px' }}>{formatCurrency(totals.principal)}</td>
                   <td style={{ border: '1px solid #000', padding: '8px' }}>{formatCurrency(totals.interest)}</td>
                   <td style={{ border: '1px solid #000', padding: '8px' }}>{formatCurrency(totals.regularHapta)}</td>

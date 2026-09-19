@@ -39,63 +39,26 @@ const Dashboard = () => {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const targetGroupId = DEFAULT_GROUP_ID;
-      const memberLookupId = user?.memberId || user?.uid || '';
-
-      console.log(`[Dashboard] Fetching data for group: ${targetGroupId}`);
-
-      const [sumRes, progRes, actRes] = await Promise.allSettled([
-        dashboardService.getSummary(targetGroupId, memberLookupId),
-        dashboardService.getMonthlyProgress(selectedMonth, selectedYear, targetGroupId),
-        dashboardService.getRecentActivities(8, targetGroupId),
-      ]);
-
-      if (sumRes.status === 'fulfilled' && sumRes.value?.success) {
-        setSummary(sumRes.value.summary || null);
-        setMemberSummary(sumRes.value.memberSummary || null);
-      }
-      if (progRes.status === 'fulfilled' && progRes.value?.success) {
-        setProgress(progRes.value.progress || null);
-      }
-      if (actRes.status === 'fulfilled' && actRes.value?.success) {
-        setActivities(actRes.value.activities || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch dashboard data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (!loading && !user) {
-      return;
-    }
+    if (!user) return;
 
-    fetchDashboardData();
-
-    // Set up real-time listener
     const targetGroupId = DEFAULT_GROUP_ID;
     const memberLookupId = user?.memberId || user?.uid || '';
+    
+    // The optimized subscribeToDashboard now returns summary, progress, and activities synchronously
     const unsubscribe = dashboardService.subscribeToDashboard(targetGroupId, memberLookupId, (liveData) => {
       if (liveData?.summary) {
         setSummary(liveData.summary);
         if (liveData.memberSummary) setMemberSummary(liveData.memberSummary);
       }
-      dashboardService.getMonthlyProgress(selectedMonth, selectedYear, targetGroupId).then((pRes) => {
-        if (pRes?.success && pRes.progress) {
-          setProgress(pRes.progress);
-        }
-      });
-      dashboardService.getRecentActivities(8, targetGroupId).then((aRes) => {
-        if (aRes?.success && aRes.activities) {
-          setActivities(aRes.activities);
-        }
-      });
-    });
+      if (liveData?.progress) {
+        setProgress(liveData.progress);
+      }
+      if (liveData?.activities) {
+        setActivities(liveData.activities);
+      }
+      setLoading(false);
+    }, selectedMonth, selectedYear);
 
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
@@ -117,9 +80,10 @@ const Dashboard = () => {
     { value: 12, label: 'December' },
   ];
 
-  if (loading && !summary) {
-    return <Loader text="Loading group financial metrics..." />;
-  }
+  // Remove blocking loader, let the UI shell render instantly
+  // if (loading && !summary) {
+  //   return <Loader text="Loading group financial metrics..." />;
+  // }
 
   const safeTotalGroupFund = summary?.totalGroupFund || summary?.totalFund || 0;
   const safeTotalSavings = summary?.totalSavings || summary?.total_savings || 0;
@@ -177,10 +141,10 @@ const Dashboard = () => {
             </div>
           </div>
           <h1 style={{ color: '#FFFFFF', fontSize: '2.25rem', fontWeight: 800, marginBottom: '4px' }}>
-            {formatCurrency(safeTotalGroupFund)}
+            {summary ? formatCurrency(safeTotalGroupFund) : '...'}
           </h1>
           <p style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.95rem' }}>
-            Total Group Fund = Available Balance ({formatCurrency(safeAvailableBalance)}) + Active Loan Outstanding ({formatCurrency(safeActiveLoans)})
+            Total Group Fund = Available Balance ({summary ? formatCurrency(safeAvailableBalance) : '...'}) + Active Loan Outstanding ({summary ? formatCurrency(safeActiveLoans) : '...'})
           </p>
         </div>
 
@@ -197,7 +161,7 @@ const Dashboard = () => {
           >
             <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.8)', fontWeight: 600 }}>AVAILABLE BALANCE</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#FFFFFF' }}>
-              {formatCurrency(safeAvailableBalance)}
+              {summary ? formatCurrency(safeAvailableBalance) : '...'}
             </div>
           </div>
 
@@ -213,7 +177,7 @@ const Dashboard = () => {
           >
             <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.8)', fontWeight: 600 }}>ACTIVE LOANS</div>
             <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#FFFFFF' }}>
-              {formatCurrency(safeActiveLoans)}
+              {summary ? formatCurrency(safeActiveLoans) : '...'}
             </div>
           </div>
         </div>
@@ -223,28 +187,28 @@ const Dashboard = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
         <StatCard
           title="Total Savings"
-          value={formatCurrency(safeTotalSavings)}
+          value={summary ? formatCurrency(safeTotalSavings) : '...'}
           subtitle="Cumulative member savings"
           icon={PiggyBank}
           colorScheme="saffron"
         />
         <StatCard
           title="Active Loans"
-          value={formatCurrency(safeActiveLoans)}
-          subtitle={`${safeActiveLoansCount} active loans outstanding`}
+          value={summary ? formatCurrency(safeActiveLoans) : '...'}
+          subtitle={summary ? `${safeActiveLoansCount} active loans outstanding` : '...'}
           icon={HandCoins}
           colorScheme="amber"
         />
         <StatCard
           title="Total Interest"
-          value={formatCurrency(safeTotalInterestPaid)}
-          subtitle={safeCurrentMonthlyInterest > 0 ? `Current Monthly Interest: ${formatCurrency(safeCurrentMonthlyInterest)}` : 'Total interest collected from loans'}
+          value={summary ? formatCurrency(safeTotalInterestPaid) : '...'}
+          subtitle={summary ? (safeCurrentMonthlyInterest > 0 ? `Current Monthly Interest: ${formatCurrency(safeCurrentMonthlyInterest)}` : 'Total interest collected from loans') : '...'}
           icon={TrendingUp}
           colorScheme="purple"
         />
         <StatCard
           title="Available Balance"
-          value={formatCurrency(safeAvailableBalance)}
+          value={summary ? formatCurrency(safeAvailableBalance) : '...'}
           subtitle="Ready for new loan disbursement"
           icon={Wallet}
           colorScheme="green"

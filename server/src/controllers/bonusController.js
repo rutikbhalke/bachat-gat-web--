@@ -124,26 +124,20 @@ async function distributeBonus(req, res, next) {
       return res.status(400).json({ success: false, message: 'Total bonus distribution must be greater than ₹0.' });
     }
 
-    // 1. Authoritative check on Available Interest Pool
-    const repaymentsSnap = await db.collection('repayments').where('groupId', '==', groupId).get().catch(() => ({ docs: [] }));
-    let repayments = repaymentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (repayments.length === 0) {
-      const fallbackSnap = await db.collection('repayments').where('group_id', '==', groupId).get().catch(() => ({ docs: [] }));
-      repayments = fallbackSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    }
+    // 1. Authoritative check on Available Interest Pool (Concurrent fetching)
+    const [repaymentsSnap, bonusSnap, grpSnap] = await Promise.all([
+      db.collection('repayments').where('groupId', '==', groupId).get().catch(() => ({ docs: [] })),
+      db.collection('diwaliBonuses').where('groupId', '==', groupId).get().catch(() => ({ docs: [] })),
+      db.collection('groups').doc(groupId).get().catch(() => null)
+    ]);
 
+    let repayments = repaymentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     const yearRepayments = repayments.filter(r => getRepaymentYear(r) === year);
     const totalInterestCollected = Math.round(
       yearRepayments.reduce((sum, r) => sum + number(r.interestAmount ?? r.interest_amount ?? r.interestPaid ?? 0), 0) * 100
     ) / 100;
 
-    const bonusSnap = await db.collection('diwaliBonuses').where('groupId', '==', groupId).get().catch(() => ({ docs: [] }));
     let allBonuses = bonusSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    if (allBonuses.length === 0) {
-      const fallbackBonusSnap = await db.collection('diwaliBonuses').where('group_id', '==', groupId).get().catch(() => ({ docs: [] }));
-      allBonuses = fallbackBonusSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    }
-
     const yearBonuses = allBonuses.filter(b => number(b.year) === year);
     const existingDistributed = Math.round(
       yearBonuses.reduce((sum, b) => sum + number(b.bonusAmount ?? b.amount ?? 0), 0) * 100
@@ -215,7 +209,6 @@ async function distributeBonus(req, res, next) {
 
     // Update group cached available balance and total fund
     const groupRef = db.collection('groups').doc(groupId);
-    const grpSnap = await groupRef.get().catch(() => null);
     if (grpSnap && grpSnap.exists) {
       const gData = grpSnap.data();
       const curBal = Number(gData.availableBalance) || 0;

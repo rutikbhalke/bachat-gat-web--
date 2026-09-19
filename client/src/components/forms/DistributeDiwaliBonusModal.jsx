@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Modal from '../common/Modal';
 import { bonusService } from '../../services/bonusService';
 import { memberService } from '../../services/memberService';
 import { formatCurrency, formatNumber, DEFAULT_GROUP_ID } from '../../utils/formatters';
 import { usePopup } from '../../context/PopupContext';
 import { Sparkles, AlertCircle, Calculator, CheckCircle2, Info } from 'lucide-react';
+import { getDocs, collection, query, where } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 
-const DistributeDiwaliBonusModal = ({ isOpen, onClose, onSuccess, initialYear = new Date().getFullYear(), targetGroupId = DEFAULT_GROUP_ID }) => {
+const DistributeDiwaliBonusModal = ({ isOpen, onClose, onSuccess, initialYear = new Date().getFullYear(), targetGroupId = DEFAULT_GROUP_ID, preloadedPoolSummary }) => {
   const { showError, showSuccess, askConfirm } = usePopup();
 
   const [selectedYear, setSelectedYear] = useState(initialYear);
@@ -32,15 +34,19 @@ const DistributeDiwaliBonusModal = ({ isOpen, onClose, onSuccess, initialYear = 
     const loadInitialData = async () => {
       setFetching(true);
       try {
-        const [memRes, poolRes] = await Promise.all([
-          memberService.getAllMembers({ status: 'active', groupId: targetGroupId }, targetGroupId),
-          bonusService.getBonusPoolSummary(selectedYear, targetGroupId),
+        // Optimize fetch: direct minimal Firestore queries avoiding massive cross-collection joins
+        const [membersSnap, poolRes] = await Promise.all([
+          getDocs(query(collection(db, 'users'), where('groupId', '==', targetGroupId))),
+          (preloadedPoolSummary && selectedYear === initialYear)
+            ? Promise.resolve(preloadedPoolSummary)
+            : bonusService.getBonusPoolSummary(selectedYear, targetGroupId),
         ]);
 
         if (!isMounted) return;
 
         // Filter to active, non-deleted, non-admin members
-        const activeMems = (memRes.members || []).filter(m => {
+        const allMems = membersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const activeMems = allMems.filter(m => {
           const role = (m.role_name || m.role || '').toUpperCase();
           const isInactive = m.isActive === false || m.is_active === 0 || m.isDeleted === true || (m.status || '').toLowerCase() === 'inactive' || (m.status || '').toLowerCase() === 'deleted';
           const isAdmin = role === 'ADMIN' || m.email?.includes('admin');
@@ -133,10 +139,15 @@ const DistributeDiwaliBonusModal = ({ isOpen, onClose, onSuccess, initialYear = 
     }));
   };
 
+  const isSubmittingRef = useRef(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
 
-    // 1. Validate negative or invalid values entered
+    try {
+      // 1. Validate negative or invalid values entered
     for (const [mid, val] of Object.entries(bonusAllocations)) {
       if (val !== '' && (isNaN(val) || Number(val) < 0)) {
         showError({
@@ -209,21 +220,21 @@ const DistributeDiwaliBonusModal = ({ isOpen, onClose, onSuccess, initialYear = 
     if (!confirmed) return;
 
     setLoading(true);
-    try {
-      const res = await bonusService.distributeDiwaliBonus({
-        year: selectedYear,
-        distributionDate,
-        distributions,
-        remarks: remarks.trim() || `Diwali Bonus Distribution for ${selectedYear}`,
-      }, targetGroupId);
+    const res = await bonusService.distributeDiwaliBonus({
+      year: selectedYear,
+      distributionDate,
+      distributions,
+      remarks: remarks.trim() || `Diwali Bonus Distribution for ${selectedYear}`,
+    }, targetGroupId);
 
-      showSuccess({
-        title: 'Bonus Distributed',
-        message: `Successfully distributed ${formatCurrency(res.totalDistributed || totalAllocated)} to ${res.distributedCount || distributions.length} members.`,
-      });
+    showSuccess({
+      title: 'Bonus Distributed',
+      message: `Successfully distributed ${formatCurrency(res.totalDistributed || totalAllocated)} to ${res.distributedCount || distributions.length} members.`,
+    });
 
-      if (onSuccess) onSuccess();
-      onClose();
+    if (onSuccess) onSuccess(res);
+    onClose();
+
     } catch (err) {
       showError({
         title: 'Distribution Failed',
@@ -231,6 +242,7 @@ const DistributeDiwaliBonusModal = ({ isOpen, onClose, onSuccess, initialYear = 
       });
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   };
 
