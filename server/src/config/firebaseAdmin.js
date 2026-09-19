@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { SHARED_FIREBASE_PROJECT_ID } = require('./dataContract');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
@@ -33,10 +34,10 @@ const firebaseApp = admin.apps.length
   ? admin.app()
   : admin.initializeApp({
       ...(credential ? { credential } : {}),
-      projectId: process.env.FIREBASE_PROJECT_ID || 'bachat-gat-32ffe',
+      projectId: process.env.FIREBASE_PROJECT_ID || SHARED_FIREBASE_PROJECT_ID,
     });
 
 const auth = admin.auth(firebaseApp);
 const db = admin.firestore(firebaseApp);
 
-module.exports = { admin, auth, db, hasServiceAccount };
+module.exports = { admin, auth, db, hasServiceAccount };

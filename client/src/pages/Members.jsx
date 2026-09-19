@@ -8,7 +8,12 @@ import EmptyState from '../components/common/EmptyState';
 import AddMemberModal from '../components/forms/AddMemberModal';
 import RecordRepaymentModal from '../components/forms/RecordRepaymentModal';
 import RecordSavingsModal from '../components/forms/RecordSavingsModal';
-import { formatCurrency, formatDate, formatNumber } from '../utils/formatters';
+import {
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  isBusinessMember,
+} from '../utils/formatters';
 import {
   Users,
   Search,
@@ -154,7 +159,7 @@ const Members = () => {
       (m.status || '').toLowerCase() === 'deleted' ||
       (m.memberStatus || '').toLowerCase() === 'inactive' ||
       (m.account_status || '').toLowerCase() === 'inactive';
-    return role !== 'ADMIN' && !m.email?.includes('admin') && !isInactive;
+    return isBusinessMember(m) && !isInactive;
   });
 
   // Mutually Exclusive Partitioning

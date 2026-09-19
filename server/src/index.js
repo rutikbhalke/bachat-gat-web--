@@ -13,6 +13,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const bonusRoutes = require('./routes/bonusRoutes');
+const licenseRoutes = require('./routes/licenseRoutes');
 const { errorHandler, notFoundHandler } = require('./middleware/errorMiddleware');
 
 const app = express();
@@ -49,6 +50,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/bonus', bonusRoutes);
+app.use('/api/license', licenseRoutes);
 
 // Error Handling
 app.use(notFoundHandler);

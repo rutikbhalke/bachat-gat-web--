@@ -3,14 +3,13 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  collection,
   getDocs,
-  query,
-  where,
   serverTimestamp,
   onSnapshot,
 } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
+import { groupQuery } from './dataContract.js';
+import { DEFAULT_GROUP_ID } from '../config/sharedData.js';
 
 export const userService = {
   /**
@@ -33,9 +32,9 @@ export const userService = {
   /**
    * Get all users
    */
-  getAllUsers: async () => {
+  getAllUsers: async (groupId = DEFAULT_GROUP_ID) => {
     try {
-      const snap = await getDocs(collection(db, 'users'));
+      const snap = await getDocs(groupQuery('members', groupId || DEFAULT_GROUP_ID));
       const users = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       return { success: true, users };
     } catch (err) {

@@ -7,6 +7,7 @@
     "dev": "cd client && npm run dev",
     "build": "cd client && npm run build",
     "preview": "cd client && npm run preview",
+    "test:license": "npm test --prefix server && npm run test:license --prefix client",
     "admin:create": "node scripts/create-admin.js",
     "firebase:seed": "node database/seed-firebase.js",
     "firebase:test-workflow": "node scripts/test-full-workflow.js",

@@ -1,4 +1,5 @@
 const { auth, db, hasServiceAccount } = require('../config/firebaseAdmin');
+const { DEFAULT_GROUP_ID } = require('../config/dataContract');
 
 async function authenticateToken(req, res, next) {
   const authHeader = req.headers.authorization || '';
@@ -38,7 +39,7 @@ async function authenticateToken(req, res, next) {
       name: data.fullName || data.name || decoded.name || email,
       role,
       role_name: role,
-      groupId: data.groupId || decoded.groupId || 'shivshahi_group_001',
+      groupId: data.groupId || decoded.groupId || DEFAULT_GROUP_ID,
       memberId: data.memberId || null,
     };
     return next();

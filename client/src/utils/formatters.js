@@ -1,12 +1,20 @@
+import { DEFAULT_GROUP_ID as SHARED_DEFAULT_GROUP_ID } from '../config/sharedData.js';
+
 /**
  * Centralized, Ultra-Safe Formatters and Normalizers for Bachat Gat Web Application
- * Fully synchronized with Flutter Android App database schema (groups/shivshahi_group_001)
+ * Fully synchronized with Flutter Android App database schema.
  * Guaranteed NEVER to throw runtime errors or TypeError on undefined/null values
  */
 
 export const DEFAULT_GROUP_ID = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GROUP_ID)
   ? import.meta.env.VITE_GROUP_ID
-  : 'shivshahi_group_001';
+  : SHARED_DEFAULT_GROUP_ID;
+
+export const isBusinessMember = (member = {}) => {
+  const role = String(member.role || member.role_name || 'member').trim().toLowerCase();
+  const status = String(member.status || 'ACTIVE').trim().toUpperCase();
+  return role === 'member' && member.isActive !== false && status === 'ACTIVE';
+};
 
 /**
  * Format any number or numeric string safely into Indian numbering system (e.g. 1,50,000)
@@ -359,7 +367,25 @@ export const normalizeSavings = (id, data = {}) => {
 
   const loanPrincipalPaid = Number(data.loanPrincipalPaid || data.loan_principal_paid || 0);
   const interestAmount = Number(data.interestAmount || data.interest_amount || data.interest || 0);
-  const isPaid = (rawStatus === 'paid' && paidAmount >= expectedAmount) || (paidAmount >= expectedAmount && expectedAmount > 0);
+
+  // Authoritative Bachat Gat Rule (strictly synchronized with Flutter MonthlyContribution.actualRegularPaid):
+  // Regular monthly savings deposit cannot exceed the member's expected regular hafta (e.g. ₹1,000 for 1 share).
+  // If a loan repayment or other payment was entered with loanPrincipalPaid / interestAmount or double-counted,
+  // the regular savings portion is strictly capped at expectedAmount (or regularHaftaAmount).
+  const regularCap = Number(data.expectedAmount || data.expected_amount || data.regularHaftaAmount || data.regular_hafta_amount || 1000);
+  let actualRegularPaid = paidAmount;
+  if (paidAmount > 0) {
+    if ((interestAmount > 0 || loanPrincipalPaid > 0) && regularCap > 0 && paidAmount > regularCap) {
+      const regular = paidAmount - interestAmount - loanPrincipalPaid;
+      actualRegularPaid = regular > 0 ? (regular > regularCap ? regularCap : regular) : 0;
+    } else if (regularCap > 0 && paidAmount > regularCap) {
+      actualRegularPaid = regularCap;
+    }
+  } else if (rawStatus === 'paid') {
+    actualRegularPaid = regularCap > 0 ? regularCap : 1000;
+  }
+
+  const isPaid = (rawStatus === 'paid' && actualRegularPaid >= expectedAmount) || (actualRegularPaid >= expectedAmount && expectedAmount > 0);
   const status = isPaid ? 'paid' : 'pending';
 
   return {
@@ -377,10 +403,11 @@ export const normalizeSavings = (id, data = {}) => {
       : (new Date().getMonth() + 1),
     year: parseInt(data.year, 10) || new Date().getFullYear(),
     expectedAmount,
-    regularHaftaAmount: expectedAmount,
-    paidAmount,
-    amount: paidAmount,
-    totalPaid: Number(data.totalPaid !== undefined ? data.totalPaid : (paidAmount + loanPrincipalPaid + interestAmount)),
+    regularHaftaAmount: regularCap,
+    paidAmount: actualRegularPaid,
+    amount: actualRegularPaid,
+    actualRegularPaid: actualRegularPaid,
+    totalPaid: Number(data.totalPaid !== undefined ? data.totalPaid : (actualRegularPaid + loanPrincipalPaid + interestAmount)),
     loanPrincipalPaid,
     interestAmount,
     status: status,

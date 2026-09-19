@@ -1,6 +1,9 @@
 const { db } = require('../config/firebaseAdmin');
-
-const DEFAULT_GROUP_ID = 'shivshahi_group_001';
+const {
+  DEFAULT_GROUP_ID,
+  ROOT_COLLECTIONS,
+  resolveCollectionName,
+} = require('../config/dataContract');
 
 function value(data, ...keys) {
   return keys.map((key) => data[key]).find((item) => item !== undefined && item !== null);
@@ -12,11 +15,19 @@ function serialize(snapshot) {
 
 async function getCollection(name, groupId = DEFAULT_GROUP_ID) {
   try {
-    const snapshot = await db.collection(name).get();
+    const collectionName = resolveCollectionName(name);
+    if (collectionName === ROOT_COLLECTIONS.groups && groupId) {
+      const snapshot = await db.collection(collectionName).doc(groupId).get();
+      return snapshot.exists ? [serialize(snapshot)] : [];
+    }
+
+    const ref = db.collection(collectionName);
+    const snapshot = groupId
+      ? await ref.where('groupId', '==', groupId).get()
+      : await ref.get();
     const items = snapshot.docs.map(serialize);
-    const filtered = items.filter((item) => !groupId || !item.groupId || item.groupId === groupId);
-    console.log(`[Firestore] Fetched ${items.length} items from '${name}', filtered to ${filtered.length} for group '${groupId}'`);
-    return filtered;
+    console.log(`[Firestore] Fetched ${items.length} '${collectionName}' records for group '${groupId}'`);
+    return items;
   } catch (err) {
     console.error(`[Firestore] Error fetching collection '${name}':`, err.message);
     return [];
@@ -24,7 +35,7 @@ async function getCollection(name, groupId = DEFAULT_GROUP_ID) {
 }
 
 async function writeActivity(groupId, userId, action, description) {
-  await db.collection('transactions').add({
+  await db.collection(ROOT_COLLECTIONS.activities).add({
     groupId: groupId || DEFAULT_GROUP_ID,
     userId: userId || null,
     memberId: userId || null,
@@ -49,4 +60,4 @@ async function writeNotification(userId, groupId, title, message, type = 'INFO')
   });
 }
 
-module.exports = { DEFAULT_GROUP_ID, db, getCollection, serialize, value, writeActivity, writeNotification };
+module.exports = { DEFAULT_GROUP_ID, ROOT_COLLECTIONS, db, getCollection, serialize, value, writeActivity, writeNotification };

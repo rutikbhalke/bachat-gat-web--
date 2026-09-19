@@ -1,8 +1,7 @@
 const { auth, db, admin } = require('../config/firebaseAdmin');
 const legacyController = require('./firebaseController');
 const { calculateLoanOutstanding } = require('../services/financialService');
-
-const DEFAULT_GROUP_ID = 'shivshahi_group_001';
+const { DEFAULT_GROUP_ID } = require('../config/dataContract');
 const ALLOWED_ROLES = new Set(['ADMIN', 'MEMBER', 'TREASURER', 'SECRETARY']);
 
 function cleanRole(value) {

@@ -4,6 +4,8 @@ node_modules/
 dist/
 **/dist/
 server/.env
+**/.env
+!**/.env.example
 **/service-account*.json
 **/firebase-adminsdk*.json
 .env.local

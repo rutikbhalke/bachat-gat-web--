@@ -1,14 +1,4 @@
-import {
-  collection,
-  onSnapshot,
-  doc,
-  getDocs,
-  getDoc,
-  query,
-  where,
-  orderBy,
-  limit as limitDocs,
-} from 'firebase/firestore';
+import { onSnapshot, doc, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { groupQuery } from './dataContract';
 import { groupService } from './groupService';
@@ -16,6 +6,7 @@ import { reportService } from './reportService';
 import { notificationService } from './notificationService';
 import {
   DEFAULT_GROUP_ID,
+  isBusinessMember,
   normalizeSavings,
   normalizeLoan,
   normalizeActivity,
@@ -39,9 +30,9 @@ export const dashboardService = {
       console.log(`[dashboardService] Fetching summary for: ${targetGroupId}`);
 
       const [savingsSnap, loansSnap, membersSnap, groupSnap, repaymentsSnap, txSnap] = await Promise.all([
-        getDocs(groupQuery('monthlyContributions', targetGroupId)),
+        getDocs(groupQuery('contributions', targetGroupId)),
         getDocs(groupQuery('loans', targetGroupId)),
-        getDocs(groupQuery('users', targetGroupId)),
+        getDocs(groupQuery('members', targetGroupId)),
         getDoc(doc(db, 'groups', targetGroupId)),
         getDocs(groupQuery('repayments', targetGroupId)).catch(() => ({ docs: [] })),
         getDocs(groupQuery('transactions', targetGroupId)).catch(() => ({ docs: [] })),
@@ -50,10 +41,10 @@ export const dashboardService = {
       const savings = savingsSnap.docs.map(d => normalizeSavings(d.id, d.data()));
       const loans = loansSnap.docs.map(d => normalizeLoan(d.id, d.data()));
       const repayments = repaymentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const transactions = (txSnap?.docs || []).map(d => ({ id: d.id, ...d.data() }));
+      const transactions = txSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       const members = membersSnap.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter(m => (m.id.startsWith('member_') || m.id.startsWith('test_mem_') || m.memberCode?.startsWith('M-130-') || m.memberCode?.startsWith('TM-') || ((m.role || '').toUpperCase() !== 'ADMIN' && !m.email?.includes('admin'))));
+        .filter(isBusinessMember);
       const groupData = groupSnap.exists() ? groupSnap.data() : {};
 
       console.log(`[dashboardService] Records found: ${savings.length} savings, ${loans.length} loans, ${repayments.length} repayments, ${transactions.length} transactions, ${members.length} members`);
@@ -107,17 +98,15 @@ export const dashboardService = {
       const y = parseInt(year, 10);
 
       const [membersSnap, contributionsSnap, groupDocSnap] = await Promise.all([
-        getDocs(groupQuery('users', targetGroupId)),
-        getDocs(groupQuery('monthlyContributions', targetGroupId)),
+        getDocs(groupQuery('members', targetGroupId)),
+        getDocs(groupQuery('contributions', targetGroupId)),
         getDoc(doc(db, 'groups', targetGroupId)),
       ]);
 
       const monthlyShare = Number(groupDocSnap?.data()?.monthlyContribution ?? 1000);
       const allMembers = membersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       const activeMembers = allMembers.filter((mem) => {
-        const isNotAdmin = (mem.role || '').toUpperCase() !== 'ADMIN' && !mem.email?.includes('admin');
-        const isActive = mem.isActive !== false && (mem.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
-        return isNotAdmin && isActive;
+        return isBusinessMember(mem);
       });
       const allContributions = contributionsSnap.docs.map((d) => normalizeSavings(d.id, d.data()));
 
@@ -155,11 +144,8 @@ export const dashboardService = {
         const txSnap = await getDocs(groupQuery('transactions', targetGroupId));
         activities = txSnap.docs.map((d) => normalizeActivity(d.id, d.data()));
       } catch (txErr) {
-        console.warn('Direct transactions query fallback:', txErr);
-        const txSnapAll = await getDocs(collection(db, 'transactions'));
-        activities = txSnapAll.docs
-          .map((d) => normalizeActivity(d.id, d.data()))
-          .filter((a) => (a.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
+        console.warn('Unable to read group transactions; using group financial records:', txErr);
+        activities = [];
       }
 
       if (activities.length < limitCount) {

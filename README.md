@@ -97,3 +97,18 @@ to change the member ID, email login, password, active status, and Admin/Member
 role. **Delete Member** removes the Firebase login plus related contribution,
 loan, repayment, transaction, and member records. Self-demotion and self-delete
 are blocked to avoid locking out the current administrator.
+# Licence configuration
+
+The web application validates BizFlow-compatible licence keys only on the backend.
+
+1. Configure `LICENSE_SIGNING_SECRET` in the hosting platform's encrypted environment-variable settings.
+2. Use the same secret already configured in the private `flexible_key_generator`.
+3. Apply the variable to Production, Preview, and Development environments as required, then redeploy.
+4. For local backend development, copy `.env.example` to `server/.env` and set the secret locally. Never commit that file.
+
+Production endpoints:
+
+- `POST /api/license/activate`
+- `POST /api/license/verify`
+
+The signing secret must never use a `VITE_` prefix. Vite-prefixed variables are compiled into the public browser bundle.
