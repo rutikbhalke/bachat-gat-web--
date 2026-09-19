@@ -5,8 +5,6 @@ import { PopupProvider } from './context/PopupContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import ErrorBoundary from './components/common/ErrorBoundary';
-import { LicenseProvider } from './context/LicenseContext';
-import LicenseGate from './components/license/LicenseGate';
 
 // Pages
 import Login from './pages/Login';
@@ -23,11 +21,9 @@ function App() {
   return (
     <BrowserRouter>
       <ErrorBoundary>
-        <LicenseProvider>
-          <LicenseGate>
-            <AuthProvider>
-              <PopupProvider>
-                <Routes>
+        <AuthProvider>
+          <PopupProvider>
+            <Routes>
               {/* Public Admin Login Route */}
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Navigate to="/login" replace />} />
@@ -51,11 +47,9 @@ function App() {
               {/* Fallback */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                </Routes>
-              </PopupProvider>
-            </AuthProvider>
-          </LicenseGate>
-        </LicenseProvider>
+            </Routes>
+          </PopupProvider>
+        </AuthProvider>
       </ErrorBoundary>
     </BrowserRouter>
   );

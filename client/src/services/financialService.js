@@ -69,12 +69,9 @@ export const calculateAvailableBalance = (totalGroupFund, activeLoans) => {
  * Group Financial Summary
  */
 export const calculateGroupFinancialSummary = (savings = [], loans = [], repayments = [], transactions = []) => {
-  // 1. Total Group Savings = sum of actual paid regular contributions (strictly capped at expected share, matching Flutter)
+  // 1. Total Group Savings = sum of actual paid regular contributions
   const totalGroupSavings = savings.reduce((sum, s) => {
-    const rawPaid = number(s.actualRegularPaid ?? s.paidAmount ?? s.amount ?? s.paid_amount);
-    const expected = number(s.expectedAmount ?? s.expected_amount ?? s.regularHaftaAmount ?? s.regular_hafta_amount ?? 1000);
-    const actualPaid = (expected > 0 && rawPaid > expected) ? expected : rawPaid;
-    return sum + actualPaid;
+    return sum + number(s.paidAmount ?? s.amount ?? s.paid_amount);
   }, 0);
 
   const isRepayDeposit = (r) => Boolean(
@@ -195,11 +192,7 @@ export const calculateMemberFinancialSummary = (memberId, savings = [], loans = 
   const memId = String(memberId);
   const mySavings = savings
     .filter(s => String(s.memberId || s.member_id) === memId)
-    .reduce((sum, s) => {
-      const rawPaid = number(s.actualRegularPaid ?? s.paidAmount ?? s.amount ?? s.paid_amount);
-      const expected = number(s.expectedAmount ?? s.expected_amount ?? s.regularHaftaAmount ?? s.regular_hafta_amount ?? 1000);
-      return sum + ((expected > 0 && rawPaid > expected) ? expected : rawPaid);
-    }, 0);
+    .reduce((sum, s) => sum + number(s.paidAmount ?? s.amount ?? s.paid_amount), 0);
 
   const myActiveLoans = loans.filter(l => {
     const match = String(l.memberId || l.member_id) === memId;
@@ -252,11 +245,7 @@ export const calculateMonthlyFinancialSummary = (month, year, savings = [], loan
   const y = parseInt(year, 10);
 
   const monthSavings = savings.filter(s => number(s.month) === m && number(s.year) === y);
-  const totalMonthSavings = monthSavings.reduce((sum, s) => {
-    const rawPaid = number(s.actualRegularPaid ?? s.paidAmount ?? s.amount ?? s.paid_amount);
-    const expected = number(s.expectedAmount ?? s.expected_amount ?? s.regularHaftaAmount ?? s.regular_hafta_amount ?? 1000);
-    return sum + ((expected > 0 && rawPaid > expected) ? expected : rawPaid);
-  }, 0);
+  const totalMonthSavings = monthSavings.reduce((sum, s) => sum + number(s.paidAmount ?? s.amount), 0);
 
   const monthRepayments = repayments.filter(r => {
     const rM = number(r.paymentMonth ?? r.month);
@@ -282,11 +271,7 @@ export const calculateMonthlyFinancialSummary = (month, year, savings = [], loan
  * Dynamic Demand Register Calculation for members
  */
 export const calculateDemandRegister = (members = [], loans = [], repayments = [], month, year) => {
-  const activeMembers = members.filter((member) => {
-    const role = String(member.role || member.role_name || 'member').trim().toLowerCase();
-    const status = String(member.status || 'ACTIVE').trim().toUpperCase();
-    return role === 'member' && member.isActive !== false && status === 'ACTIVE';
-  });
+  const activeMembers = members.filter(m => (m.role || '').toUpperCase() !== 'ADMIN' && !m.email?.includes('admin'));
 
   return activeMembers.map((mem, idx) => {
     const memberId = mem.id || mem.memberId;
@@ -354,11 +339,7 @@ export const calculateTaaleband = (monthSequence = [], savings = [], loans = [],
     const monthSavings = savings.filter(s => {
       const d = new Date(s.paymentDate || s.createdAt);
       return d >= startOfMonth && d <= endOfMonth;
-    }).reduce((sum, s) => {
-      const rawPaid = number(s.actualRegularPaid ?? s.paidAmount ?? s.amount ?? s.paid_amount);
-      const expected = number(s.expectedAmount ?? s.expected_amount ?? s.regularHaftaAmount ?? s.regular_hafta_amount ?? 1000);
-      return sum + ((expected > 0 && rawPaid > expected) ? expected : rawPaid);
-    }, 0);
+    }).reduce((sum, s) => sum + number(s.paidAmount ?? s.amount), 0);
 
     const isRepayDeposit = (r) => Boolean(
       r.isLumpSum ||

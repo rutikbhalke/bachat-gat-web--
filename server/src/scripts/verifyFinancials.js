@@ -1,9 +1,8 @@
-const { SHARED_FIREBASE_PROJECT_ID, DEFAULT_GROUP_ID: CONTRACT_GROUP_ID } = require('../config/dataContract');
-process.env.FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || SHARED_FIREBASE_PROJECT_ID;
+process.env.FIREBASE_PROJECT_ID = 'bachat-gat-32ffe';
 const { db } = require('../config/firebaseAdmin');
 const { calculateGroupFinancialSummary } = require('../services/financialService');
 
-const DEFAULT_GROUP_ID = process.env.GROUP_ID || CONTRACT_GROUP_ID;
+const DEFAULT_GROUP_ID = 'shivshahi_group_001';
 
 async function verify() {
   console.log('Fetching data from Firestore...');

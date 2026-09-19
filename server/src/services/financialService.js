@@ -63,11 +63,9 @@ function calculateLoanInterest(outstandingPrincipal, rate = LOAN_INTEREST_RATE) 
  * @returns {Object} The financial summary
  */
 function calculateGroupFinancialSummary(savings = [], loans = [], repayments = [], transactions = []) {
-  // 1. TOTAL GROUP SAVINGS (strictly capped at expected share, matching Flutter actualRegularPaid)
+  // 1. TOTAL GROUP SAVINGS (SUM of actual paid regular contributions)
   const totalGroupSavings = savings.reduce((sum, s) => {
-    const rawPaid = number(s.actualRegularPaid ?? s.paidAmount ?? s.amount ?? s.paid_amount);
-    const expected = number(s.expectedAmount ?? s.expected_amount ?? s.regularHaftaAmount ?? s.regular_hafta_amount ?? 1000);
-    return sum + ((expected > 0 && rawPaid > expected) ? expected : rawPaid);
+    return sum + number(s.paidAmount ?? s.amount ?? s.paid_amount);
   }, 0);
 
   const isRepayDeposit = (r) => Boolean(
@@ -268,11 +266,7 @@ function calculateMonthlyBalanceReport(savings = [], loans = [], repayments = []
 
     // Monthly delta (cash movements)
     const monthSavings = allSavings.filter(s => s.date >= startOfMonth && s.date <= endOfMonth)
-      .reduce((sum, s) => {
-        const rawPaid = number(s.actualRegularPaid ?? s.paidAmount ?? s.amount ?? s.paid_amount);
-        const expected = number(s.expectedAmount ?? s.expected_amount ?? s.regularHaftaAmount ?? s.regular_hafta_amount ?? 1000);
-        return sum + ((expected > 0 && rawPaid > expected) ? expected : rawPaid);
-      }, 0);
+      .reduce((sum, s) => sum + number(s.amount || s.paidAmount || s.paid_amount), 0);
 
     const monthPrincipalPaid = allRepayments.filter(r => r.date >= startOfMonth && r.date <= endOfMonth)
       .reduce((sum, r) => sum + number(r.principalAmount || r.principal_repayment_amount || r.principalPaid || r.principal_amount), 0);
@@ -285,11 +279,7 @@ function calculateMonthlyBalanceReport(savings = [], loans = [], repayments = []
 
     // cumulative snapshot totals (for valuation-based balance)
     const totalSavingsTillNow = allSavings.filter(s => s.date <= endOfMonth)
-      .reduce((sum, s) => {
-        const rawPaid = number(s.actualRegularPaid ?? s.paidAmount ?? s.amount ?? s.paid_amount);
-        const expected = number(s.expectedAmount ?? s.expected_amount ?? s.regularHaftaAmount ?? s.regular_hafta_amount ?? 1000);
-        return sum + ((expected > 0 && rawPaid > expected) ? expected : rawPaid);
-      }, 0);
+      .reduce((sum, s) => sum + number(s.amount || s.paidAmount || s.paid_amount), 0);
 
     const totalDisbursedTillNow = allLoans.filter(l => l.date <= endOfMonth)
       .reduce((sum, l) => sum + number(l.principalAmount || l.principal_amount), 0);

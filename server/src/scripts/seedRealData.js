@@ -1,8 +1,7 @@
 const { db } = require('../config/firebaseAdmin');
-const { DEFAULT_GROUP_ID: CONTRACT_GROUP_ID } = require('../config/dataContract');
 const path = require('path');
 
-const DEFAULT_GROUP_ID = process.env.GROUP_ID || CONTRACT_GROUP_ID;
+const DEFAULT_GROUP_ID = 'shivshahi_group_001';
 
 const realMembers = [
   { sr: 1, name: 'रवींद्र भागवत गुंजाळ', loan: 150000, inst: 8, interest: 450, fund: 1000 },

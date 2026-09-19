@@ -1,7 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
-import { SHARED_FIREBASE_PROJECT_ID } from './sharedData.js';
 
 /**
  * Firebase Web Configuration
@@ -12,7 +11,7 @@ const env = (typeof import.meta !== 'undefined' && import.meta.env) ? import.met
 export const firebaseConfig = {
   apiKey: env.VITE_FIREBASE_API_KEY || 'AIzaSyBJyKRv81qV_tmnmcYF76Dx0JLxGKvK_7I',
   authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || 'bachat-gat-32ffe.firebaseapp.com',
-  projectId: env.VITE_FIREBASE_PROJECT_ID || SHARED_FIREBASE_PROJECT_ID,
+  projectId: env.VITE_FIREBASE_PROJECT_ID || 'bachat-gat-32ffe',
   storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || 'bachat-gat-32ffe.firebasestorage.app',
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || '215206829034',
   appId: env.VITE_FIREBASE_APP_ID || '1:215206829034:web:63a0816174e77792427093',

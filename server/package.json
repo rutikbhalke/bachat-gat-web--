@@ -5,8 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
-    "test": "node --test test/*.test.js"
+    "dev": "nodemon src/index.js"
   },
   "keywords": ["bachat-gat", "microfinance", "savings-group", "express", "firebase"],
   "author": "Internship Project",

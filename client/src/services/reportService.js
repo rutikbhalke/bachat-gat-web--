@@ -2,7 +2,7 @@ import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase.js';
 import { groupQuery } from './dataContract.js';
 import { groupService } from './groupService.js';
-import { DEFAULT_GROUP_ID, isBusinessMember, normalizeMember, normalizeLoan, normalizeSavings } from '../utils/formatters.js';
+import { DEFAULT_GROUP_ID, normalizeMember, normalizeLoan, normalizeSavings } from '../utils/formatters.js';
 import { calculateLoanOutstanding, calculateLoanInterest, calculateGroupFinancialSummary, LOAN_INTEREST_RATE } from './financialService.js';
 import { generateLoanRepaymentSchedule } from './loanService.js';
 
@@ -151,7 +151,7 @@ export const reportService = {
 
     const members = membersSnap.docs.map(d => normalizeMember(d.id, d.data()));
     const activeMembers = members
-      .filter(isBusinessMember)
+      .filter(m => m.isActive !== false && (m.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && (m.id.startsWith('member_') || m.id.startsWith('test_mem_') || m.memberCode?.startsWith('M-130-') || m.memberCode?.startsWith('TM-') || ((m.role || '').toUpperCase() !== 'ADMIN' && !m.email?.includes('admin'))))
       .sort((a, b) => (a.memberCode || a.id).localeCompare(b.memberCode || b.id, undefined, { numeric: true }));
     const loans = loansSnap.docs.map(d => normalizeLoan(d.id, d.data()));
     const contributions = contributionsSnap.docs.map(d => normalizeSavings(d.id, d.data()));

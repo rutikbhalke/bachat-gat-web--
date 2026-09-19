@@ -33,7 +33,6 @@ import {
   normalizeLoan,
   calculateMonthlyMemberStatus,
   DEFAULT_GROUP_ID,
-  isBusinessMember,
 } from '../utils/formatters';
 
 export { calculateMonthlyMemberStatus };
@@ -193,7 +192,7 @@ export const memberService = {
       });
 
       // Filter by search / status if passed
-      let filtered = members.filter(isBusinessMember);
+      let filtered = members;
       if (params.status === 'active') {
         filtered = filtered.filter((m) => m.isActive && !m.isDeleted);
       } else if (params.status === 'inactive') {
