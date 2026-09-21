@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePopup } from '../context/PopupContext';
@@ -77,32 +77,38 @@ const MemberDetails = () => {
     fetchMember();
   }, [id]);
 
-  const handleDeleteMember = async () => {
-    // 1. Check for Active / Outstanding Loans
-    const outstanding = Number(member.outstanding_loans || member.activeLoanAmount || member.activeLoanOutstanding || 0);
-    const activeLoan = (member.loans || []).find((l) => {
-      const status = (l.status || '').toUpperCase();
-      const rem = Number(l.pendingPrincipal ?? l.remainingAmount ?? l.outstanding_amount ?? 0);
-      return status === 'ACTIVE' || rem > 0;
-    });
+  const isDeletingRef = useRef(false);
 
-    if (outstanding > 0 || activeLoan) {
-      const activeLoanId = activeLoan ? (activeLoan.id || activeLoan.loanId) : null;
-      showWarningConfirm({
-        title: '⚠️ Cannot Delete Member',
-        message: `This member has an outstanding loan of ₹${Math.round(outstanding || activeLoan?.pendingPrincipal || 0).toLocaleString('en-IN')}.\n\nPlease fully repay the loan before deleting this member.`,
-        cancelText: 'Cancel',
-        confirmText: 'View Loan',
-        confirmVariant: 'primary',
-        onConfirm: () => {
-          if (activeLoanId) {
-            navigate(`/loans/${activeLoanId}`);
-          } else {
-            navigate('/loans');
-          }
-        },
-      });
-      return; // 0 writes!
+  const handleDeleteMember = async () => {
+    if (isDeletingRef.current || loading) return;
+    if (!member) return;
+
+    // 1. Authoritative Live Pre-Check for Active / Outstanding Loans
+    try {
+      setLoading(true);
+      const loanCheck = await memberService.checkMemberActiveLoans(id);
+      setLoading(false);
+
+      if (loanCheck.hasActiveLoan) {
+        showWarningConfirm({
+          title: '⚠️ Cannot Delete Member',
+          message: `This member has an outstanding loan of ₹${Math.round(loanCheck.totalOutstanding).toLocaleString('en-IN')}.\n\nPlease fully repay the loan before deleting this member.`,
+          cancelText: 'Cancel',
+          confirmText: 'View Loan',
+          confirmVariant: 'primary',
+          onConfirm: () => {
+            if (loanCheck.activeLoanId) {
+              navigate(`/loans/${loanCheck.activeLoanId}`);
+            } else {
+              navigate('/loans');
+            }
+          },
+        });
+        return; // 0 writes, delete modal is NEVER opened!
+      }
+    } catch (checkErr) {
+      setLoading(false);
+      console.warn('Notice: Error during loan precheck:', checkErr);
     }
 
     // 2. Settlement passed: Show Delete Confirmation Modal
@@ -116,16 +122,20 @@ const MemberDetails = () => {
 
     if (!confirmed) return; // 0 writes on cancel!
 
+    // Guard against rapid double click
+    if (isDeletingRef.current) return;
+    isDeletingRef.current = true;
+
     // 3. Perform Soft Delete
     try {
       setLoading(true);
-      const res = await memberService.deleteMember(id);
+      const res = await memberService.deleteMember(id, member.groupId || member.group_id);
       if (res.success) {
         showSuccess({
           title: '✓ Member deleted successfully.',
           message: 'The member has been removed from the active member list. Historical financial records have been preserved.',
           buttonText: 'Done',
-          onClose: () => navigate('/members'),
+          onClose: () => navigate('/members', { replace: true }),
         });
       }
     } catch (err) {
@@ -153,6 +163,7 @@ const MemberDetails = () => {
       }
     } finally {
       setLoading(false);
+      isDeletingRef.current = false;
     }
   };
 
@@ -359,13 +370,16 @@ const MemberDetails = () => {
             <button
               onClick={handleDeleteMember}
               className="btn-outline"
+              disabled={loading}
               style={{
                 color: 'var(--danger-text)',
                 borderColor: 'var(--danger)',
+                opacity: loading ? 0.6 : 1,
+                cursor: loading ? 'not-allowed' : 'pointer',
               }}
               title="Soft delete member while preserving historical records"
             >
-              <Trash2 size={16} /> Delete Member
+              <Trash2 size={16} /> {loading ? 'Processing...' : 'Delete Member'}
             </button>
           )}
         </div>

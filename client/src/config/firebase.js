@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+export * from 'firebase/firestore';
 
 /**
  * Firebase Web Configuration
@@ -38,6 +39,8 @@ if (env.VITE_USE_FIREBASE_EMULATOR === 'true' || env.VITE_FIRESTORE_EMULATOR_HOS
 
 // Log active connection for development verification
 if (typeof window !== 'undefined') {
+  window.__db = db;
+  window.__auth = auth;
   console.log(`Connected Firebase Project: ${firebaseConfig.projectId}`);
 }
 

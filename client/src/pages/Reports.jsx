@@ -129,21 +129,46 @@ const Reports = () => {
   const { user } = useAuth();
   const targetGroupId = DEFAULT_GROUP_ID;
 
-  const fetchReports = async () => {
+  const reportCacheRef = React.useRef(new Map());
+
+  const fetchReports = async (force = false) => {
+    const cacheKey = `${activeTab}_${selectedMonth}_${selectedYear}_${targetGroupId}_${search}`;
+    if (!force && reportCacheRef.current.has(cacheKey)) {
+      const cached = reportCacheRef.current.get(cacheKey);
+      if (activeTab === 'monthly') setMonthlyData(cached);
+      else if (activeTab === 'pending') setPendingData(cached);
+      else if (activeTab === 'loans') setLoansData(cached);
+      else if (activeTab === 'bonus') setBonusData(cached);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       if (activeTab === 'monthly') {
         const res = await reportService.getMonthlyReport(selectedMonth, selectedYear, targetGroupId);
-        if (res.success) setMonthlyData(res);
+        if (res.success) {
+          setMonthlyData(res);
+          reportCacheRef.current.set(cacheKey, res);
+        }
       } else if (activeTab === 'pending') {
         const res = await reportService.getPendingDuesReport(selectedMonth, selectedYear, search, targetGroupId);
-        if (res.success) setPendingData(res);
+        if (res.success) {
+          setPendingData(res);
+          reportCacheRef.current.set(cacheKey, res);
+        }
       } else if (activeTab === 'loans') {
         const res = await reportService.getLoansOverviewReport(targetGroupId);
-        if (res.success) setLoansData(res);
+        if (res.success) {
+          setLoansData(res);
+          reportCacheRef.current.set(cacheKey, res);
+        }
       } else if (activeTab === 'bonus') {
         const res = await bonusService.getBonusPoolSummary(selectedYear, targetGroupId);
-        if (res.success) setBonusData(res);
+        if (res.success) {
+          setBonusData(res);
+          reportCacheRef.current.set(cacheKey, res);
+        }
       }
     } catch (err) {
       console.error('Failed to load report:', err);

@@ -12,6 +12,7 @@ import {
   onSnapshot,
   writeBatch,
   runTransaction,
+  increment,
 } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
 import {
@@ -417,6 +418,9 @@ export const memberService = {
         totalSavings: totalSavings,
         total_outstanding: totalOutstanding,
         totalOutstanding: totalOutstanding,
+        outstanding_loans: totalOutstanding,
+        activeLoanAmount: totalOutstanding,
+        activeLoanOutstanding: totalOutstanding,
         total_interest_paid: totalInterestPaid,
         totalInterestPaid: totalInterestPaid,
         my_interest_paid: totalInterestPaid,
@@ -888,18 +892,183 @@ export const memberService = {
   },
 
   /**
-   * Delete a member from Firestore
+   * Check if a member has active or outstanding loans
+   */
+  checkMemberActiveLoans: async (memberId) => {
+    try {
+      const loanQueries = [
+        getDocs(query(collection(db, 'loans'), where('memberId', '==', memberId))),
+        getDocs(query(collection(db, 'loans'), where('member_id', '==', memberId))),
+      ];
+      const loanSnapshots = await Promise.all(loanQueries).catch(() => []);
+      const loansMap = new Map();
+      loanSnapshots.forEach((snap) => {
+        if (snap?.docs) {
+          snap.docs.forEach((d) => loansMap.set(d.id, { id: d.id, ...d.data() }));
+        }
+      });
+
+      let totalOutstanding = 0;
+      let activeLoan = null;
+
+      for (const loan of loansMap.values()) {
+        const status = (loan.status || '').toUpperCase();
+        const pending = Number(loan.pendingPrincipal ?? loan.remainingAmount ?? loan.outstanding_amount ?? 0);
+        if (status === 'ACTIVE' || pending > 0) {
+          totalOutstanding += pending;
+          if (!activeLoan) activeLoan = loan;
+        }
+      }
+
+      return {
+        hasActiveLoan: Boolean(activeLoan || totalOutstanding > 0),
+        totalOutstanding,
+        activeLoan,
+        activeLoanId: activeLoan ? (activeLoan.id || activeLoan.loanId) : null,
+      };
+    } catch (err) {
+      console.warn('Notice: Error during active loan precheck:', err);
+      return { hasActiveLoan: false, totalOutstanding: 0, activeLoan: null, activeLoanId: null };
+    }
+  },
+
+  /**
+   * Delete a member from Firestore (Soft delete preserving financial history)
    */
   deleteMember: async (memberId, groupId = DEFAULT_GROUP_ID) => {
+    const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
+
     try {
-      const response = await api.delete(`/members/${encodeURIComponent(memberId)}`);
-      return response.data;
-    } catch (err) {
-      console.error('Failed to delete member:', err);
-      const customErr = new Error(err.response?.data?.message || err.message || 'Failed to delete member.');
-      customErr.outstandingLoan = err.response?.data?.outstandingLoan;
-      customErr.activeLoanId = err.response?.data?.activeLoanId;
-      throw customErr;
+      // 1. Authoritative Member Document Verification
+      const memberRef = doc(db, 'users', memberId);
+      const memSnap = await getDoc(memberRef);
+      if (!memSnap.exists()) {
+        const notFoundErr = new Error(`Member record "${memberId}" not found.`);
+        notFoundErr.code = 'NOT_FOUND';
+        throw notFoundErr;
+      }
+
+      const memberData = memSnap.data();
+      const isAlreadyInactive =
+        memberData.isDeleted === true ||
+        Boolean(memberData.deletedAt) ||
+        memberData.isActive === false ||
+        memberData.is_active === false ||
+        (memberData.status || '').toLowerCase() === 'inactive' ||
+        (memberData.status || '').toLowerCase() === 'deleted';
+
+      if (isAlreadyInactive) {
+        const alreadyDeletedErr = new Error(`Member "${memberData.fullName || memberData.name || memberId}" is already deleted or inactive.`);
+        alreadyDeletedErr.code = 'ALREADY_DELETED';
+        throw alreadyDeletedErr;
+      }
+
+      // Authoritative Group Isolation: Resolve actual groupId from member profile
+      const actualGroupId = memberData.groupId || memberData.group_id || targetGroupId;
+
+      // 2. Authoritative Active / Outstanding Loan Validation
+      const loanQueries = [
+        getDocs(query(collection(db, 'loans'), where('memberId', '==', memberId))),
+        getDocs(query(collection(db, 'loans'), where('member_id', '==', memberId))),
+      ];
+      if (memberData.memberCode) {
+        loanQueries.push(getDocs(query(collection(db, 'loans'), where('memberCode', '==', memberData.memberCode))));
+      }
+      if (memberData.member_code && memberData.member_code !== memberData.memberCode) {
+        loanQueries.push(getDocs(query(collection(db, 'loans'), where('member_code', '==', memberData.member_code))));
+      }
+
+      const loanSnapshots = await Promise.all(loanQueries).catch(() => []);
+      const loansMap = new Map();
+      loanSnapshots.forEach((snap) => {
+        if (snap?.docs) {
+          snap.docs.forEach((d) => loansMap.set(d.id, { id: d.id, ...d.data() }));
+        }
+      });
+
+      let totalOutstanding = 0;
+      let activeLoan = null;
+
+      for (const loan of loansMap.values()) {
+        const status = (loan.status || '').toUpperCase();
+        const pending = Number(loan.pendingPrincipal ?? loan.remainingAmount ?? loan.outstanding_amount ?? 0);
+        if (status === 'ACTIVE' || pending > 0) {
+          totalOutstanding += pending;
+          if (!activeLoan) activeLoan = loan;
+        }
+      }
+
+      if (activeLoan || totalOutstanding > 0) {
+        const formatted = Math.round(totalOutstanding).toLocaleString('en-IN');
+        const customErr = new Error(`This member has an outstanding loan of ₹${formatted}. Please fully repay the loan before deleting this member.`);
+        customErr.code = 'OUTSTANDING_LOAN';
+        customErr.outstandingLoan = totalOutstanding;
+        customErr.activeLoanId = activeLoan ? activeLoan.id : null;
+        throw customErr;
+      }
+
+      // 3. Prepare Atomic Soft-Delete Batch
+      const memberName = memberData.fullName || memberData.name || 'Member';
+      const authUid = memberData.authUid || memberData.firebaseUid || memberData.userId;
+      const nowIso = new Date().toISOString();
+
+      const batch = writeBatch(db);
+
+      // A. Primary Member Profile Soft-Delete
+      batch.set(memberRef, {
+        isActive: false,
+        is_active: false,
+        status: 'inactive',
+        isDeleted: true,
+        deletedAt: nowIso,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
+      // B. Linked Firebase Auth User Document (if stored separately)
+      if (authUid && authUid !== memberId) {
+        batch.set(doc(db, 'users', authUid), {
+          isActive: false,
+          is_active: false,
+          status: 'inactive',
+          isDeleted: true,
+          deletedAt: nowIso,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      }
+
+      // C. Target Group Active Member Decrement
+      const groupRef = doc(db, 'groups', actualGroupId);
+      batch.set(groupRef, {
+        activeMembers: increment(-1),
+        active_members: increment(-1),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
+      // D. Immutable Audit Ledger Record
+      const actId = `ACT_${Date.now()}_del`;
+      batch.set(doc(db, 'transactions', actId), {
+        id: actId,
+        groupId: actualGroupId,
+        type: 'MEMBER_SOFT_DELETED',
+        memberId,
+        memberName,
+        referenceId: memberId,
+        description: `Member soft deleted: ${memberName}`,
+        date: nowIso,
+        createdAt: serverTimestamp(),
+      });
+
+      await batch.commit();
+
+      return {
+        success: true,
+        message: 'Member deleted successfully. The member has been removed from the active member list. Historical financial records have been preserved.',
+        memberId,
+        groupId: actualGroupId,
+      };
+    } catch (fsErr) {
+      console.error('Failed to soft delete member in Firestore:', fsErr);
+      throw fsErr;
     }
   },
 

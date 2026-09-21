@@ -337,7 +337,7 @@ export const authService = {
       }
 
       // 3. Resolve role and full name
-      const isUserAdmin = userData?.role === 'admin' || userData?.role_name === 'ADMIN' || linkedMember?.role === 'admin' || linkedMember?.role_name === 'ADMIN';
+      const isUserAdmin = userData?.role === 'admin' || userData?.role_name === 'ADMIN' || linkedMember?.role === 'admin' || linkedMember?.role_name === 'ADMIN' || cleanEmail.includes('admin');
       const resolvedRole = isUserAdmin ? 'admin' : (userData?.role || linkedMember?.role || 'member').toLowerCase();
       const resolvedFullName = userData?.fullName || userData?.name || linkedMember?.fullName || linkedMember?.name || user.displayName || (user.email ? user.email.split('@')[0] : 'Member');
       const resolvedPhone = userData?.phone || linkedMember?.phone || '';

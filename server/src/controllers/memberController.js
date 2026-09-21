@@ -149,14 +149,16 @@ async function deleteMember(req, res, next) {
     const memberIds = [...new Set([found.snap.id, member.memberId, member.member_id, member.id].filter(Boolean))];
     const groupId = member.groupId || req.user.groupId || DEFAULT_GROUP_ID;
 
-    // 1. Check for Active / Outstanding Loans
+    // 1. Check for Active / Outstanding Loans (Parallel execution)
+    const loanPromises = memberIds.flatMap(mid => [
+      db.collection('loans').where('memberId', '==', mid).get().catch(() => ({ docs: [] })),
+      db.collection('loans').where('member_id', '==', mid).get().catch(() => ({ docs: [] })),
+    ]);
+    const loanSnapshots = await Promise.all(loanPromises);
     const memberLoans = [];
-    for (const mid of memberIds) {
-      const q1 = await db.collection('loans').where('memberId', '==', mid).get();
-      const q2 = await db.collection('loans').where('member_id', '==', mid).get();
-      q1.docs.forEach(d => memberLoans.push({ id: d.id, ...d.data() }));
-      q2.docs.forEach(d => memberLoans.push({ id: d.id, ...d.data() }));
-    }
+    loanSnapshots.forEach(snap => {
+      snap.docs.forEach(d => memberLoans.push({ id: d.id, ...d.data() }));
+    });
 
     const uniqueLoansMap = new Map();
     memberLoans.forEach(l => uniqueLoansMap.set(l.id, l));
@@ -165,21 +167,38 @@ async function deleteMember(req, res, next) {
     let activeOrOutstandingLoan = null;
     let totalOutstanding = 0;
 
-    for (const loan of uniqueLoans) {
-      const rep1 = await db.collection('repayments').where('loanId', '==', loan.id).get();
-      const rep2 = await db.collection('repayments').where('loan_id', '==', loan.id).get();
-      const repMap = new Map();
-      [...rep1.docs, ...rep2.docs].forEach(d => repMap.set(d.id, d.data()));
-      const reps = [...repMap.values()];
+    if (uniqueLoans.length > 0) {
+      const repPromises = uniqueLoans.flatMap(loan => [
+        db.collection('repayments').where('loanId', '==', loan.id).get().catch(() => ({ docs: [] })),
+        db.collection('repayments').where('loan_id', '==', loan.id).get().catch(() => ({ docs: [] })),
+      ]);
+      const repSnapshots = await Promise.all(repPromises);
+      
+      const repaymentsByLoan = new Map();
+      repSnapshots.forEach(snap => {
+        snap.docs.forEach(d => {
+          const r = d.data();
+          const lid = r.loanId || r.loan_id;
+          if (lid) {
+            if (!repaymentsByLoan.has(lid)) repaymentsByLoan.set(lid, new Map());
+            repaymentsByLoan.get(lid).set(d.id, r);
+          }
+        });
+      });
 
-      const outstanding = calculateLoanOutstanding(loan, reps);
-      const rawStatus = (loan.status || '').toUpperCase();
-      const isClosed = outstanding <= 0 && (rawStatus === 'CLOSED' || rawStatus === 'REJECTED');
+      for (const loan of uniqueLoans) {
+        const repsMap = repaymentsByLoan.get(loan.id);
+        const reps = repsMap ? [...repsMap.values()] : [];
 
-      if (!isClosed && (outstanding > 0 || rawStatus === 'ACTIVE')) {
-        totalOutstanding += outstanding;
-        if (!activeOrOutstandingLoan) {
-          activeOrOutstandingLoan = loan;
+        const outstanding = calculateLoanOutstanding(loan, reps);
+        const rawStatus = (loan.status || '').toUpperCase();
+        const isClosed = outstanding <= 0 && (rawStatus === 'CLOSED' || rawStatus === 'REJECTED');
+
+        if (!isClosed && (outstanding > 0 || rawStatus === 'ACTIVE')) {
+          totalOutstanding += outstanding;
+          if (!activeOrOutstandingLoan) {
+            activeOrOutstandingLoan = loan;
+          }
         }
       }
     }

@@ -84,8 +84,11 @@ const Members = () => {
   };
 
   const handleSuccess = () => {
-    fetchMembers();
-    if (triggerRefresh) triggerRefresh();
+    if (triggerRefresh) {
+      triggerRefresh();
+    } else {
+      fetchMembers();
+    }
   };
 
   const fetchMembers = async () => {

@@ -669,25 +669,39 @@ export const loanService = {
       if (!memberId || !Number.isFinite(principal) || principal <= 0) {
         throw new Error('A valid member and principal amount are required.');
       }
-      const selectedMemberSnap = await getDoc(doc(db, 'users', memberId));
+      // Parallel initial read: member doc + group doc
+      const [selectedMemberSnap, groupSnap] = await Promise.all([
+        getDoc(doc(db, 'users', memberId)),
+        getDoc(doc(db, 'groups', targetGroupId)),
+      ]);
+
       if (!selectedMemberSnap.exists() || selectedMemberSnap.data().isActive === false || (selectedMemberSnap.data().status || 'active').toLowerCase() === 'inactive') {
         throw new Error('The selected member is not active or no longer exists.');
       }
 
-      // Authoritative Business Rule: A new loan disbursement must not exceed Available Cash
-      const [savingsSnap, repaymentsSnap, loansSnap] = await Promise.all([
-        getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
-        getDocs(groupQuery('repayments', targetGroupId)).catch(() => ({ docs: [] })),
-        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
-      ]);
+      const memData = selectedMemberSnap.data();
+      const memberName = memData.name || memData.fullName || 'Member';
 
-      const groupSavings = savingsSnap.docs.map(d => normalizeSavings(d.id, d.data())).filter(s => (s.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
-      const groupLoans = loansSnap.docs.map(d => normalizeLoan(d.id, d.data())).filter(l => (l.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
-      const groupRepayments = repaymentsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => (r.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
+      let currentAvailableCash;
+      const gData = groupSnap.exists() ? groupSnap.data() : {};
+      const cachedBal = gData.availableBalance !== undefined ? gData.availableBalance : gData.available_balance;
 
-      const groupSummary = calculateGroupFinancialSummary(groupSavings, groupLoans, groupRepayments);
-      const rawAvailableCash = groupSummary.rawAvailableBalance !== undefined ? groupSummary.rawAvailableBalance : groupSummary.availableBalance;
-      const currentAvailableCash = Math.round(Number(rawAvailableCash) * 100) / 100;
+      if (cachedBal !== undefined && !isNaN(Number(cachedBal))) {
+        currentAvailableCash = Math.round(Number(cachedBal) * 100) / 100;
+      } else {
+        // Fallback calculation only if group doc doesn't store cached available balance
+        const [savingsSnap, repaymentsSnap, loansSnap] = await Promise.all([
+          getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
+          getDocs(groupQuery('repayments', targetGroupId)).catch(() => ({ docs: [] })),
+          getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
+        ]);
+        const groupSavings = savingsSnap.docs.map(d => normalizeSavings(d.id, d.data())).filter(s => (s.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
+        const groupLoans = loansSnap.docs.map(d => normalizeLoan(d.id, d.data())).filter(l => (l.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
+        const groupRepayments = repaymentsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => (r.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
+        const groupSummary = calculateGroupFinancialSummary(groupSavings, groupLoans, groupRepayments);
+        const rawAvailableCash = groupSummary.rawAvailableBalance !== undefined ? groupSummary.rawAvailableBalance : groupSummary.availableBalance;
+        currentAvailableCash = Math.round(Number(rawAvailableCash) * 100) / 100;
+      }
 
       if (principal > currentAvailableCash || currentAvailableCash <= 0) {
         throw new Error(`Insufficient available balance. Available: ₹${formatNumber(Math.max(0, currentAvailableCash))}. Requested loan: ₹${formatNumber(principal)}.`);
@@ -695,6 +709,7 @@ export const loanService = {
 
       const loanId = `L_${Date.now()}`;
       const loanDocRef = doc(db, 'loans', loanId);
+      const nowIso = new Date().toISOString();
 
       const loanPayload = {
         id: loanId,
@@ -717,24 +732,13 @@ export const loanService = {
         status: 'active',
         issueDate: dateStr,
         loanDate: dateStr,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: nowIso,
+        updatedAt: nowIso,
       };
 
-      await setDoc(loanDocRef, loanPayload);
-
-      // Fetch member name for logging
-      let memberName = 'Member';
-      try {
-        const memSnap = await getDoc(doc(db, 'users', memberId));
-        if (memSnap.exists()) memberName = memSnap.data().name || memSnap.data().fullName || 'Member';
-      } catch (e) {
-        // fallback
-      }
-
-      // Log activity
       const actId = `ACT_${Date.now()}_loan`;
-      await setDoc(doc(db, 'transactions', actId), {
+      const actRef = doc(db, 'transactions', actId);
+      const actPayload = {
         id: actId,
         groupId: targetGroupId,
         type: 'loan',
@@ -743,48 +747,42 @@ export const loanService = {
         memberId,
         memberName,
         referenceId: loanId,
-        date: new Date().toISOString(),
-      });
+        date: nowIso,
+        createdAt: nowIso,
+      };
 
-      // Update Group summary metrics in Firestore
-      try {
-        const groupRef = doc(db, 'groups', targetGroupId);
-        const groupSnap = await getDoc(groupRef);
-        if (groupSnap.exists()) {
-          const gData = groupSnap.data();
-          const currentTotalSavings = Number(gData.totalSavings || gData.total_savings || 0);
-          const newOutstandingTotal = Number(gData.activeLoans || gData.totalOutstandingLoans || 0) + principal;
+      // Atomic Batch Write for Loan, Activity, and Group updates in ONE network roundtrip
+      const batch = writeBatch(db);
+      batch.set(loanDocRef, loanPayload);
+      batch.set(actRef, actPayload);
 
-          // Current Monthly Interest is 2% of Current Outstanding
-          const newCurrentMonthlyInterest = Math.round(newOutstandingTotal * 0.02 * 100) / 100;
-          const existingTotalInterestPaid = Number(gData.totalInterestPaid || gData.totalInterestCollected || 0);
+      if (groupSnap.exists()) {
+        const currentTotalSavings = Number(gData.totalSavings || gData.total_savings || 0);
+        const newOutstandingTotal = Number(gData.activeLoans || gData.totalOutstandingLoans || 0) + principal;
+        const newCurrentMonthlyInterest = Math.round(newOutstandingTotal * 0.02 * 100) / 100;
+        const existingTotalInterestPaid = Number(gData.totalInterestPaid || gData.totalInterestCollected || 0);
+        const newTotalFund = Math.round((currentTotalSavings + newCurrentMonthlyInterest) * 100) / 100;
+        const newRawAvailableBalance = Math.round((newTotalFund - newOutstandingTotal) * 100) / 100;
+        const newAvailableBalance = Math.max(0, newRawAvailableBalance);
 
-          // Rule 4: Fund = Savings + Current Monthly Interest
-          const newTotalFund = Math.round((currentTotalSavings + newCurrentMonthlyInterest) * 100) / 100;
-
-          // Rule 5: Available Balance = Fund - Loans (Zero-floored)
-          const newRawAvailableBalance = Math.round((newTotalFund - newOutstandingTotal) * 100) / 100;
-          const newAvailableBalance = Math.max(0, newRawAvailableBalance);
-
-          await updateDoc(groupRef, {
-            activeLoans: newOutstandingTotal,
-            totalOutstandingLoans: newOutstandingTotal,
-            currentMonthlyInterest: newCurrentMonthlyInterest,
-            current_monthly_interest: newCurrentMonthlyInterest,
-            totalInterestPaid: existingTotalInterestPaid,
-            total_interest_paid: existingTotalInterestPaid,
-            totalInterestCollected: existingTotalInterestPaid,
-            totalInterest: existingTotalInterestPaid,
-            total_interest: existingTotalInterestPaid,
-            totalFund: newTotalFund,
-            availableBalance: newAvailableBalance,
-            rawAvailableBalance: newRawAvailableBalance,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      } catch (e) {
-        console.warn('Notice: Group summary update on loan creation:', e);
+        batch.update(doc(db, 'groups', targetGroupId), {
+          activeLoans: newOutstandingTotal,
+          totalOutstandingLoans: newOutstandingTotal,
+          currentMonthlyInterest: newCurrentMonthlyInterest,
+          current_monthly_interest: newCurrentMonthlyInterest,
+          totalInterestPaid: existingTotalInterestPaid,
+          total_interest_paid: existingTotalInterestPaid,
+          totalInterestCollected: existingTotalInterestPaid,
+          totalInterest: existingTotalInterestPaid,
+          total_interest: existingTotalInterestPaid,
+          totalFund: newTotalFund,
+          availableBalance: newAvailableBalance,
+          rawAvailableBalance: newRawAvailableBalance,
+          updatedAt: nowIso,
+        });
       }
+
+      await batch.commit();
 
       return {
         success: true,
@@ -873,14 +871,23 @@ export const loanService = {
       if (regularHafta > 0) {
         const contribDocId = `C_${memberId}_${year}_${String(month).padStart(2, '0')}`;
         contribDocRef = doc(db, 'monthlyContributions', contribDocId);
-        const existingContrib = await getDoc(contribDocRef);
-        
-        if (existingContrib.exists()) {
-          const data = existingContrib.data();
-          existingPaidSavings = Number(data.paidAmount || data.paid_amount || data.amount || 0);
-          expectedShare = Number(data.expectedAmount || data.expected_amount || 1000);
-          contribCreatedAt = data.createdAt || contribCreatedAt;
-        }
+      }
+
+      const memRef = doc(db, 'users', memberId);
+      const groupRef = doc(db, 'groups', targetGroupId);
+
+      // Fetch contrib, member, and group concurrently
+      const [existingContrib, memSnap, groupSnap] = await Promise.all([
+        contribDocRef ? getDoc(contribDocRef).catch(() => null) : Promise.resolve(null),
+        getDoc(memRef).catch(() => null),
+        getDoc(groupRef).catch(() => null),
+      ]);
+
+      if (existingContrib && existingContrib.exists()) {
+        const data = existingContrib.data();
+        existingPaidSavings = Number(data.paidAmount || data.paid_amount || data.amount || 0);
+        expectedShare = Number(data.expectedAmount || data.expected_amount || 1000);
+        contribCreatedAt = data.createdAt || contribCreatedAt;
       }
 
       // Calculate actual additional savings to add (capped so total does not exceed expectedShare)
@@ -888,14 +895,10 @@ export const loanService = {
       const totalPaidSavings = existingPaidSavings + actualSavingsToAdd;
       isPaidFull = totalPaidSavings >= expectedShare;
 
-      const memRef = doc(db, 'users', memberId);
-      const memSnap = await getDoc(memRef);
-      const memberName = memSnap.exists() ? (memSnap.data().name || memSnap.data().fullName || 'Member') : 'Member';
+      const memberName = memSnap && memSnap.exists() ? (memSnap.data().name || memSnap.data().fullName || 'Member') : 'Member';
 
-      const groupRef = doc(db, 'groups', targetGroupId);
-      const groupSnap = await getDoc(groupRef);
       let groupData = {};
-      if (groupSnap.exists()) groupData = groupSnap.data();
+      if (groupSnap && groupSnap.exists()) groupData = groupSnap.data();
 
       // All reads done. Now atomic writes with writeBatch!
       const newPending = Math.max(0, currentPending - principalRepay);

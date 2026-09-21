@@ -9,6 +9,7 @@ import {
   where,
   onSnapshot,
   runTransaction,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '../config/firebase.js';
 import { groupQuery } from './dataContract.js';
@@ -82,6 +83,23 @@ export const savingsService = {
     } catch (err) {
       console.error('Failed to get member savings:', err);
       return [];
+    }
+  },
+  /**
+   * Fast targeted check if savings for a specific month/year are already recorded
+   */
+  isMonthPaid: async (memberId, month, year) => {
+    try {
+      const docId = `C_${memberId}_${year}_${String(month).padStart(2, '0')}`;
+      const snap = await getDoc(doc(db, 'monthlyContributions', docId));
+      if (snap.exists()) {
+        const d = snap.data();
+        const paid = Number(d.paidAmount || d.paid_amount || d.amount || 0);
+        return paid > 0 || (d.status || '').toLowerCase() === 'paid';
+      }
+      return false;
+    } catch {
+      return false;
     }
   },
   /**
@@ -175,110 +193,104 @@ export const savingsService = {
       }
 
       const docId = `C_${memberId}_${year}_${String(month).padStart(2, '0')}`;
-      const preCheckRef = doc(db, 'monthlyContributions', docId);
-      const preCheckSnap = await getDoc(preCheckRef);
-      if (preCheckSnap.exists()) {
-        const preCheckData = preCheckSnap.data();
-        const preAlreadyPaid = Number(preCheckData.paidAmount || preCheckData.regularHaftaAmount || 0);
-        if (preAlreadyPaid > 0) {
+      
+      const docRef = doc(db, 'monthlyContributions', docId);
+      const memRef = doc(db, 'users', memberId);
+      const groupRef = doc(db, 'groups', targetGroupId);
+
+      // Concurrent reads for lightning-fast performance
+      const [existingContribution, memSnap, groupSnap] = await Promise.all([
+        getDoc(docRef),
+        getDoc(memRef),
+        getDoc(groupRef),
+      ]);
+      
+      if (existingContribution.exists()) {
+        const existingData = existingContribution.data();
+        const alreadyPaid = Number(existingData.paidAmount || existingData.regularHaftaAmount || 0);
+        if (alreadyPaid > 0) {
           throw new Error(`Savings for ${month}/${year} are already recorded for this member.`);
         }
       }
-      
-      await runTransaction(db, async (transaction) => {
-        const docRef = doc(db, 'monthlyContributions', docId);
-        const existingContribution = await transaction.get(docRef);
-        
-        if (existingContribution.exists()) {
-          const existingData = existingContribution.data();
-          const alreadyPaid = Number(existingData.paidAmount || existingData.regularHaftaAmount || 0);
-          if (alreadyPaid > 0) {
-            throw new Error(`Savings for ${month}/${year} are already recorded for this member.`);
-          }
-        }
 
-        const memRef = doc(db, 'users', memberId);
-        const memSnap = await transaction.get(memRef);
-        const memberName = memSnap.exists() ? (memSnap.data().name || memSnap.data().fullName || 'Member') : 'Member';
+      const memberName = memSnap.exists() ? (memSnap.data().name || memSnap.data().fullName || 'Member') : 'Member';
+      let groupData = groupSnap.exists() ? groupSnap.data() : {};
 
-        const groupRef = doc(db, 'groups', targetGroupId);
-        const groupSnap = await transaction.get(groupRef);
-        let groupData = {};
-        if (groupSnap.exists()) groupData = groupSnap.data();
+      const contributionPayload = {
+        id: docId,
+        contribId: docId,
+        contrib_id: docId,
+        groupId: targetGroupId,
+        group_id: targetGroupId,
+        memberId,
+        member_id: memberId,
+        month,
+        year,
+        expectedAmount: amount,
+        expected_amount: amount,
+        regularHaftaAmount: amount,
+        regular_hafta_amount: amount,
+        paidAmount: amount,
+        paid_amount: amount,
+        amount,
+        totalPaid: amount,
+        total_paid: amount,
+        loanPrincipalPaid: 0,
+        loan_principal_paid: 0,
+        interestAmount: 0,
+        interest_amount: 0,
+        interest: 0,
+        status: 'PAID',
+        status_lower: 'paid',
+        paymentDate: data.payment_date || new Date().toISOString(),
+        payment_date: data.payment_date || new Date().toISOString(),
+        paymentMode: mode,
+        payment_mode: mode,
+        notes: notes.trim(),
+        remarks: notes.trim(),
+        createdAt: existingContribution.exists() ? existingContribution.data().createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-        const contributionPayload = {
-          id: docId,
-          contribId: docId,
-          contrib_id: docId,
-          groupId: targetGroupId,
-          group_id: targetGroupId,
-          memberId,
-          member_id: memberId,
-          month,
-          year,
-          expectedAmount: amount,
-          expected_amount: amount,
-          regularHaftaAmount: amount,
-          regular_hafta_amount: amount,
-          paidAmount: amount,
-          paid_amount: amount,
-          amount,
-          totalPaid: amount,
-          total_paid: amount,
-          loanPrincipalPaid: 0,
-          loan_principal_paid: 0,
-          interestAmount: 0,
-          interest_amount: 0,
-          interest: 0,
-          status: 'PAID',
-          status_lower: 'paid',
-          paymentDate: data.payment_date || new Date().toISOString(),
-          payment_date: data.payment_date || new Date().toISOString(),
-          paymentMode: mode,
-          payment_mode: mode,
-          notes: notes.trim(),
-          remarks: notes.trim(),
-          createdAt: existingContribution.exists() ? existingContribution.data().createdAt : new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+      const batch = writeBatch(db);
+      batch.set(docRef, contributionPayload, { merge: true });
 
-        transaction.set(docRef, contributionPayload, { merge: true });
-
-        const actId = `ACT_${Date.now()}_saving`;
-        const actRef = doc(db, 'transactions', actId);
-        transaction.set(actRef, {
-          id: actId,
-          groupId: targetGroupId,
-          type: 'saving',
-          amount,
-          description: `Monthly savings ₹${amount} received from ${memberName}`,
-          memberId,
-          memberName,
-          referenceId: docId,
-          date: new Date().toISOString(),
-        });
-
-        if (groupSnap.exists()) {
-          const newTotalSavings = Number(groupData.totalSavings || 0) + amount;
-          const currentOutstanding = Number(groupData.activeLoans || 0);
-          const currentInterest = Number(groupData.currentMonthlyInterest ?? groupData.current_monthly_interest ?? (currentOutstanding * 0.02) ?? 0);
-
-          const newTotalFund = Math.round((newTotalSavings + currentInterest) * 100) / 100;
-          const newRawAvailableBalance = Math.round((newTotalFund - currentOutstanding) * 100) / 100;
-          const newAvailableBalance = Math.max(0, newRawAvailableBalance);
-
-          transaction.update(groupRef, {
-            totalSavings: newTotalSavings,
-            total_savings: newTotalSavings,
-            totalFund: newTotalFund,
-            total_fund: newTotalFund,
-            availableBalance: newAvailableBalance,
-            available_balance: newAvailableBalance,
-            rawAvailableBalance: newRawAvailableBalance,
-            updatedAt: new Date().toISOString(),
-          });
-        }
+      const actId = `ACT_${Date.now()}_saving`;
+      const actRef = doc(db, 'transactions', actId);
+      batch.set(actRef, {
+        id: actId,
+        groupId: targetGroupId,
+        type: 'saving',
+        amount,
+        description: `Monthly savings ₹${amount} received from ${memberName}`,
+        memberId,
+        memberName,
+        referenceId: docId,
+        date: new Date().toISOString(),
       });
+
+      if (groupSnap.exists()) {
+        const newTotalSavings = Number(groupData.totalSavings || 0) + amount;
+        const currentOutstanding = Number(groupData.activeLoans || 0);
+        const currentInterest = Number(groupData.currentMonthlyInterest ?? groupData.current_monthly_interest ?? (currentOutstanding * 0.02) ?? 0);
+
+        const newTotalFund = Math.round((newTotalSavings + currentInterest) * 100) / 100;
+        const newRawAvailableBalance = Math.round((newTotalFund - currentOutstanding) * 100) / 100;
+        const newAvailableBalance = Math.max(0, newRawAvailableBalance);
+
+        batch.update(groupRef, {
+          totalSavings: newTotalSavings,
+          total_savings: newTotalSavings,
+          totalFund: newTotalFund,
+          total_fund: newTotalFund,
+          availableBalance: newAvailableBalance,
+          available_balance: newAvailableBalance,
+          rawAvailableBalance: newRawAvailableBalance,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      await batch.commit();
 
       return {
         success: true,

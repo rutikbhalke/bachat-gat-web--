@@ -173,12 +173,9 @@ const RecordSavingsModal = ({ isOpen, onClose, onSuccess, initialMemberId = null
     const memberDisplayName = targetMem ? (targetMem.name || targetMem.fullName) : 'Member';
     const memberDisplayCode = targetMem ? (targetMem.member_code || targetMem.memberCode || '') : '';
 
-    // 2. Pre-check for duplicate monthly savings
+    // 2. Pre-check for duplicate monthly savings (Fast single-doc lookup)
     try {
-      const existingSavings = await savingsService.getMemberSavings(formData.member_id);
-      const isAlreadyPaid = existingSavings.some(
-        (s) => Number(s.month) === monthNum && Number(s.year) === yearNum && Number(s.paidAmount || s.amount) > 0
-      );
+      const isAlreadyPaid = await savingsService.isMonthPaid(formData.member_id, monthNum, yearNum);
 
       if (isAlreadyPaid) {
         showError({
