@@ -1,0 +1,9 @@
+demo-output/
+output/
+client/node_modules/
+client/dist/
+server/node_modules/
+.artifacts/
+scripts/
+*.webm
+*.mp4
