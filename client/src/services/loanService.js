@@ -669,10 +669,14 @@ export const loanService = {
       if (!memberId || !Number.isFinite(principal) || principal <= 0) {
         throw new Error('A valid member and principal amount are required.');
       }
-      // Parallel initial read: member doc + group doc
-      const [selectedMemberSnap, groupSnap] = await Promise.all([
+      // Concurrently fetch member, group, contributions, repayments, loans, and transactions
+      const [selectedMemberSnap, groupSnap, savingsSnap, repaymentsSnap, loansSnap, txSnap] = await Promise.all([
         getDoc(doc(db, 'users', memberId)),
         getDoc(doc(db, 'groups', targetGroupId)),
+        getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('repayments', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('transactions', targetGroupId)).catch(() => ({ docs: [] })),
       ]);
 
       if (!selectedMemberSnap.exists() || selectedMemberSnap.data().isActive === false || (selectedMemberSnap.data().status || 'active').toLowerCase() === 'inactive') {
@@ -682,26 +686,14 @@ export const loanService = {
       const memData = selectedMemberSnap.data();
       const memberName = memData.name || memData.fullName || 'Member';
 
-      let currentAvailableCash;
-      const gData = groupSnap.exists() ? groupSnap.data() : {};
-      const cachedBal = gData.availableBalance !== undefined ? gData.availableBalance : gData.available_balance;
+      const groupSavings = savingsSnap.docs.map(d => normalizeSavings(d.id, d.data())).filter(s => (s.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
+      const groupLoans = loansSnap.docs.map(d => normalizeLoan(d.id, d.data())).filter(l => (l.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
+      const groupRepayments = repaymentsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => (r.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
+      const groupTransactions = (txSnap?.docs || []).map(d => ({ id: d.id, ...d.data() })).filter(t => (t.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
 
-      if (cachedBal !== undefined && !isNaN(Number(cachedBal))) {
-        currentAvailableCash = Math.round(Number(cachedBal) * 100) / 100;
-      } else {
-        // Fallback calculation only if group doc doesn't store cached available balance
-        const [savingsSnap, repaymentsSnap, loansSnap] = await Promise.all([
-          getDocs(groupQuery('monthlyContributions', targetGroupId)).catch(() => ({ docs: [] })),
-          getDocs(groupQuery('repayments', targetGroupId)).catch(() => ({ docs: [] })),
-          getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
-        ]);
-        const groupSavings = savingsSnap.docs.map(d => normalizeSavings(d.id, d.data())).filter(s => (s.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
-        const groupLoans = loansSnap.docs.map(d => normalizeLoan(d.id, d.data())).filter(l => (l.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
-        const groupRepayments = repaymentsSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => (r.groupId || '').toLowerCase() === targetGroupId.toLowerCase());
-        const groupSummary = calculateGroupFinancialSummary(groupSavings, groupLoans, groupRepayments);
-        const rawAvailableCash = groupSummary.rawAvailableBalance !== undefined ? groupSummary.rawAvailableBalance : groupSummary.availableBalance;
-        currentAvailableCash = Math.round(Number(rawAvailableCash) * 100) / 100;
-      }
+      const groupSummary = calculateGroupFinancialSummary(groupSavings, groupLoans, groupRepayments, groupTransactions);
+      const rawAvailableCash = groupSummary.rawAvailableBalance !== undefined ? groupSummary.rawAvailableBalance : groupSummary.availableBalance;
+      const currentAvailableCash = Math.round(Number(rawAvailableCash) * 100) / 100;
 
       if (principal > currentAvailableCash || currentAvailableCash <= 0) {
         throw new Error(`Insufficient available balance. Available: ₹${formatNumber(Math.max(0, currentAvailableCash))}. Requested loan: ₹${formatNumber(principal)}.`);
@@ -757,27 +749,31 @@ export const loanService = {
       batch.set(actRef, actPayload);
 
       if (groupSnap.exists()) {
-        const currentTotalSavings = Number(gData.totalSavings || gData.total_savings || 0);
-        const newOutstandingTotal = Number(gData.activeLoans || gData.totalOutstandingLoans || 0) + principal;
+        const newAvailableBalance = Math.max(0, Math.round((currentAvailableCash - principal) * 100) / 100);
+        const newOutstandingTotal = Math.round(((groupSummary.activeLoansOutstanding || 0) + principal) * 100) / 100;
+        const newTotalFund = Math.round((newAvailableBalance + newOutstandingTotal) * 100) / 100;
         const newCurrentMonthlyInterest = Math.round(newOutstandingTotal * 0.02 * 100) / 100;
-        const existingTotalInterestPaid = Number(gData.totalInterestPaid || gData.totalInterestCollected || 0);
-        const newTotalFund = Math.round((currentTotalSavings + newCurrentMonthlyInterest) * 100) / 100;
-        const newRawAvailableBalance = Math.round((newTotalFund - newOutstandingTotal) * 100) / 100;
-        const newAvailableBalance = Math.max(0, newRawAvailableBalance);
+        const totalInterestPaid = groupSummary.totalInterestPaid || 0;
+        const totalSavings = groupSummary.totalGroupSavings || 0;
 
         batch.update(doc(db, 'groups', targetGroupId), {
           activeLoans: newOutstandingTotal,
+          active_loans: newOutstandingTotal,
           totalOutstandingLoans: newOutstandingTotal,
           currentMonthlyInterest: newCurrentMonthlyInterest,
           current_monthly_interest: newCurrentMonthlyInterest,
-          totalInterestPaid: existingTotalInterestPaid,
-          total_interest_paid: existingTotalInterestPaid,
-          totalInterestCollected: existingTotalInterestPaid,
-          totalInterest: existingTotalInterestPaid,
-          total_interest: existingTotalInterestPaid,
+          totalInterestPaid,
+          total_interest_paid: totalInterestPaid,
+          totalInterestCollected: totalInterestPaid,
+          totalInterest: totalInterestPaid,
+          total_interest: totalInterestPaid,
+          totalSavings,
+          total_savings: totalSavings,
           totalFund: newTotalFund,
+          total_fund: newTotalFund,
           availableBalance: newAvailableBalance,
-          rawAvailableBalance: newRawAvailableBalance,
+          available_balance: newAvailableBalance,
+          rawAvailableBalance: newAvailableBalance,
           updatedAt: nowIso,
         });
       }

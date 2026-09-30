@@ -270,13 +270,11 @@ export const savingsService = {
       });
 
       if (groupSnap.exists()) {
-        const newTotalSavings = Number(groupData.totalSavings || 0) + amount;
-        const currentOutstanding = Number(groupData.activeLoans || 0);
-        const currentInterest = Number(groupData.currentMonthlyInterest ?? groupData.current_monthly_interest ?? (currentOutstanding * 0.02) ?? 0);
-
-        const newTotalFund = Math.round((newTotalSavings + currentInterest) * 100) / 100;
-        const newRawAvailableBalance = Math.round((newTotalFund - currentOutstanding) * 100) / 100;
-        const newAvailableBalance = Math.max(0, newRawAvailableBalance);
+        const newTotalSavings = Number(groupData.totalSavings || groupData.total_savings || 0) + amount;
+        const currentOutstanding = Number(groupData.activeLoans || groupData.active_loans || groupData.totalOutstandingLoans || 0);
+        const currentAvailable = Number(groupData.availableBalance ?? groupData.available_balance ?? 0);
+        const newAvailableBalance = Math.round((currentAvailable + amount) * 100) / 100;
+        const newTotalFund = Math.round((newAvailableBalance + currentOutstanding) * 100) / 100;
 
         batch.update(groupRef, {
           totalSavings: newTotalSavings,
@@ -285,7 +283,7 @@ export const savingsService = {
           total_fund: newTotalFund,
           availableBalance: newAvailableBalance,
           available_balance: newAvailableBalance,
-          rawAvailableBalance: newRawAvailableBalance,
+          rawAvailableBalance: newAvailableBalance,
           updatedAt: new Date().toISOString(),
         });
       }
