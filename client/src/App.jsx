@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { LicenseProvider } from './context/LicenseContext';
 import { PopupProvider } from './context/PopupContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
@@ -22,8 +23,9 @@ function App() {
     <BrowserRouter>
       <ErrorBoundary>
         <AuthProvider>
-          <PopupProvider>
-            <Routes>
+          <LicenseProvider>
+            <PopupProvider>
+              <Routes>
               {/* Public Admin Login Route */}
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Navigate to="/login" replace />} />
@@ -47,8 +49,9 @@ function App() {
               {/* Fallback */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </PopupProvider>
+              </Routes>
+            </PopupProvider>
+          </LicenseProvider>
         </AuthProvider>
       </ErrorBoundary>
     </BrowserRouter>

@@ -10,9 +10,15 @@
     "admin:create": "node scripts/create-admin.js",
     "firebase:seed": "node database/seed-firebase.js",
     "firebase:test-workflow": "node scripts/test-full-workflow.js",
+    "test:license": "npm test --prefix functions && npm run test:license --prefix client",
+    "test:vercel-license": "node --test test/vercelLicenseRoutes.test.js",
+    "firebase:test:license": "npx firebase-tools emulators:exec --project demo-shared-licence --only firestore \"npm test --prefix functions\"",
     "demo:record": "node client/e2e/demo_recording.mjs"
   },
   "keywords": ["bachat-gat", "microfinance", "react", "firebase", "firestore"],
   "author": "Internship Project",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "firebase-admin": "^13.5.0"
+  }
 }

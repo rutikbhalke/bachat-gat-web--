@@ -8,6 +8,7 @@ server/.env
 **/firebase-adminsdk*.json
 .env.local
 **/.env.local
+.secrets/
 playwright-report/
 **/playwright-report/
 test-results/

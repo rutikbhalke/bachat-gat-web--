@@ -9,6 +9,18 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function userOrganisationId() {
+      return currentUser().groupId != null
+        ? currentUser().groupId
+        : (currentUser().group_id != null
+          ? currentUser().group_id
+          : currentUser().organisationId);
+    }
+
+    function belongsToOrganisation(organisationId) {
+      return signedIn() && userOrganisationId() == organisationId;
+    }
+
     function isAdmin() {
       return signedIn() && (currentUser().role == 'admin' || currentUser().role_name == 'ADMIN');
     }
@@ -60,6 +72,16 @@ service cloud.firestore {
     match /diwaliBonuses/{bonusId} {
       allow read: if signedIn();
       allow write: if isAdmin();
+    }
+
+    match /organisations/{organisationId} {
+      allow read: if belongsToOrganisation(organisationId);
+      allow write: if false;
+
+      match /licence/{licenceId} {
+        allow read: if belongsToOrganisation(organisationId);
+        allow create, update, delete: if false;
+      }
     }
   }
 }

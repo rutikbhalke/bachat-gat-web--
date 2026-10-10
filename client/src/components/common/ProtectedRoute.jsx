@@ -2,9 +2,12 @@ import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import Loader from './Loader';
+import LicenseScreen from '../../pages/LicenseScreen';
+import { useLicense } from '../../context/LicenseContext';
 
 const ProtectedRoute = ({ allowedRoles = ['ADMIN'] }) => {
   const { firebaseUser, user, token, loading, role, isAuthenticated, isAdmin } = useAuth();
+  const { license, loading: licenseLoading } = useLicense();
 
   // 1. Block rendering and redirection while session is loading
   if (loading) {
@@ -22,6 +25,14 @@ const ProtectedRoute = ({ allowedRoles = ['ADMIN'] }) => {
 
   if (!normalizedAllowed.includes(userRole) && !isAdmin) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (licenseLoading || license.status === 'loading') {
+    return <Loader fullScreen text="Verifying shared organisation licence..." />;
+  }
+
+  if (!license.valid) {
+    return <LicenseScreen />;
   }
 
   return <Outlet />;
