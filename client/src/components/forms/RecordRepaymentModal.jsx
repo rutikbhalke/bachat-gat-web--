@@ -9,6 +9,7 @@ import { CreditCard, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null, initialMemberId = null }) => {
   const currentDate = new Date();
   const { showError, askConfirm, showSuccess } = usePopup();
+  const clientRequestIdRef = React.useRef('');
   const [activeLoans, setActiveLoans] = useState([]);
   const [loanDetails, setLoanDetails] = useState(null);
   const [formData, setFormData] = useState({
@@ -41,20 +42,24 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
         const defaultRegHapta = resolveRegularHapta(res.loan, res.loan.member, null);
 
         if (nextUnpaid) {
-          const regAmount = (nextUnpaid.regularHaptaRemaining !== undefined && nextUnpaid.regularHaptaRemaining !== null)
-            ? nextUnpaid.regularHaptaRemaining
-            : defaultRegHapta;
+          const isBulkPaid = Boolean(nextUnpaid.hasBulkSavingsPaid || (nextUnpaid.bulkSavingsPaid || 0) >= defaultRegHapta);
+          const isRegPaid = Boolean(nextUnpaid.isRegularHaptaAlreadyPaid || isBulkPaid || (nextUnpaid.regularHaptaRemaining || 0) === 0);
+          const regAmount = isRegPaid
+            ? '0'
+            : ((nextUnpaid.regularHaptaRemaining !== undefined && nextUnpaid.regularHaptaRemaining !== null)
+                ? nextUnpaid.regularHaptaRemaining.toString()
+                : defaultRegHapta.toString());
           const prinAmount = (nextUnpaid.principalRemaining !== undefined && nextUnpaid.principalRemaining !== null)
-            ? nextUnpaid.principalRemaining
-            : 0;
+            ? nextUnpaid.principalRemaining.toString()
+            : '0';
 
           setFormData((prev) => ({
             ...prev,
             loan_id: targetLoanId.toString(),
             payment_month: nextUnpaid.month.toString(),
             payment_year: nextUnpaid.year.toString(),
-            regular_hafta_amount: regAmount.toString(),
-            principal_repayment_amount: prinAmount.toString(),
+            regular_hafta_amount: regAmount,
+            principal_repayment_amount: prinAmount,
           }));
         } else if (res.loan.isFullyPaid) {
           setFormData((prev) => ({
@@ -74,6 +79,7 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
     if (isOpen) {
       setError('');
       setSuccess('');
+      clientRequestIdRef.current = `REPAY_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
       const initializeModal = async () => {
         try {
@@ -131,13 +137,35 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
 
   const expectedTotalDue = expectedRegularHapta + expectedPrincipal + expectedInterest;
 
-  // Already paid for this specific scheduled installment (multi-payment aggregation)
+  // Selected member and period labels for contextual messages
+  const months = [
+    { value: '1', label: 'January' },
+    { value: '2', label: 'February' },
+    { value: '3', label: 'March' },
+    { value: '4', label: 'April' },
+    { value: '5', label: 'May' },
+    { value: '6', label: 'June' },
+    { value: '7', label: 'July' },
+    { value: '8', label: 'August' },
+    { value: '9', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' },
+  ];
+  const selectedMemberName = selectedLoan?.member?.name || selectedLoan?.member?.fullName || selectedLoan?.memberName || loanDetails?.member?.name || 'Member';
+  const selectedMonthName = months.find((m) => m.value === formData.payment_month)?.label || `Month ${formData.payment_month}`;
+  const selectedPeriodLabel = `${selectedMonthName} ${formData.payment_year}`;
+
+  // Already paid for this specific scheduled installment
   const alreadyPaidRegular = activeScheduleRow ? (activeScheduleRow.regularHaptaPaid || 0) : 0;
   const alreadyPaidPrincipal = activeScheduleRow ? (activeScheduleRow.principalPaid || 0) : 0;
   const alreadyPaidInterest = activeScheduleRow ? (activeScheduleRow.interestPaid || 0) : 0;
+  const bulkSavingsPaid = activeScheduleRow ? (activeScheduleRow.bulkSavingsPaid || 0) : 0;
+  const isRegularHaptaPaidInBulk = Boolean(activeScheduleRow?.hasBulkSavingsPaid || bulkSavingsPaid >= expectedRegularHapta);
+  const isRegularHaptaFullyPaid = Boolean(activeScheduleRow?.isRegularHaptaAlreadyPaid || isRegularHaptaPaidInBulk || alreadyPaidRegular >= expectedRegularHapta);
 
   // Actual values entered for current payment
-  const regularHafta = Math.round(parseFloat(formData.regular_hafta_amount) || 0);
+  const regularHafta = isRegularHaptaFullyPaid ? 0 : Math.round(parseFloat(formData.regular_hafta_amount) || 0);
   const principalRepay = Math.round(parseFloat(formData.principal_repayment_amount) || 0);
   const calculatedInterest = Math.max(0, Math.round((expectedInterest - alreadyPaidInterest) * 100) / 100);
   const totalPayment = Math.round((regularHafta + principalRepay + calculatedInterest) * 100) / 100;
@@ -181,11 +209,13 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
       const matched = loanDetails?.schedule?.find((s) => s.month === newMonth && s.year === newYear);
       
       if (matched) {
+        const isMatchedBulkPaid = Boolean(matched.hasBulkSavingsPaid || (matched.bulkSavingsPaid || 0) >= matched.regularHaptaExpected);
+        const isMatchedFullyPaid = Boolean(matched.isRegularHaptaAlreadyPaid || isMatchedBulkPaid || (matched.regularHaptaRemaining || 0) === 0);
         setFormData((prev) => ({
           ...prev,
           [name]: value,
-          principal_repayment_amount: matched.principalRemaining.toString(),
-          regular_hafta_amount: matched.regularHaptaRemaining.toString(),
+          principal_repayment_amount: (matched.principalRemaining || 0).toString(),
+          regular_hafta_amount: isMatchedFullyPaid ? '0' : (matched.regularHaptaRemaining || 0).toString(),
         }));
       } else {
         setFormData((prev) => ({ ...prev, [name]: value }));
@@ -202,7 +232,7 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
     setFormData((prev) => ({
       ...prev,
       principal_repayment_amount: currentOutstanding.toString(),
-      regular_hafta_amount: (activeScheduleRow ? activeScheduleRow.regularHaptaRemaining : expectedRegularHapta).toString(),
+      regular_hafta_amount: isRegularHaptaFullyPaid ? '0' : (activeScheduleRow ? activeScheduleRow.regularHaptaRemaining : expectedRegularHapta).toString(),
     }));
   };
 
@@ -210,7 +240,7 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
     setFormData((prev) => ({
       ...prev,
       principal_repayment_amount: (activeScheduleRow ? activeScheduleRow.principalRemaining : expectedPrincipal).toString(),
-      regular_hafta_amount: (activeScheduleRow ? activeScheduleRow.regularHaptaRemaining : expectedRegularHapta).toString(),
+      regular_hafta_amount: isRegularHaptaFullyPaid ? '0' : (activeScheduleRow ? activeScheduleRow.regularHaptaRemaining : expectedRegularHapta).toString(),
     }));
   };
 
@@ -319,8 +349,8 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
         paymentMonth: parseInt(formData.payment_month, 10),
         payment_year: parseInt(formData.payment_year, 10),
         paymentYear: parseInt(formData.payment_year, 10),
-        regular_hafta_amount: regularHafta,
-        regularHaftaAmount: regularHafta,
+        regular_hafta_amount: isRegularHaptaFullyPaid ? 0 : regularHafta,
+        regularHaftaAmount: isRegularHaptaFullyPaid ? 0 : regularHafta,
         principal_repayment_amount: principalRepay,
         principalAmount: principalRepay,
         interest_amount: calculatedInterest,
@@ -330,6 +360,7 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
         payment_mode: formData.payment_mode,
         paymentMode: formData.payment_mode,
         remarks: formData.remarks || '',
+        clientRequestId: clientRequestIdRef.current,
       });
 
       if (res.success) {
@@ -353,21 +384,6 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
       setLoading(false);
     }
   };
-
-  const months = [
-    { value: 1, label: 'January' },
-    { value: 2, label: 'February' },
-    { value: 3, label: 'March' },
-    { value: 4, label: 'April' },
-    { value: 5, label: 'May' },
-    { value: 6, label: 'June' },
-    { value: 7, label: 'July' },
-    { value: 8, label: 'August' },
-    { value: 9, label: 'September' },
-    { value: 10, label: 'October' },
-    { value: 11, label: 'November' },
-    { value: 12, label: 'December' },
-  ];
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Record Loan Payment" maxWidth="600px" bodyPadding="0">
@@ -466,29 +482,41 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label className="form-label" style={{ marginBottom: 0 }}>Regular Hapta (₹) *</label>
-                {alreadyPaidRegular > 0 && (
+                {isRegularHaptaPaidInBulk ? (
+                  <span style={{ fontSize: '0.72rem', color: '#B91C1C', background: '#FEE2E2', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                    ✓ Recorded via Bulk Savings
+                  </span>
+                ) : alreadyPaidRegular > 0 ? (
                   <span style={{ fontSize: '0.72rem', color: alreadyPaidRegular >= expectedRegularHapta ? 'var(--success-text)' : 'var(--info)', fontWeight: 600 }}>
                     {alreadyPaidRegular >= expectedRegularHapta ? '✓ Already Paid' : `Paid: ${formatCurrency(alreadyPaidRegular)}`}
                   </span>
-                )}
+                ) : null}
               </div>
               <input
                 type="number"
                 name="regular_hafta_amount"
                 className="form-input"
-                style={{ marginTop: '6px' }}
-                value={formData.regular_hafta_amount}
+                style={{
+                  marginTop: '6px',
+                  backgroundColor: isRegularHaptaFullyPaid ? '#F1F5F9' : undefined,
+                  cursor: isRegularHaptaFullyPaid ? 'not-allowed' : undefined,
+                }}
+                value={isRegularHaptaFullyPaid ? '0' : formData.regular_hafta_amount}
                 onChange={handleChange}
                 tabIndex={0}
                 min="0"
                 step="1"
-                disabled={isFullyRepaid}
+                disabled={isFullyRepaid || isRegularHaptaFullyPaid}
               />
-              {alreadyPaidRegular >= expectedRegularHapta && (
+              {isRegularHaptaPaidInBulk ? (
+                <div style={{ fontSize: '0.75rem', color: '#B91C1C', marginTop: '4px', fontWeight: 600 }}>
+                  Regular Hapta for this month has already been recorded through Bulk Monthly Savings. Duplicate entry is not allowed.
+                </div>
+              ) : alreadyPaidRegular >= expectedRegularHapta ? (
                 <div style={{ fontSize: '0.75rem', color: 'var(--success-text)', marginTop: '4px', fontWeight: 500 }}>
                   ✓ Regular monthly savings of {formatCurrency(expectedRegularHapta)} is already recorded for this month.
                 </div>
-              )}
+              ) : null}
             </div>
 
             <div className="form-group">
@@ -530,29 +558,57 @@ const RecordRepaymentModal = ({ isOpen, onClose, onSuccess, initialLoanId = null
             </div>
           </div>
 
-          {/* Automatic Regular Savings Explanation Banner */}
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: 'var(--radius-md)',
-              background: alreadyPaidRegular >= expectedRegularHapta ? '#F0FDF4' : '#FFF7ED',
-              border: `1px solid ${alreadyPaidRegular >= expectedRegularHapta ? '#BBF7D0' : '#FED7AA'}`,
-              marginBottom: '16px',
-              fontSize: '0.825rem',
-              color: alreadyPaidRegular >= expectedRegularHapta ? '#15803D' : '#C2410C',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              fontWeight: 500,
-            }}
-          >
-            <Info size={16} />
-            <span>
-              {alreadyPaidRegular >= expectedRegularHapta
-                ? 'Regular Savings: Already Paid for this period (₹0 added). Only loan repayment will be recorded.'
-                : 'Regular Savings (₹1,000) is included and recorded automatically together with this loan payment.'}
-            </span>
-          </div>
+          {/* Automatic Regular Savings Explanation Banner / Duplicate Warning Banner */}
+          {isRegularHaptaPaidInBulk ? (
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                background: '#FEF2F2',
+                border: '1px solid #FECACA',
+                marginBottom: '16px',
+                fontSize: '0.825rem',
+                color: '#991B1B',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                fontWeight: 500,
+              }}
+            >
+              <AlertCircle size={18} style={{ color: '#DC2626', flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <div style={{ fontWeight: 700, color: '#B91C1C', fontSize: '0.875rem', marginBottom: '2px' }}>
+                  Regular Hapta for this month has already been recorded through Bulk Monthly Savings. Duplicate entry is not allowed.
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#7F1D1D' }}>
+                  Member: <strong>{selectedMemberName}</strong> | Period: <strong>{selectedPeriodLabel}</strong> ({formatCurrency(bulkSavingsPaid || expectedRegularHapta)} recorded). Regular Hapta is set to ₹0. Principal and interest repayment can still be recorded normally.
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                background: alreadyPaidRegular >= expectedRegularHapta ? '#F0FDF4' : '#FFF7ED',
+                border: `1px solid ${alreadyPaidRegular >= expectedRegularHapta ? '#BBF7D0' : '#FED7AA'}`,
+                marginBottom: '16px',
+                fontSize: '0.825rem',
+                color: alreadyPaidRegular >= expectedRegularHapta ? '#15803D' : '#C2410C',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontWeight: 500,
+              }}
+            >
+              <Info size={16} />
+              <span>
+                {alreadyPaidRegular >= expectedRegularHapta
+                  ? `Regular Savings: Already settled for ${selectedPeriodLabel} (₹0 added). Only loan repayment will be recorded.`
+                  : `Regular Savings (${formatCurrency(expectedRegularHapta)}) is included and recorded automatically together with this loan payment.`}
+              </span>
+            </div>
+          )}
 
           {/* 3-Panel Repayment Comparison: Expected vs Actual vs Remaining */}
           <div

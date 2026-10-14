@@ -6,11 +6,13 @@ import AddMemberModal from '../forms/AddMemberModal';
 import RecordSavingsModal from '../forms/RecordSavingsModal';
 import CreateLoanModal from '../forms/CreateLoanModal';
 import RecordRepaymentModal from '../forms/RecordRepaymentModal';
+import BulkSavingsModal from '../forms/BulkSavingsModal';
 
 const MainLayout = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isRecordSavingsOpen, setIsRecordSavingsOpen] = useState(false);
+  const [isBulkSavingsOpen, setIsBulkSavingsOpen] = useState(false);
   const [isCreateLoanOpen, setIsCreateLoanOpen] = useState(false);
   const [isRecordRepaymentOpen, setIsRecordRepaymentOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -38,6 +40,7 @@ const MainLayout = () => {
               triggerRefresh,
               openAddMember: () => setIsAddMemberOpen(true),
               openRecordSavings: () => setIsRecordSavingsOpen(true),
+              openBulkSavings: () => setIsBulkSavingsOpen(true),
               openCreateLoan: () => setIsCreateLoanOpen(true),
               openRecordRepayment: () => setIsRecordRepaymentOpen(true),
             }}
@@ -55,6 +58,12 @@ const MainLayout = () => {
       <RecordSavingsModal
         isOpen={isRecordSavingsOpen}
         onClose={() => setIsRecordSavingsOpen(false)}
+        onSuccess={triggerRefresh}
+      />
+
+      <BulkSavingsModal
+        isOpen={isBulkSavingsOpen}
+        onClose={() => setIsBulkSavingsOpen(false)}
         onSuccess={triggerRefresh}
       />
 

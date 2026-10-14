@@ -5,7 +5,8 @@ import { savingsService } from '../services/savingsService';
 import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
 import { formatCurrency, formatDate, formatMonthYear } from '../utils/formatters';
-import { PiggyBank, Search, Plus, Filter, Calendar, Building2, User } from 'lucide-react';
+import { PiggyBank, Search, Plus, Filter, Calendar, Building2, User, Users } from 'lucide-react';
+import BulkSavingsModal from '../components/forms/BulkSavingsModal';
 
 const Savings = () => {
   const { user, isAdmin, isMember, canManageSavings } = useAuth();
@@ -20,6 +21,7 @@ const Savings = () => {
   const [savingsList, setSavingsList] = useState([]);
   const [totalAmount, setTotalAmount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isBulkSavingsOpen, setIsBulkSavingsOpen] = useState(false);
 
   const fetchSavings = async () => {
     try {
@@ -76,9 +78,28 @@ const Savings = () => {
         </div>
 
         {isAdmin && (
-          <button onClick={openRecordSavings} className="btn-primary">
-            <Plus size={18} /> Record Monthly Savings
-          </button>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setIsBulkSavingsOpen(true)}
+              className="btn-secondary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                fontWeight: 600,
+                border: '1px solid #BFDBFE',
+                color: '#1D4ED8',
+                background: '#EFF6FF',
+                cursor: 'pointer',
+              }}
+            >
+              <Users size={18} /> Bulk Monthly Collection
+            </button>
+            <button onClick={openRecordSavings} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Plus size={18} /> Record Single Savings
+            </button>
+          </div>
         )}
       </div>
 
@@ -225,6 +246,15 @@ const Savings = () => {
           </div>
         )}
       </div>
+
+      {/* Bulk Monthly Savings Modal */}
+      <BulkSavingsModal
+        isOpen={isBulkSavingsOpen}
+        onClose={() => setIsBulkSavingsOpen(false)}
+        onSuccess={() => {
+          fetchSavings();
+        }}
+      />
     </div>
   );
 };

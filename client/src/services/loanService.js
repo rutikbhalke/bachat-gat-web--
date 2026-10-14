@@ -51,6 +51,18 @@ export const resolveRegularHapta = (loan = null, member = null, group = null) =>
 };
 
 export const getMemberExpectedRegularHapta = (member = null, loan = null, group = null) => {
+  if (member) {
+    const val = Number(member.monthlyContribution ?? member.monthly_contribution ?? member.monthlyShare ?? member.monthly_share);
+    if (!isNaN(val) && val > 0) return val;
+  }
+  if (loan) {
+    const val = Number(loan.monthlyContribution ?? loan.monthly_contribution ?? loan.monthlyShare ?? loan.monthly_share);
+    if (!isNaN(val) && val > 0) return val;
+  }
+  if (group) {
+    const val = Number(group.monthlyContribution ?? group.monthly_contribution_per_share ?? group.monthly_contribution);
+    if (!isNaN(val) && val > 0) return val;
+  }
   return 1000;
 };
 
@@ -74,15 +86,15 @@ export const generateLoanRepaymentSchedule = ({
   if (!loan) return [];
 
   const originalPrincipal = Number(loan.originalPrincipal || loan.principalAmount || loan.principal_amount || 0);
-  const tenure = 10; // Enforced Bachat Gat rule: loan duration is fixed at 10 installments
+  const tenure = Number(loan.durationMonths || loan.duration_months || loan.tenureMonths || loan.tenure_months || 10) || 10;
   const interestRate = Number(loan.interestRate || loan.interest_rate || LOAN_INTEREST_RATE);
   const regularHaptaExpected = 1000;
 
   // Exact equal-principal distribution ensuring sum(expected) === originalPrincipal
-  const baseMonthlyPrincipal = tenure > 0 ? Math.floor(originalPrincipal / tenure) : 0;
-  const principalRemainder = tenure > 0 ? (originalPrincipal - (baseMonthlyPrincipal * tenure)) : 0;
+  const baseMonthlyPrincipal = tenure > 0 ? Math.round(originalPrincipal / tenure) : 0;
+  const lastInstallmentPrincipal = tenure > 0 ? Math.max(0, originalPrincipal - (baseMonthlyPrincipal * (tenure - 1))) : 0;
 
-  const issueDateStr = loan.issueDate || loan.loanDate || loan.createdAt || new Date().toISOString();
+  const issueDateStr = loan.issueDate || loan.loanDate || loan.disbursementDate || loan.createdAt || new Date().toISOString();
 
   // Current calendar month for DUE vs UPCOMING determination
   const today = new Date();
@@ -91,6 +103,7 @@ export const generateLoanRepaymentSchedule = ({
   const currentCalKey = currentCalYear * 100 + currentCalMonth;
 
   let currentOpening = originalPrincipal;
+  let cumulativePrincipalPaid = 0;
   const schedule = [];
 
   for (let i = 1; i <= tenure; i++) {
@@ -102,11 +115,11 @@ export const generateLoanRepaymentSchedule = ({
     const periodLabel = monthLabel;
 
     // 1. Reducing-Balance Opening Principal for this installment
-    const scheduledOpening = Math.max(0, Math.round(currentOpening * 100) / 100);
+    const scheduledOpening = Math.max(0, Math.round((originalPrincipal - (i - 1) * baseMonthlyPrincipal) * 100) / 100);
 
     // Expected principal for installment i (final installment absorbs rounding remainder)
     const nominalExpected = i === tenure
-      ? (baseMonthlyPrincipal + principalRemainder)
+      ? lastInstallmentPrincipal
       : baseMonthlyPrincipal;
 
     let principalExpected = 0;
@@ -114,9 +127,9 @@ export const generateLoanRepaymentSchedule = ({
       principalExpected = Math.min(scheduledOpening, nominalExpected);
     }
 
-    // Reducing-balance interest: 2% of actual Opening Outstanding Principal
+    // Reducing-balance interest: 2% of actual Opening Outstanding Principal (2 decimal places)
     const interestExpected = scheduledOpening > 0
-      ? Math.round((scheduledOpening * interestRate) / 100)
+      ? Math.round(((scheduledOpening * interestRate) / 100) * 100) / 100
       : 0;
 
     const totalExpected = regularHaptaExpected + principalExpected + interestExpected;
@@ -168,10 +181,28 @@ export const generateLoanRepaymentSchedule = ({
     const repayRegPaid = matchingRepayments.reduce((sum, r) =>
       sum + Number(r.regularHaftaAmount || r.regular_hafta_amount || r.regularHaptaAmount || r.regular_hapta_amount || r.regularContribution || 0), 0);
 
-    // Regular Hapta paid is whatever was paid for that month (either via monthly contribution or loan repayment) capped at regularHaptaExpected
-    const regularHaptaPaid = Math.min(regularHaptaExpected, Math.max(contribPaid, repayRegPaid));
+    // Regular savings already recorded via Bulk Monthly Savings or general monthly contributions
+    const bulkSavingsPaid = matchingContributions.reduce((sum, c) => {
+      const isRepayDoc = (c.source === 'LOAN_REPAYMENT' || Number(c.loanPrincipalPaid || 0) > 0);
+      return sum + (isRepayDoc ? 0 : Number(c.paidAmount || c.paid_amount || c.amount || 0));
+    }, 0);
+
+    const hasBulkSavingsPaid = bulkSavingsPaid >= regularHaptaExpected || matchingContributions.some((c) =>
+      c.source === 'BULK_COLLECTION' || (!c.loanPrincipalPaid && Number(c.paidAmount || c.amount || 0) > 0 && (c.status || '').toLowerCase() === 'paid')
+    );
+
+    // Regular Hapta paid strictly tracks repayments made towards this loan installment
+    const regularHaptaPaid = Math.min(regularHaptaExpected, repayRegPaid);
+
+    // Total regular savings recorded across all sources (Bulk Savings, individual, or loan repayment)
+    const totalRegularSavingsPaidAllSources = Math.min(regularHaptaExpected, Math.max(repayRegPaid, contribPaid));
+    const isRegularHaptaAlreadyPaid = hasBulkSavingsPaid || (totalRegularSavingsPaidAllSources >= regularHaptaExpected);
 
     const totalPaid = principalPaid + interestPaid + regularHaptaPaid;
+
+    // Cumulative principal paid across repayments up to this installment
+    cumulativePrincipalPaid += principalPaid;
+    const remainingPrincipal = Math.max(0, Math.round((originalPrincipal - cumulativePrincipalPaid) * 100) / 100);
 
     // 3. Remaining dues for this installment
     const regularHaptaRemaining = Math.max(0, regularHaptaExpected - regularHaptaPaid);
@@ -192,21 +223,17 @@ export const generateLoanRepaymentSchedule = ({
       actualClosing = Math.max(0, Math.round((scheduledOpening - principalPaid) * 100) / 100);
       scheduledClosing = actualClosing;
       nextOpening = actualClosing;
-    } else if (instCalKey < currentCalKey) {
-      // Past installment with 0 principal paid
+    } else if (repayments && repayments.length > 0 && instCalKey < currentCalKey) {
       actualClosing = scheduledOpening;
       scheduledClosing = scheduledOpening;
       nextOpening = scheduledOpening;
     } else {
-      // Future or current planned installment
       actualClosing = scheduledOpening;
       scheduledClosing = Math.max(0, Math.round((scheduledOpening - principalExpected) * 100) / 100);
       nextOpening = scheduledClosing;
     }
 
-    const displayRemainingPrincipal = (principalPaid > 0 || instCalKey < currentCalKey)
-      ? actualClosing
-      : scheduledClosing;
+    const displayRemainingPrincipal = remainingPrincipal;
 
     // 4. Status: PAID / PARTIAL / DUE / UPCOMING
     let status = 'UPCOMING';
@@ -268,6 +295,11 @@ export const generateLoanRepaymentSchedule = ({
       status,
       isFullyPaid,
       matchingRepayments,
+      bulkSavingsPaid,
+      hasBulkSavingsPaid,
+      totalRegularSavingsPaidAllSources,
+      isRegularHaptaAlreadyPaid,
+      matchingContributions,
     });
 
     currentOpening = nextOpening;
@@ -918,8 +950,24 @@ export const loanService = {
       });
 
       const actualRepayTotalAmount = principalRepay + calculatedInterest + actualSavingsToAdd;
-      const repaymentId = `REP_${loanId}_${targetInstallmentNumber}_${Date.now()}`;
+      const clientRequestId = repayData.clientRequestId || repayData.idempotencyKey || null;
+      const repaymentId = clientRequestId
+        ? `REP_${loanId}_${targetInstallmentNumber}_${clientRequestId}`
+        : `REP_${loanId}_${targetInstallmentNumber}_${Date.now()}`;
       const repayRef = doc(db, 'repayments', repaymentId);
+
+      // Idempotency check: if repayment document already exists, return early without double counting
+      const existingRepaySnap = await getDoc(repayRef);
+      if (existingRepaySnap.exists()) {
+        console.warn(`[loanService] Repayment ${repaymentId} already processed. Preventing duplicate write.`);
+        return {
+          success: true,
+          isIdempotentReplay: true,
+          message: 'Repayment already recorded.',
+          repaymentId,
+        };
+      }
+
       batch.set(repayRef, {
         id: repaymentId,
         repaymentId: repaymentId,
@@ -987,8 +1035,9 @@ export const loanService = {
           totalPaid: totalPaidSavings,
           interestAmount: 0,
           loanPrincipalPaid: 0,
-          status: isPaidFull ? 'PAID' : 'PENDING',
+          status: isPaidFull ? 'paid' : 'pending',
           status_lower: isPaidFull ? 'paid' : 'pending',
+          status_upper: isPaidFull ? 'PAID' : 'PENDING',
           paymentDate,
           payment_date: paymentDate,
           paymentMode: mode,
@@ -1008,6 +1057,7 @@ export const loanService = {
         id: actId,
         groupId: targetGroupId,
         type: 'repayment',
+        type_flutter: 'loanRepayment',
         amount: loanRepayTotal,
         regularHaptaAmount: actualSavingsToAdd,
         regular_hafta_amount: actualSavingsToAdd,
@@ -1032,6 +1082,7 @@ export const loanService = {
           id: savingActId,
           groupId: targetGroupId,
           type: 'SAVINGS_DEPOSIT',
+          type_flutter: 'monthlyInvestment',
           amount: actualSavingsToAdd,
           description: `Regular savings of ₹${actualSavingsToAdd.toLocaleString('en-IN')} collected from ${memberName}`,
           memberId,
@@ -1078,10 +1129,14 @@ export const loanService = {
 
       return {
         success: true,
-        message: 'Repayment recorded successfully in Bachat Gat',
+        message: (existingPaidSavings >= expectedShare && expectedShare > 0)
+          ? 'Repayment recorded successfully. Regular Hapta for this month was already recorded through Bulk Monthly Savings (duplicate entry prevented).'
+          : 'Repayment recorded successfully in Bachat Gat',
         newOutstanding: newPending,
         loanStatus: newStatus,
         repaymentId,
+        wasRegularHaptaAlreadyPaid: (existingPaidSavings >= expectedShare && expectedShare > 0),
+        actualSavingsAdded: actualSavingsToAdd,
       };
     } catch (err) {
       console.error('Failed to record repayment in Firestore:', err);
