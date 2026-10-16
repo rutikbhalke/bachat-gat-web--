@@ -250,10 +250,16 @@ async function getPendingDuesReport(req, res) {
   const year = number(req.query.year) || new Date().getFullYear();
 
   const duesList = members.filter((m) => m.status !== 'INACTIVE').map((m) => {
-    const paid = savings.some((s) => s.memberId === m.id && number(s.month) === month && number(s.year) === year);
-    const loan = loans.find((l) => l.memberId === m.id && l.status === 'ACTIVE');
+    const memberSavings = savings.filter((s) => (s.memberId === m.id || s.member_id === m.id) && number(s.month) === month && number(s.year) === year);
+    const expectedHafta = number(value(m, 'monthlyContribution', 'monthly_contribution')) || 1000;
+    const haftaPaid = memberSavings.reduce((sum, s) => {
+      const isRepayOnly = (s.source === 'LOAN_REPAYMENT' && number(s.paidAmount || s.amount || 0) === 0);
+      if (isRepayOnly) return sum;
+      return sum + number(s.paidAmount !== undefined ? s.paidAmount : (s.paid_amount !== undefined ? s.paid_amount : (s.amount || 0)));
+    }, 0);
+    const pendingHafta = Math.max(0, expectedHafta - haftaPaid);
+    const loan = loans.find((l) => (l.memberId === m.id || l.member_id === m.id) && l.status === 'ACTIVE');
     const outstandingPrincipal = number(value(loan || {}, 'remainingAmount', 'outstanding_amount'));
-    const pendingHafta = paid ? 0 : number(value(m, 'monthlyContribution', 'monthly_contribution')) || 1000;
 
     const pendingInterest = Math.round(outstandingPrincipal * 0.02 * 100) / 100;
 

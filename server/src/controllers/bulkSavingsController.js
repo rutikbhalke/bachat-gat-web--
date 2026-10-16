@@ -42,7 +42,9 @@ async function getBulkSavingsPreview(req, res, next) {
         m.status !== 'INACTIVE' &&
         (m.status || '').toLowerCase() !== 'inactive' &&
         m.isActive !== false &&
-        !m.isDeleted
+        !m.isDeleted &&
+        (m.role || m.role_name || '').toUpperCase() !== 'ADMIN' &&
+        !m.email?.includes('admin')
     );
 
     let totalExpected = 0;

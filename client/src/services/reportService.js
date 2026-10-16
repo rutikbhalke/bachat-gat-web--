@@ -151,7 +151,7 @@ export const reportService = {
 
     const members = membersSnap.docs.map(d => normalizeMember(d.id, d.data()));
     const activeMembers = members
-      .filter(m => m.isActive !== false && (m.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && (m.id.startsWith('member_') || m.id.startsWith('test_mem_') || m.memberCode?.startsWith('M-130-') || m.memberCode?.startsWith('TM-') || ((m.role || '').toUpperCase() !== 'ADMIN' && !m.email?.includes('admin'))))
+      .filter(m => m.isActive !== false && (m.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && (m.id.startsWith('member_') || m.id.startsWith('test_') || m.memberCode?.startsWith('M-130-') || m.memberCode?.startsWith('TM-') || ((m.role || '').toUpperCase() !== 'ADMIN' && !m.email?.includes('admin'))))
       .sort((a, b) => (a.memberCode || a.id).localeCompare(b.memberCode || b.id, undefined, { numeric: true }));
     const loans = loansSnap.docs.map(d => normalizeLoan(d.id, d.data()));
     const contributions = contributionsSnap.docs.map(d => normalizeSavings(d.id, d.data()));
@@ -342,7 +342,15 @@ export const reportService = {
       const y = parseInt(year, 10);
 
       const duesList = activeMembers.map(mem => {
-        const paid = contributions.some(s => (s.memberId === mem.id || s.member_id === mem.id) && number(s.month) === m && number(s.year) === y);
+        const memberContribs = contributions.filter(s => (s.memberId === mem.id || s.member_id === mem.id) && number(s.month) === m && number(s.year) === y);
+        const expectedHafta = number(mem.monthlyContribution || mem.monthly_contribution || 1000);
+        const haftaPaid = memberContribs.reduce((sum, s) => {
+          const isRepayOnly = (s.source === 'LOAN_REPAYMENT' && number(s.paidAmount || s.amount || 0) === 0);
+          if (isRepayOnly) return sum;
+          return sum + number(s.paidAmount !== undefined ? s.paidAmount : (s.paid_amount !== undefined ? s.paid_amount : (s.amount || 0)));
+        }, 0);
+        const pendingHafta = Math.max(0, expectedHafta - haftaPaid);
+
         const memberLoans = loans.filter(l => l.memberId === mem.id || l.member_id === mem.id);
         const loan = memberLoans.find(l => {
           const out = calculateLoanOutstanding(l, repayments);
@@ -356,7 +364,6 @@ export const reportService = {
           scheduledInst = schedule.find(s => s.month === m && s.year === y) || null;
         }
 
-        const pendingHafta = paid ? 0 : number(mem.monthlyContribution || 1000);
         const pendingPrincipal = scheduledInst ? Math.max(0, scheduledInst.principalExpected - scheduledInst.principalPaid) : 0;
         const pendingInterest = scheduledInst ? Math.max(0, scheduledInst.interestExpected - scheduledInst.interestPaid) : 0;
         const totalPending = pendingHafta + pendingPrincipal + pendingInterest;

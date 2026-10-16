@@ -127,7 +127,7 @@ const Reports = () => {
   }, [registerRows]);
 
   const { user } = useAuth();
-  const targetGroupId = DEFAULT_GROUP_ID;
+  const targetGroupId = user?.groupId || DEFAULT_GROUP_ID;
 
   const reportCacheRef = React.useRef(new Map());
 

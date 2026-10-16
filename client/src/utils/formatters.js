@@ -130,6 +130,8 @@ export const normalizeGroup = (id, data = {}) => {
     total_savings: totalSavings,
     totalOutstandingLoans,
     total_outstanding_loans: totalOutstandingLoans,
+    activeLoans: totalOutstandingLoans,
+    active_loans: totalOutstandingLoans,
     currentMonthlyInterest,
     current_monthly_interest: currentMonthlyInterest,
     totalInterestPaid,

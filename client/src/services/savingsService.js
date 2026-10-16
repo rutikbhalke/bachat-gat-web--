@@ -343,7 +343,9 @@ export const savingsService = {
             m.status !== 'INACTIVE' &&
             (m.status || '').toLowerCase() !== 'inactive' &&
             m.isActive !== false &&
-            !m.isDeleted
+            !m.isDeleted &&
+            (m.role || '').toUpperCase() !== 'ADMIN' &&
+            !m.email?.includes('admin')
         );
 
       const existingContributions = contributionsSnap.docs

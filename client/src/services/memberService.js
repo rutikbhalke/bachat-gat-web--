@@ -25,16 +25,16 @@ import {
   signOut,
   updateProfile,
 } from 'firebase/auth';
-import { auth, db, firebaseConfig } from '../config/firebase';
-import api from './api';
-import { groupQuery } from './dataContract';
+import { auth, db, firebaseConfig } from '../config/firebase.js';
+import api from './api.js';
+import { groupQuery } from './dataContract.js';
 import {
   normalizeMember,
   normalizeSavings,
   normalizeLoan,
   calculateMonthlyMemberStatus,
   DEFAULT_GROUP_ID,
-} from '../utils/formatters';
+} from '../utils/formatters.js';
 
 export { calculateMonthlyMemberStatus };
 
