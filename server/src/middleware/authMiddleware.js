@@ -22,8 +22,9 @@ async function authenticateToken(req, res, next) {
     }
 
     const email = decoded.email || data.email || '';
-    const fallbackRole = email.toLowerCase().includes('admin') ? 'ADMIN' : 'MEMBER';
-    const role = (data.role_name || data.role || decoded.role || fallbackRole).toUpperCase();
+    // Role must be explicitly assigned in Firestore or custom claims; never infer ADMIN from email substring
+    const explicitRole = data.role_name || data.role || decoded.role_name || decoded.role;
+    const role = (explicitRole || 'MEMBER').toUpperCase();
 
     if (data.isActive === false) {
       return res.status(403).json({ success: false, message: 'User account is inactive.' });

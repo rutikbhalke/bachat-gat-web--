@@ -1,2 +1,9 @@
 const { getGroupDetails, updateGroupDetails } = require('./firebaseController');
-module.exports = { getGroupDetails, updateGroupDetails };
+const { resetCleanData, getResetPreview } = require('./adminResetController');
+
+module.exports = {
+  getGroupDetails,
+  updateGroupDetails,
+  resetCleanData,
+  getResetPreview,
+};

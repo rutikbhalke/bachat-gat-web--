@@ -14,7 +14,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Lock,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
+import AdminResetModal from '../components/forms/AdminResetModal';
 
 const Settings = () => {
   const { user, refreshUser, updateGroupName, isAdmin } = useAuth();
@@ -22,7 +25,8 @@ const Settings = () => {
   const outletContext = useOutletContext();
   const triggerRefresh = outletContext?.triggerRefresh;
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('group'); // 'group' | 'profile'
+  const [activeTab, setActiveTab] = useState('group'); // 'group' | 'profile' | 'danger'
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   // Group settings state
   const [groupData, setGroupData] = useState({
@@ -240,6 +244,19 @@ const Settings = () => {
         >
           <User size={18} /> Account Profile
         </button>
+
+        {isAdmin && (
+          <button
+            onClick={() => {
+              setActiveTab('danger');
+              setMessage({ type: '', text: '' });
+            }}
+            className={`tab-btn ${activeTab === 'danger' ? 'active' : ''}`}
+            style={{ color: activeTab === 'danger' ? 'var(--danger)' : undefined }}
+          >
+            <AlertTriangle size={18} color="var(--danger)" /> Reset & Clean Data
+          </button>
+        )}
       </div>
 
       {/* TAB 1: GROUP CONFIGURATION */}
@@ -314,6 +331,28 @@ const Settings = () => {
               </button>
             </div>
           </form>
+
+          {/* DANGER ZONE SECTION IN GROUP CONFIGURATION */}
+          <div className="danger-card" style={{ marginTop: '28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#B91C1C', marginBottom: '8px' }}>
+              <AlertTriangle size={22} color="var(--danger)" />
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: '#B91C1C' }}>
+                Danger Zone: Reset & Clean Data
+              </h3>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '18px', lineHeight: 1.5 }}>
+              Permanently delete all existing financial demo records (contributions, loans, repayments, transactions) and allocate fresh opening capital for all approved members. Member accounts, Admin login and Group settings are 100% preserved.
+            </p>
+            <div>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={() => setIsResetModalOpen(true)}
+              >
+                <Trash2 size={16} /> Reset / Clean Data
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -403,6 +442,67 @@ const Settings = () => {
             </div>
           </form>
         </div>
+      )}
+
+      {/* TAB 3: DANGER ZONE (ADMIN ONLY) */}
+      {activeTab === 'danger' && isAdmin && (
+        <div className="card" style={{ border: '1.5px solid #FCA5A5' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#B91C1C', marginBottom: '12px' }}>
+            <AlertTriangle size={24} color="var(--danger)" />
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, color: '#B91C1C' }}>
+              System Reset & Clean Data Center
+            </h2>
+          </div>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '20px', lineHeight: 1.6 }}>
+            This feature allows the Bachat Gat administrator to reset the demo environment to a pristine state.
+            It performs a verified double-confirmation process, automatically backs up all collections, deletes old financial activity, and assigns fresh opening base savings to each registered approved member.
+          </p>
+
+          <div
+            style={{
+              background: '#FFF5F5',
+              border: '1px solid #FECACA',
+              borderRadius: 'var(--radius-md)',
+              padding: '16px 20px',
+              marginBottom: '24px',
+            }}
+          >
+            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#991B1B', marginBottom: '8px' }}>
+              Safety & Integrity Guarantees:
+            </h4>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.85rem', color: '#7F1D1D', lineHeight: 1.6 }}>
+              <li>Full safety backup created and verified before any data deletion</li>
+              <li>Member accounts and names are 100% preserved (0 deletions)</li>
+              <li>Admin user account is completely untouched</li>
+              <li>Group configuration and monthly contribution rules remain intact</li>
+              <li>Double confirmation with case-sensitive "RESET DATA" text verification</li>
+              <li>Direct Firestore post-reset verification after execution</li>
+            </ul>
+          </div>
+
+          <div>
+            <button
+              type="button"
+              className="btn-danger"
+              style={{ fontSize: '1rem', padding: '12px 24px' }}
+              onClick={() => setIsResetModalOpen(true)}
+            >
+              <Trash2 size={18} /> Reset / Clean Data
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Reset Modal */}
+      {isAdmin && (
+        <AdminResetModal
+          isOpen={isResetModalOpen}
+          onClose={() => setIsResetModalOpen(false)}
+          onSuccess={() => {
+            if (triggerRefresh) triggerRefresh();
+            refreshUser();
+          }}
+        />
       )}
     </div>
   );
