@@ -19,10 +19,13 @@ import {
   normalizeMember,
   normalizeSavings,
   formatNumber,
+  formatDate,
+  formatCurrency,
   DEFAULT_GROUP_ID,
 } from '../utils/formatters.js';
 import { calculateInterest } from '../utils/calculations.js';
 import { calculateGroupFinancialSummary, LOAN_INTEREST_RATE } from './financialService.js';
+import api from './api.js';
 
 /**
  * Calculate dynamic installment Month and Year using zero-based modular arithmetic.
@@ -1141,6 +1144,495 @@ export const loanService = {
     } catch (err) {
       console.error('Failed to record repayment in Firestore:', err);
       throw new Error(err.message || 'Failed to record repayment.');
+    }
+  },
+
+  /**
+   * Get Bulk Monthly Loan Principal preview for a selected month and year
+   */
+  getBulkLoanPrincipalPreview: async ({ month, year }, groupId = DEFAULT_GROUP_ID) => {
+    try {
+      const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
+      const targetMonth = parseInt(month, 10);
+      const targetYear = parseInt(year, 10);
+
+      // Authoritative client-side Firestore query matching getAllLoans
+      const [loansSnap, repaymentsSnap, membersSnap, groupSnap] = await Promise.all([
+        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('repayments', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
+        getDoc(doc(db, 'groups', targetGroupId)).catch(() => ({ exists: () => false })),
+      ]);
+
+      const groupData = groupSnap.exists() ? groupSnap.data() : {};
+      const membersMap = {};
+      membersSnap.docs.forEach((docSnap) => {
+        const d = docSnap.data();
+        const memberName = d.name || d.fullName || 'Member';
+        const memberCode = d.memberCode || d.member_code || docSnap.id;
+        membersMap[docSnap.id] = { name: memberName, code: memberCode, phone: d.phone || '' };
+        if (d.userId) membersMap[d.userId] = { name: memberName, code: memberCode, phone: d.phone || '' };
+        if (d.authUid) membersMap[d.authUid] = { name: memberName, code: memberCode, phone: d.phone || '' };
+      });
+
+      const allRepayments = repaymentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      // Match exact active loan criteria from Loans page:
+      const activeLoans = loansSnap.docs
+        .map((d) => {
+          const raw = d.data();
+          const normalized = normalizeLoan(d.id, raw);
+          const memInfo = membersMap[normalized.memberId] || { name: normalized.memberName, code: normalized.memberCode, phone: '' };
+          return {
+            ...normalized,
+            member_name: memInfo.name || normalized.memberName,
+            memberName: memInfo.name || normalized.memberName,
+            member_code: memInfo.code || normalized.memberCode,
+            memberCode: memInfo.code || normalized.memberCode,
+            phone: memInfo.phone || '',
+          };
+        })
+        .filter((l) => {
+          const rawStatus = (l.status || '').toUpperCase();
+          const outstanding = Number(l.pendingPrincipal ?? l.remainingAmount ?? l.outstanding_amount ?? 0);
+          return rawStatus === 'ACTIVE' && outstanding > 0 && !l.isDeleted;
+        });
+
+      let totalMonthlyPrincipalExpected = 0;
+      let totalAlreadyCollected = 0;
+      let totalRemainingPrincipalDue = 0;
+      let paidLoansCount = 0;
+      let partialLoansCount = 0;
+      let pendingLoansCount = 0;
+
+      const previewLoans = [];
+      const excludedLoans = [];
+
+      for (const loan of activeLoans) {
+        const originalPrincipal = Number(loan.originalPrincipal || loan.principalAmount || loan.principal_amount || 0);
+        const tenure = Number(loan.durationMonths || loan.duration_months || loan.tenureMonths || loan.tenure_months || 10) || 10;
+        const baseMonthlyPrincipal = tenure > 0 ? Math.round(originalPrincipal / tenure) : 0;
+        const currentOutstanding = Number(loan.pendingPrincipal ?? loan.remainingAmount ?? loan.outstanding_amount ?? originalPrincipal);
+        const totalPrincipalPaidSoFar = Number(loan.totalPrincipalPaid ?? loan.total_principal_paid ?? loan.total_principal_repaid ?? 0);
+
+        const member = membersMap[loan.memberId || loan.member_id] || { name: loan.memberName, code: loan.memberCode };
+        const loanRepayments = allRepayments.filter((r) => String(r.loanId || r.loan_id || '') === String(loan.id));
+
+        const schedule = generateLoanRepaymentSchedule({
+          loan,
+          repayments: loanRepayments,
+          contributions: [],
+          member,
+          group: groupData,
+        });
+
+        const targetRow = schedule.find((s) => s.month === targetMonth && s.year === targetYear);
+
+        let installmentNumber;
+        let scheduledMonthlyPrincipal;
+        let alreadyPaidForPeriod;
+        let monthlyPrincipalDue;
+        let isEligible = true;
+
+        if (targetRow) {
+          installmentNumber = targetRow.installmentNumber;
+          scheduledMonthlyPrincipal = targetRow.principalExpected;
+          alreadyPaidForPeriod = targetRow.principalPaid;
+          monthlyPrincipalDue = Math.min(currentOutstanding, targetRow.principalRemaining);
+        } else {
+          // Check issue date against target month
+          const issueDate = new Date(loan.issueDate || loan.loanDate || loan.createdAt || new Date());
+          const issueMonth = issueDate.getMonth() + 1;
+          const issueYear = issueDate.getFullYear();
+          const issueCalIndex = issueYear * 12 + (issueMonth - 1);
+          const selectedCalIndex = targetYear * 12 + (targetMonth - 1);
+
+          if (selectedCalIndex <= issueCalIndex) {
+            isEligible = false;
+            const firstInstDate = calculateInstallmentMonthYear(issueDate.toISOString(), 1);
+            const firstInstDateObj = new Date(firstInstDate.year, firstInstDate.month - 1, 1);
+            const firstInstLabel = firstInstDateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+            const issueLabel = issueDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+            excludedLoans.push({
+              loanId: loan.id,
+              loanNumber: loan.loanNumber || loan.loan_number || loan.id,
+              memberName: loan.memberName || member.name || 'Member',
+              memberCode: loan.memberCode || member.code || '',
+              issueDate: loan.issueDate,
+              reason: `Issued on ${formatDate(loan.issueDate)}. Loan issue month (${issueLabel}) contains no installment. Installment #1 starts in ${firstInstLabel} (${formatCurrency(Math.round(originalPrincipal / tenure))} due).`,
+              nextEligibleMonth: firstInstDate.month,
+              nextEligibleYear: firstInstDate.year,
+              nextEligibleLabel: firstInstLabel,
+            });
+          } else if (currentOutstanding > 0) {
+            // Overdue loan past scheduled tenure with remaining balance
+            const firstUnpaid = schedule.find((s) => s.principalRemaining > 0);
+            installmentNumber = firstUnpaid ? firstUnpaid.installmentNumber : tenure;
+            scheduledMonthlyPrincipal = firstUnpaid ? firstUnpaid.principalExpected : Math.min(currentOutstanding, baseMonthlyPrincipal);
+
+            const matchingRepayments = loanRepayments.filter((r) => {
+              const rMonth = Number(r.paymentMonth ?? r.payment_month ?? r.month);
+              const rYear = Number(r.paymentYear ?? r.payment_year ?? r.year);
+              return rMonth === targetMonth && rYear === targetYear;
+            });
+
+            alreadyPaidForPeriod = matchingRepayments.reduce(
+              (sum, r) => sum + Number(r.principalAmount ?? r.principal_amount ?? r.principalPaid ?? r.principal_repayment_amount ?? 0),
+              0
+            );
+            monthlyPrincipalDue = Math.min(currentOutstanding, Math.max(0, scheduledMonthlyPrincipal - alreadyPaidForPeriod));
+          } else {
+            isEligible = false;
+          }
+        }
+
+        if (!isEligible) continue;
+
+        const isPaidFull = monthlyPrincipalDue === 0 && (alreadyPaidForPeriod >= scheduledMonthlyPrincipal || currentOutstanding === 0);
+        const isPartial = alreadyPaidForPeriod > 0 && monthlyPrincipalDue > 0;
+        const status = isPaidFull ? 'PAID' : (isPartial ? 'PARTIAL' : 'PENDING');
+
+        if (isPaidFull) paidLoansCount++;
+        else if (isPartial) partialLoansCount++;
+        else pendingLoansCount++;
+
+        totalMonthlyPrincipalExpected += scheduledMonthlyPrincipal;
+        totalAlreadyCollected += alreadyPaidForPeriod;
+        totalRemainingPrincipalDue += monthlyPrincipalDue;
+
+        previewLoans.push({
+          loanId: loan.id,
+          loanNumber: loan.loanNumber || loan.loan_number || loan.id,
+          memberId: loan.memberId || loan.member_id,
+          memberName: loan.memberName || member.name || 'Member',
+          memberCode: loan.memberCode || member.code || loan.id.slice(-4),
+          phone: loan.phone || '',
+          totalLoanPrincipal: originalPrincipal,
+          totalPrincipalPaidSoFar,
+          remainingPrincipal: currentOutstanding,
+          installmentNumber,
+          scheduledMonthlyPrincipal,
+          alreadyPaidForPeriod,
+          monthlyPrincipalDue,
+          suggestedAmount: monthlyPrincipalDue,
+          isPaidFull,
+          isPartial,
+          status,
+        });
+      }
+
+      previewLoans.sort((a, b) => {
+        if (a.isPaidFull !== b.isPaidFull) return a.isPaidFull ? 1 : -1;
+        return a.memberName.localeCompare(b.memberName);
+      });
+
+      return {
+        success: true,
+        groupId: targetGroupId,
+        month: targetMonth,
+        year: targetYear,
+        totalActiveLoans: previewLoans.length,
+        totalMonthlyPrincipalExpected,
+        totalAlreadyCollected,
+        totalRemainingPrincipalDue,
+        paidLoansCount,
+        partialLoansCount,
+        pendingLoansCount,
+        loans: previewLoans,
+        excludedLoans,
+      };
+    } catch (err) {
+      console.error('Failed to get bulk loan principal preview:', err);
+      throw err;
+    }
+  },
+
+  /**
+   * Record Bulk Monthly Loan Principal collection atomically with duplicate prevention
+   */
+  recordBulkLoanPrincipal: async (
+    { month: rawMonth, year: rawYear, items, clientRequestId, paymentMode = 'UPI', remarks = '', paymentDate },
+    groupId = DEFAULT_GROUP_ID
+  ) => {
+    const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
+    const month = parseInt(rawMonth, 10);
+    const year = parseInt(rawYear, 10);
+
+    if (!month || !year || month < 1 || month > 12) {
+      throw new Error('Valid month (1-12) and year are required.');
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error('Items array cannot be empty.');
+    }
+
+    const validItems = items.filter((item) => item && (item.loanId || item.loan_id) && Number(item.amount) > 0);
+    if (validItems.length === 0) {
+      throw new Error('No items with principal collection amount greater than ₹0 selected.');
+    }
+
+    // Direct Firestore runTransaction implementation matching recordRepayment
+    try {
+      const effectiveDate = paymentDate || new Date().toISOString().split('T')[0];
+      const requestId = clientRequestId || `BULK_LOAN_REQ_${Date.now()}`;
+      const idempotencyRef = doc(db, 'transactions', `IDEM_${requestId}`);
+
+      const result = await runTransaction(db, async (transaction) => {
+        // 1. Idempotency Check
+        const idempotencySnap = await transaction.get(idempotencyRef);
+        if (idempotencySnap.exists()) {
+          return {
+            isDuplicate: true,
+            message: 'Bulk loan principal collection already recorded.',
+            data: idempotencySnap.data(),
+          };
+        }
+
+        // 2. Read Group Document
+        const groupRef = doc(db, 'groups', targetGroupId);
+        const groupSnap = await transaction.get(groupRef);
+        const groupData = groupSnap.exists() ? groupSnap.data() : {};
+
+        // 3. Read All Target Loan Documents
+        const loanPlan = [];
+        for (const item of validItems) {
+          const loanId = item.loanId || item.loan_id;
+          const loanRef = doc(db, 'loans', loanId);
+          const loanSnap = await transaction.get(loanRef);
+          loanPlan.push({
+            item,
+            loanId,
+            loanRef,
+            loanSnap,
+          });
+        }
+
+        let totalPrincipalCollected = 0;
+        const skippedDuplicates = [];
+        const processedItems = [];
+
+        // 4. Stage Loan updates, Repayments, and Activities
+        for (const plan of loanPlan) {
+          const { item, loanId, loanRef, loanSnap } = plan;
+          if (!loanSnap.exists()) {
+            skippedDuplicates.push({ loanId, reason: 'Loan document not found' });
+            continue;
+          }
+
+          const loanData = loanSnap.data();
+          const currentPending = Number(loanData.pendingPrincipal ?? loanData.remainingAmount ?? loanData.outstanding_amount ?? 0);
+          const memberId = loanData.memberId || loanData.member_id || item.memberId;
+          const memberName = item.memberName || loanData.memberName || loanData.member_name || 'Member';
+          const loanNumber = loanData.loanNumber || loanData.loan_number || loanId;
+
+          if ((loanData.status || '').toUpperCase() === 'CLOSED' || currentPending <= 0) {
+            skippedDuplicates.push({
+              loanId,
+              loanNumber,
+              memberName,
+              reason: 'Loan is already closed or has 0 outstanding balance',
+            });
+            continue;
+          }
+
+          const requestedAmount = Number(item.amount);
+          const monthlyPrincipalDue = Number(item.monthlyPrincipalDue ?? item.suggestedAmount ?? currentPending);
+          const allowedPrincipal = Math.min(requestedAmount, monthlyPrincipalDue, currentPending);
+
+          if (allowedPrincipal <= 0) {
+            skippedDuplicates.push({
+              loanId,
+              loanNumber,
+              memberName,
+              reason: 'Principal installment already paid or zero balance due',
+            });
+            continue;
+          }
+
+          const targetInstallmentNumber = Number(item.installmentNumber ?? item.installment_number) || ((Number(loanData.lastInstallmentPaid) || 0) + 1);
+          const repaymentId = `REP_${loanId}_${targetInstallmentNumber}_${year}_${String(month).padStart(2, '0')}_${requestId}`;
+          const repayRef = doc(db, 'repayments', repaymentId);
+
+          const newPending = Math.max(0, Math.round((currentPending - allowedPrincipal) * 100) / 100);
+          const newStatus = newPending === 0 ? 'CLOSED' : 'ACTIVE';
+          const currentTotalPrincipalPaid = Number(loanData.totalPrincipalPaid ?? loanData.total_principal_paid ?? loanData.total_principal_repaid ?? 0);
+          const newTotalPrincipalPaid = currentTotalPrincipalPaid + allowedPrincipal;
+
+          totalPrincipalCollected += allowedPrincipal;
+
+          const itemMode = item.paymentMode || paymentMode;
+          const itemRemarks = (item.remarks || remarks || `Bulk Monthly Loan Principal Collection (${month}/${year})`).trim();
+
+          // 1. Update Loan Document
+          transaction.update(loanRef, {
+            pendingPrincipal: newPending,
+            remainingAmount: newPending,
+            outstanding_amount: newPending,
+            totalPrincipalPaid: newTotalPrincipalPaid,
+            total_principal_paid: newTotalPrincipalPaid,
+            total_principal_repaid: newTotalPrincipalPaid,
+            lastInstallmentPaid: targetInstallmentNumber,
+            status: newStatus,
+            updatedAt: effectiveDate,
+          });
+
+          // 2. Create Repayment Record (strictly principal, 0 interest, 0 regular savings)
+          transaction.set(repayRef, {
+            id: repaymentId,
+            repaymentId,
+            repayment_id: repaymentId,
+            groupId: targetGroupId,
+            group_id: targetGroupId,
+            loanId,
+            loan_id: loanId,
+            loanNumber,
+            memberId,
+            member_id: memberId,
+            memberName,
+            installmentNumber: targetInstallmentNumber,
+            installment_number: targetInstallmentNumber,
+            type: 'LOAN_REPAYMENT',
+            transactionType: 'LOAN_REPAYMENT',
+            principalAmount: allowedPrincipal,
+            principal_amount: allowedPrincipal,
+            principalRepaid: allowedPrincipal,
+            principal_repayment_amount: allowedPrincipal,
+            interestAmount: 0,
+            interest_amount: 0,
+            regularHaptaAmount: 0,
+            regular_hafta_amount: 0,
+            regularContribution: 0,
+            amount: allowedPrincipal,
+            loanRepaymentAmount: allowedPrincipal,
+            totalAmount: allowedPrincipal,
+            total_amount: allowedPrincipal,
+            totalPaid: allowedPrincipal,
+            total_payment: allowedPrincipal,
+            openingPrincipal: currentPending,
+            closingPrincipal: newPending,
+            month,
+            paymentMonth: month,
+            payment_month: month,
+            year,
+            paymentYear: year,
+            payment_year: year,
+            paymentDate: effectiveDate,
+            payment_date: effectiveDate,
+            paymentMode: itemMode,
+            payment_mode: itemMode,
+            remarks: itemRemarks,
+            source: 'BULK_LOAN_PRINCIPAL_COLLECTION',
+            createdAt: effectiveDate,
+          });
+
+          // 3. Create Transaction Record
+          const actId = `ACT_${Date.now()}_${loanId}_bulk_principal`;
+          const actRef = doc(db, 'transactions', actId);
+          transaction.set(actRef, {
+            id: actId,
+            groupId: targetGroupId,
+            type: 'repayment',
+            type_flutter: 'loanRepayment',
+            amount: allowedPrincipal,
+            principalAmount: allowedPrincipal,
+            principal_amount: allowedPrincipal,
+            interestAmount: 0,
+            interest_amount: 0,
+            regularHaptaAmount: 0,
+            regular_hafta_amount: 0,
+            totalAmount: allowedPrincipal,
+            description: `Bulk monthly loan principal ₹${allowedPrincipal.toLocaleString('en-IN')} collected from ${memberName} (${loanNumber})`,
+            memberId,
+            memberName,
+            referenceId: repaymentId,
+            source: 'BULK_LOAN_PRINCIPAL_COLLECTION',
+            date: effectiveDate,
+            createdAt: effectiveDate,
+          });
+
+          processedItems.push({
+            loanId,
+            loanNumber,
+            memberId,
+            memberName,
+            amountCollected: allowedPrincipal,
+            newPending,
+            newStatus,
+          });
+        }
+
+        // 5. Update Group Financial Totals (Available Balance increases, Active Loans decreases, Total Fund constant, Savings & Interest untouched)
+        const currentActiveLoans = Number(groupData.activeLoans || groupData.active_loans || groupData.totalOutstandingLoans || 0);
+        const newActiveLoans = Math.max(0, currentActiveLoans - totalPrincipalCollected);
+        const currentAvailable = Number(groupData.availableBalance ?? groupData.available_balance ?? 0);
+        const newAvailableBalance = Math.round((currentAvailable + totalPrincipalCollected) * 100) / 100;
+        const newTotalFund = Math.round((newAvailableBalance + newActiveLoans) * 100) / 100;
+        const newMonthlyInterest = Math.round(newActiveLoans * 0.02 * 100) / 100;
+
+        if (totalPrincipalCollected > 0 && groupSnap.exists()) {
+          transaction.update(groupRef, {
+            activeLoans: newActiveLoans,
+            active_loans: newActiveLoans,
+            totalOutstandingLoans: newActiveLoans,
+            availableBalance: newAvailableBalance,
+            available_balance: newAvailableBalance,
+            rawAvailableBalance: newAvailableBalance,
+            totalFund: newTotalFund,
+            total_fund: newTotalFund,
+            currentMonthlyInterest: newMonthlyInterest,
+            current_monthly_interest: newMonthlyInterest,
+            updatedAt: effectiveDate,
+          });
+        }
+
+        // 6. Record Idempotency Marker
+        transaction.set(idempotencyRef, {
+          id: `IDEM_${requestId}`,
+          type: 'IDEMPOTENCY_MARKER',
+          feature: 'BULK_LOAN_PRINCIPAL_COLLECTION',
+          requestId,
+          groupId: targetGroupId,
+          month,
+          year,
+          count: processedItems.length,
+          skippedCount: skippedDuplicates.length,
+          totalCollected: totalPrincipalCollected,
+          skippedDuplicates,
+          createdAt: effectiveDate,
+        });
+
+        return {
+          isDuplicate: false,
+          count: processedItems.length,
+          totalCollected: totalPrincipalCollected,
+          skippedDuplicates,
+          processedItems,
+          newActiveLoans,
+          newAvailableBalance,
+          newTotalFund,
+        };
+      });
+
+      return {
+        success: true,
+        isIdempotentReplay: Boolean(result.isDuplicate),
+        message: result.isDuplicate
+          ? 'Bulk loan principal collection already recorded.'
+          : (result.count > 0
+              ? `Bulk monthly loan principal of ₹${result.totalCollected.toLocaleString('en-IN')} recorded for ${result.count} loan(s).`
+              : 'All selected loans already have principal recorded for this period. Duplicate writes prevented.'),
+        count: result.count,
+        totalCollected: result.totalCollected,
+        skippedDuplicates: result.skippedDuplicates || [],
+        groupBalances: {
+          activeLoans: result.newActiveLoans,
+          availableBalance: result.newAvailableBalance,
+          totalFund: result.newTotalFund,
+        },
+      };
+    } catch (err) {
+      console.error('Failed to record bulk loan principal in Firestore:', err);
+      throw new Error(err.message || 'Failed to record bulk loan principal.');
     }
   },
 

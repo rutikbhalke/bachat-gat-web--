@@ -5,6 +5,7 @@ import { loanService } from '../services/loanService';
 import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
 import RecordRepaymentModal from '../components/forms/RecordRepaymentModal';
+import BulkLoanPrincipalModal from '../components/forms/BulkLoanPrincipalModal';
 import { formatCurrency, formatDate, formatNumber } from '../utils/formatters';
 import {
   HandCoins,
@@ -18,6 +19,7 @@ import {
   Eye,
   Building2,
   User,
+  Users,
 } from 'lucide-react';
 
 const Loans = () => {
@@ -39,6 +41,7 @@ const Loans = () => {
   // Local record repayment modal
   const [isRepayOpen, setIsRepayOpen] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState(null);
+  const [isBulkLoanOpen, setIsBulkLoanOpen] = useState(false);
 
   const fetchLoans = async () => {
     try {
@@ -79,9 +82,28 @@ const Loans = () => {
         </div>
 
         {isAdmin && (
-          <button onClick={openCreateLoan} className="btn-primary">
-            <Plus size={18} /> + Disburse New Loan
-          </button>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setIsBulkLoanOpen(true)}
+              className="btn-secondary"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '9px 16px',
+                fontWeight: 600,
+                border: '1px solid #BFDBFE',
+                color: '#1D4ED8',
+                background: '#EFF6FF',
+                cursor: 'pointer',
+              }}
+            >
+              <Users size={18} /> Bulk Principal Collection
+            </button>
+            <button onClick={openCreateLoan} className="btn-primary">
+              <Plus size={18} /> + Disburse New Loan
+            </button>
+          </div>
         )}
       </div>
 
@@ -332,6 +354,13 @@ const Loans = () => {
         }}
         onSuccess={fetchLoans}
         initialLoanId={selectedLoanId}
+      />
+
+      {/* Bulk Monthly Loan Principal Collection Modal */}
+      <BulkLoanPrincipalModal
+        isOpen={isBulkLoanOpen}
+        onClose={() => setIsBulkLoanOpen(false)}
+        onSuccess={fetchLoans}
       />
     </div>
   );

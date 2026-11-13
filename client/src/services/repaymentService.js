@@ -85,6 +85,17 @@ export const repaymentService = {
   },
 
   /**
+   * Bulk Monthly Loan Principal collection delegators
+   */
+  getBulkLoanPrincipalPreview: async (params, groupId = DEFAULT_GROUP_ID) => {
+    return await loanService.getBulkLoanPrincipalPreview(params, groupId);
+  },
+
+  recordBulkLoanPrincipal: async (data, groupId = DEFAULT_GROUP_ID) => {
+    return await loanService.recordBulkLoanPrincipal(data, groupId);
+  },
+
+  /**
    * Subscribe to repayments in real-time
    */
   subscribeToRepayments: (callback, groupId = DEFAULT_GROUP_ID) => {
