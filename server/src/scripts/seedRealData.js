@@ -10,7 +10,7 @@ const realMembers = [
   { sr: 4, name: 'संदीप जयराम गुंजाळ', loan: 150000, inst: 7, interest: 600, fund: 1000 },
   { sr: 5, name: 'सचिन काशिनाथ गुंजाळ', loan: 0, inst: 0, interest: 0, fund: 1000 },
   { sr: 6, name: 'रमेश सुखदेव गुंजाळ', loan: 140000, inst: 4, interest: 980, fund: 1000 },
-  { sr: 7, name: 'सतीश गणपत कुन्हे', loan: 200000, inst: 9, interest: 200, fund: 1000 },
+  { sr: 7, name: 'सतीश गणपत कुऱ्हे', loan: 200000, inst: 9, interest: 200, fund: 1000 },
   { sr: 8, name: 'अशोक खंडेराव दिघे', loan: 150000, inst: 6, interest: 750, fund: 1000 },
   { sr: 9, name: 'विजय विठ्ठल गुंजाळ', loan: 200000, inst: 6, interest: 500, fund: 1000 },
   { sr: 10, name: 'नारायण जयवंत गुंजाळ', loan: 100000, inst: 1, interest: 1000, fund: 1000 },
