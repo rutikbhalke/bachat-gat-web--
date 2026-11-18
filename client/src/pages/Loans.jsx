@@ -6,7 +6,6 @@ import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
 import RecordRepaymentModal from '../components/forms/RecordRepaymentModal';
 import BulkLoanPrincipalModal from '../components/forms/BulkLoanPrincipalModal';
-import PendingInterestRecoveryModal from '../components/forms/PendingInterestRecoveryModal';
 import { formatCurrency, formatDate, formatNumber } from '../utils/formatters';
 import {
   HandCoins,
@@ -44,7 +43,6 @@ const Loans = () => {
   const [isRepayOpen, setIsRepayOpen] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState(null);
   const [isBulkLoanOpen, setIsBulkLoanOpen] = useState(false);
-  const [isPendingInterestOpen, setIsPendingInterestOpen] = useState(false);
 
   const fetchLoans = async () => {
     try {
@@ -87,23 +85,6 @@ const Loans = () => {
         {isAdmin && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
-              onClick={() => setIsPendingInterestOpen(true)}
-              className="btn-secondary"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '9px 16px',
-                fontWeight: 600,
-                border: '1px solid #FCD34D',
-                color: '#B45309',
-                background: '#FEF3C7',
-                cursor: 'pointer',
-              }}
-            >
-              <Coins size={18} /> Recover Pending Interest
-            </button>
-            <button
               onClick={() => setIsBulkLoanOpen(true)}
               className="btn-secondary"
               style={{
@@ -118,7 +99,7 @@ const Loans = () => {
                 cursor: 'pointer',
               }}
             >
-              <Users size={18} /> Bulk Monthly Collection
+              <Users size={18} /> Bulk Loan Repayment (Prin + Int)
             </button>
             <button onClick={openCreateLoan} className="btn-primary">
               <Plus size={18} /> + Disburse New Loan
@@ -380,13 +361,6 @@ const Loans = () => {
       <BulkLoanPrincipalModal
         isOpen={isBulkLoanOpen}
         onClose={() => setIsBulkLoanOpen(false)}
-        onSuccess={fetchLoans}
-      />
-
-      {/* Pending Loan Interest Recovery Modal */}
-      <PendingInterestRecoveryModal
-        isOpen={isPendingInterestOpen}
-        onClose={() => setIsPendingInterestOpen(false)}
         onSuccess={fetchLoans}
       />
     </div>

@@ -1204,6 +1204,7 @@ export const loanService = {
       let totalMonthlyInterestExpected = 0;
       let totalInterestAlreadyCollected = 0;
       let totalRemainingInterestDue = 0;
+      let totalPreviousPendingInterest = 0;
       let paidLoansCount = 0;
       let partialLoansCount = 0;
       let pendingLoansCount = 0;
@@ -1311,8 +1312,23 @@ export const loanService = {
 
         if (!isEligible) continue;
 
-        const isPaidFull = monthlyPrincipalDue === 0 && monthlyInterestDue === 0 && (alreadyPaidForPeriod >= scheduledMonthlyPrincipal || currentOutstanding === 0);
-        const isPartial = (alreadyPaidForPeriod > 0 || interestPaidForPeriod > 0) && (monthlyPrincipalDue > 0 || monthlyInterestDue > 0);
+        // Calculate genuinely unpaid historical interest from prior installments
+        const priorInstallments = schedule.filter((s) => {
+          const instCalIndex = s.year * 12 + (s.month - 1);
+          const targetCalIndex = targetYear * 12 + (targetMonth - 1);
+          return instCalIndex < targetCalIndex;
+        });
+
+        const previousPendingInterest = Math.round(
+          priorInstallments.reduce((sum, s) => sum + Math.max(0, Number(s.interestRemaining || 0)), 0) * 100
+        ) / 100;
+
+        const currentInterestDue = monthlyInterestDue;
+        const totalInterestDue = Math.round((currentInterestDue + previousPendingInterest) * 100) / 100;
+        totalDue = Math.round((monthlyPrincipalDue + totalInterestDue) * 100) / 100;
+
+        const isPaidFull = monthlyPrincipalDue === 0 && currentInterestDue === 0 && previousPendingInterest === 0 && (alreadyPaidForPeriod >= scheduledMonthlyPrincipal || currentOutstanding === 0);
+        const isPartial = (alreadyPaidForPeriod > 0 || interestPaidForPeriod > 0) && (monthlyPrincipalDue > 0 || currentInterestDue > 0 || previousPendingInterest > 0);
         const status = isPaidFull ? 'PAID' : (isPartial ? 'PARTIAL' : 'PENDING');
 
         if (isPaidFull) paidLoansCount++;
@@ -1324,7 +1340,8 @@ export const loanService = {
         totalRemainingPrincipalDue += monthlyPrincipalDue;
         totalMonthlyInterestExpected += scheduledMonthlyInterest;
         totalInterestAlreadyCollected += interestPaidForPeriod;
-        totalRemainingInterestDue += monthlyInterestDue;
+        totalRemainingInterestDue += currentInterestDue;
+        totalPreviousPendingInterest += previousPendingInterest;
 
         previewLoans.push({
           loanId: loan.id,
@@ -1343,10 +1360,15 @@ export const loanService = {
           monthlyPrincipalDue,
           scheduledMonthlyInterest,
           interestPaidForPeriod,
-          monthlyInterestDue,
+          currentInterestDue,
+          monthlyInterestDue: currentInterestDue,
+          previousPendingInterest,
+          totalInterestDue,
           totalDue,
           suggestedPrincipal: monthlyPrincipalDue,
-          suggestedInterest: monthlyInterestDue,
+          suggestedCurrentInterest: currentInterestDue,
+          suggestedPendingInterest: previousPendingInterest,
+          suggestedTotalInterest: totalInterestDue,
           suggestedAmount: monthlyPrincipalDue,
           suggestedTotal: totalDue,
           isPaidFull,
@@ -1372,7 +1394,10 @@ export const loanService = {
         totalMonthlyInterestExpected,
         totalInterestAlreadyCollected,
         totalRemainingInterestDue,
-        totalCollectionExpected: totalRemainingPrincipalDue + totalRemainingInterestDue,
+        totalCurrentInterestDue: totalRemainingInterestDue,
+        totalPreviousPendingInterest: Math.round(totalPreviousPendingInterest * 100) / 100,
+        totalInterestDue: Math.round((totalRemainingInterestDue + totalPreviousPendingInterest) * 100) / 100,
+        totalCollectionExpected: Math.round((totalRemainingPrincipalDue + totalRemainingInterestDue + totalPreviousPendingInterest) * 100) / 100,
         paidLoansCount,
         partialLoansCount,
         pendingLoansCount,
@@ -1474,7 +1499,10 @@ export const loanService = {
           }
 
           const requestedPrincipal = Number(item.principalAmount ?? item.amount ?? 0);
-          const requestedInterest = Number(item.interestAmount ?? 0);
+          const currentIntPart = Number(item.currentInterestAmount !== undefined ? item.currentInterestAmount : (item.interestAmount ?? 0));
+          const prevPendingIntPart = Number(item.previousPendingInterestAmount ?? 0);
+          const requestedInterest = Number(item.interestAmount !== undefined ? item.interestAmount : (currentIntPart + prevPendingIntPart));
+
           const monthlyPrincipalDue = Number(item.monthlyPrincipalDue ?? item.suggestedAmount ?? currentPending);
           const allowedPrincipal = Math.min(requestedPrincipal, monthlyPrincipalDue, currentPending);
           const allowedInterest = Math.max(0, requestedInterest);
@@ -1545,6 +1573,8 @@ export const loanService = {
             principal_repayment_amount: allowedPrincipal,
             interestAmount: allowedInterest,
             interest_amount: allowedInterest,
+            currentInterestAmount: currentIntPart,
+            previousPendingInterestAmount: prevPendingIntPart,
             regularHaptaAmount: 0,
             regular_hafta_amount: 0,
             regularContribution: 0,
@@ -1584,10 +1614,12 @@ export const loanService = {
             principal_amount: allowedPrincipal,
             interestAmount: allowedInterest,
             interest_amount: allowedInterest,
+            currentInterestAmount: currentIntPart,
+            previousPendingInterestAmount: prevPendingIntPart,
             regularHaptaAmount: 0,
             regular_hafta_amount: 0,
             totalAmount: totalItemAmount,
-            description: `Bulk monthly collection ₹${totalItemAmount.toLocaleString('en-IN')} (Prin: ₹${allowedPrincipal.toLocaleString('en-IN')}, Int: ₹${allowedInterest.toLocaleString('en-IN')}) from ${memberName} (${loanNumber})`,
+            description: `Bulk monthly collection ₹${totalItemAmount.toLocaleString('en-IN')} (Prin: ₹${allowedPrincipal.toLocaleString('en-IN')}, 1% Int: ₹${currentIntPart.toLocaleString('en-IN')}${prevPendingIntPart > 0 ? `, Prev Int: ₹${prevPendingIntPart.toLocaleString('en-IN')}` : ''}) from ${memberName} (${loanNumber})`,
             memberId,
             memberName,
             referenceId: repaymentId,

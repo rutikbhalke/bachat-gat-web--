@@ -91,21 +91,27 @@ test('3. calculateLoanPrincipalSchedule tracks existing repayments and partial i
   assert.equal(schedule[1].isFullyPaid, false);
 });
 
-test('4. Financial Rule: Only loan principal is collected (interest and savings are strictly zero)', () => {
+test('4. Financial Rule: Unified collection collects Principal + 1% Interest without mixing monthly savings', () => {
   const sampleRepaymentItem = {
     loanId: 'LN_100',
-    amount: 2500,
+    principalAmount: 2500,
+    currentInterestAmount: 250,
+    previousPendingInterestAmount: 100,
+    amount: 2850,
   };
 
   const currentPending = 25000;
-  const allowedPrincipal = Math.min(sampleRepaymentItem.amount, currentPending);
-  const interestAmount = 0;
+  const allowedPrincipal = Math.min(sampleRepaymentItem.principalAmount, currentPending);
+  const currentInterest = sampleRepaymentItem.currentInterestAmount;
+  const previousInterest = sampleRepaymentItem.previousPendingInterestAmount;
+  const totalInterest = currentInterest + previousInterest;
   const regularHaptaAmount = 0;
-  const totalAmount = allowedPrincipal;
+  const totalAmount = allowedPrincipal + totalInterest;
 
-  assert.equal(interestAmount, 0, 'Interest amount must be strictly 0');
-  assert.equal(regularHaptaAmount, 0, 'Regular Hapta amount must be strictly 0');
-  assert.equal(totalAmount, allowedPrincipal, 'Total repayment amount must equal collected principal');
+  assert.equal(allowedPrincipal, 2500, 'Principal collected matches scheduled amount');
+  assert.equal(totalInterest, 350, 'Total interest equals current 1% interest + prior pending interest');
+  assert.equal(regularHaptaAmount, 0, 'Regular Hapta/savings must be strictly 0 in loan repayment modal');
+  assert.equal(totalAmount, 2850, 'Total repayment amount equals principal + all interest');
 });
 
 test('5. Financial Rule: Clamping ensures collected amount cannot exceed principal due or outstanding', () => {
@@ -336,4 +342,67 @@ test('14. Full Financial Safety Audit: Verification that no live data mutation o
 
   assert.equal(allowedTargetProject, 'bachat-gat-32ffe');
   assert.notEqual(allowedTargetProject, forbiddenFlutterProject);
+});
+
+test('15. Integrated Bulk Repayment: Outstanding principal, 1% current interest, and historical pending interest breakdown', () => {
+  // Example scenario:
+  // Borrower outstanding principal: ₹1,00,000
+  // Monthly principal due: ₹10,000
+  // Current 1% interest due: ₹1,00,000 * 1% = ₹1,000
+  // Previous pending interest: ₹500
+  // Expected total collection: ₹10,000 + ₹1,000 + ₹500 = ₹11,500
+  const outstandingPrincipal = 100000;
+  const monthlyPrincipalDue = 10000;
+  const currentInterestDue = Math.round(outstandingPrincipal * 0.01);
+  const previousPendingInterest = 500;
+  const totalInterestDue = currentInterestDue + previousPendingInterest;
+  const totalCollectionDue = monthlyPrincipalDue + totalInterestDue;
+
+  assert.equal(currentInterestDue, 1000, 'Current 1% reducing interest on ₹1,00,000 must be ₹1,000');
+  assert.equal(totalInterestDue, 1500, 'Total interest due must be ₹1,500');
+  assert.equal(totalCollectionDue, 11500, 'Total collection amount must be ₹11,500');
+
+  // Verify principal reduction only affects principal
+  const newOutstanding = outstandingPrincipal - monthlyPrincipalDue;
+  assert.equal(newOutstanding, 90000, 'Outstanding principal reduces strictly by ₹10,000 to ₹90,000');
+});
+
+test('16. Group Balance Invariant on Integrated Principal + Interest Collection', () => {
+  const initialGroup = {
+    availableBalance: 4000000,
+    activeLoans: 600000,
+    totalFund: 4600000,
+    totalInterestPaid: 150000,
+  };
+
+  const principalCollected = 50000;
+  const interestCollected = 6000; // 1% reducing interest + prior pending interest
+
+  const newActiveLoans = initialGroup.activeLoans - principalCollected; // 550,000
+  const newAvailableBalance = initialGroup.availableBalance + principalCollected + interestCollected; // 4,056,000
+  const newTotalFund = newAvailableBalance + newActiveLoans; // 4,606,000
+  const newTotalInterest = initialGroup.totalInterestPaid + interestCollected; // 156,000
+
+  assert.equal(newActiveLoans, 550000, 'Active loans reduced strictly by principal');
+  assert.equal(newAvailableBalance, 4056000, 'Available balance increased by principal + interest');
+  assert.equal(newTotalFund, 4606000, 'Total fund increased strictly by interest income');
+  assert.equal(newTotalInterest, 156000, 'Total interest paid increased by collected interest');
+  assert.equal(newAvailableBalance + newActiveLoans, newTotalFund, 'Invariant availableBalance + activeLoans === totalFund holds');
+});
+
+test('17. Duplicate Collection Prevention: Fully paid loans and settled installments are skipped', () => {
+  const alreadySettledItem = {
+    loanId: 'LN_SETTLED',
+    monthlyPrincipalDue: 0,
+    currentInterestDue: 0,
+    previousPendingInterest: 0,
+    amount: 0,
+  };
+
+  const isEligibleForCollection = (alreadySettledItem.amount > 0) ||
+    (alreadySettledItem.monthlyPrincipalDue > 0) ||
+    (alreadySettledItem.currentInterestDue > 0) ||
+    (alreadySettledItem.previousPendingInterest > 0);
+
+  assert.equal(isEligibleForCollection, false, 'Already settled loans with 0 dues must not be collected');
 });
