@@ -44,39 +44,6 @@ const NewMonthWiseBachatGatRegisterReport = ({ selectedMonth, selectedYear }) =>
 
   return (
     <div>
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .month-wise-register-print-area,
-          .month-wise-register-print-area * {
-            visibility: visible !important;
-          }
-          .month-wise-register-print-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            color: #000 !important;
-            background: #fff !important;
-            border: none !important;
-          }
-          .month-wise-register-print-area tfoot {
-            display: table-row-group !important;
-          }
-          @page {
-            size: A4 landscape;
-            margin: 10mm;
-          }
-          .no-print {
-            display: none !important;
-          }
-        }
-      `}</style>
-
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }} className="no-print">
         <div style={{ display: 'flex', gap: '10px' }}>
           <select 

@@ -181,52 +181,6 @@ const NewMonthWiseBachatGatTaalebandReport = ({ selectedMonth, selectedYear }) =
 
   return (
     <div>
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          .no-print, .no-print *, .sidebar, .navbar, .tabs-container, header, button, .app-header {
-            display: none !important;
-            visibility: hidden !important;
-          }
-          .taaleband-print-area,
-          .taaleband-print-area * {
-            visibility: visible !important;
-          }
-          .taaleband-print-area {
-            display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 10px !important;
-            color: #000 !important;
-            background: #fff !important;
-            border: none !important;
-            box-shadow: none !important;
-          }
-          .taaleband-print-area table {
-            width: 100% !important;
-            border-collapse: collapse !important;
-          }
-          .taaleband-print-area th,
-          .taaleband-print-area td {
-            border: 1px solid #777 !important;
-            font-size: 11px !important;
-            padding: 4px 6px !important;
-          }
-          .taaleband-print-area tfoot {
-            display: table-row-group !important;
-          }
-          @page {
-            size: A4 portrait;
-            margin: 8mm;
-          }
-        }
-      `}</style>
-
       {/* Control Bar (Screen only) */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }} className="no-print">
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center', background: '#f8f9fa', padding: '10px 15px', borderRadius: '8px', border: '1px solid #e9ecef' }}>

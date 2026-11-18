@@ -75,34 +75,6 @@ const NewBachatGatRegisterReport = ({ selectedMonth: initialMonth, selectedYear:
 
   return (
     <div className="new-bachat-gat-report-container">
-      {/* Print Specific Styles */}
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .new-bachat-gat-register-print-area, .new-bachat-gat-register-print-area * {
-            visibility: visible;
-          }
-          .new-bachat-gat-register-print-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-          }
-          .new-bachat-gat-register-print-area tfoot {
-            display: table-row-group !important;
-          }
-          @page {
-            size: A4 landscape;
-            margin: 10mm;
-          }
-          .no-print-area {
-            display: none !important;
-          }
-        }
-      `}</style>
-
       {/* Filters Area (Not Printed) */}
       <div className="card no-print-area" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
