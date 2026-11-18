@@ -13,7 +13,7 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
   const [availableCash, setAvailableCash] = useState(null);
   const [formData, setFormData] = useState({
     member_id: initialMemberId || '',
-    principal_amount: '10000',
+    principal_amount: '0',
     interest_rate: '1.0',
     duration_months: '10',
     loan_date: new Date().toISOString().split('T')[0],
@@ -29,7 +29,7 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
       // Reset form synchronously
       setFormData({
         member_id: initialMemberId || '',
-        principal_amount: '10000',
+        principal_amount: '0',
         interest_rate: '1.0',
         duration_months: '10',
         loan_date: new Date().toISOString().split('T')[0],
@@ -218,7 +218,7 @@ const CreateLoanModal = ({ isOpen, onClose, onSuccess, initialMemberId = null })
               className="form-input"
               value={formData.principal_amount}
               onChange={handleChange}
-              min="1"
+              min="0"
               step="1"
               required
             />

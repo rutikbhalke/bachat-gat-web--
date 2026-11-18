@@ -1201,6 +1201,9 @@ export const loanService = {
       let totalMonthlyPrincipalExpected = 0;
       let totalAlreadyCollected = 0;
       let totalRemainingPrincipalDue = 0;
+      let totalMonthlyInterestExpected = 0;
+      let totalInterestAlreadyCollected = 0;
+      let totalRemainingInterestDue = 0;
       let paidLoansCount = 0;
       let partialLoansCount = 0;
       let pendingLoansCount = 0;
@@ -1211,6 +1214,7 @@ export const loanService = {
       for (const loan of activeLoans) {
         const originalPrincipal = Number(loan.originalPrincipal || loan.principalAmount || loan.principal_amount || 0);
         const tenure = Number(loan.durationMonths || loan.duration_months || loan.tenureMonths || loan.tenure_months || 10) || 10;
+        const interestRate = Number(loan.interestRate || loan.interest_rate || LOAN_INTEREST_RATE);
         const baseMonthlyPrincipal = tenure > 0 ? Math.round(originalPrincipal / tenure) : 0;
         const currentOutstanding = Number(loan.pendingPrincipal ?? loan.remainingAmount ?? loan.outstanding_amount ?? originalPrincipal);
         const totalPrincipalPaidSoFar = Number(loan.totalPrincipalPaid ?? loan.total_principal_paid ?? loan.total_principal_repaid ?? 0);
@@ -1232,6 +1236,11 @@ export const loanService = {
         let scheduledMonthlyPrincipal;
         let alreadyPaidForPeriod;
         let monthlyPrincipalDue;
+        let openingPrincipal;
+        let scheduledMonthlyInterest;
+        let interestPaidForPeriod;
+        let monthlyInterestDue;
+        let totalDue;
         let isEligible = true;
 
         if (targetRow) {
@@ -1239,6 +1248,11 @@ export const loanService = {
           scheduledMonthlyPrincipal = targetRow.principalExpected;
           alreadyPaidForPeriod = targetRow.principalPaid;
           monthlyPrincipalDue = Math.min(currentOutstanding, targetRow.principalRemaining);
+          openingPrincipal = targetRow.scheduledOpening;
+          scheduledMonthlyInterest = targetRow.interestExpected;
+          interestPaidForPeriod = targetRow.interestPaid;
+          monthlyInterestDue = Math.max(0, Math.round((scheduledMonthlyInterest - interestPaidForPeriod) * 100) / 100);
+          totalDue = Math.round((monthlyPrincipalDue + monthlyInterestDue) * 100) / 100;
         } else {
           // Check issue date against target month
           const issueDate = new Date(loan.issueDate || loan.loanDate || loan.createdAt || new Date());
@@ -1282,6 +1296,14 @@ export const loanService = {
               0
             );
             monthlyPrincipalDue = Math.min(currentOutstanding, Math.max(0, scheduledMonthlyPrincipal - alreadyPaidForPeriod));
+            openingPrincipal = currentOutstanding;
+            scheduledMonthlyInterest = Math.round(((openingPrincipal * interestRate) / 100) * 100) / 100;
+            interestPaidForPeriod = matchingRepayments.reduce(
+              (sum, r) => sum + Number(r.interestAmount ?? r.interest_amount ?? r.interestPaid ?? 0),
+              0
+            );
+            monthlyInterestDue = Math.max(0, Math.round((scheduledMonthlyInterest - interestPaidForPeriod) * 100) / 100);
+            totalDue = Math.round((monthlyPrincipalDue + monthlyInterestDue) * 100) / 100;
           } else {
             isEligible = false;
           }
@@ -1289,8 +1311,8 @@ export const loanService = {
 
         if (!isEligible) continue;
 
-        const isPaidFull = monthlyPrincipalDue === 0 && (alreadyPaidForPeriod >= scheduledMonthlyPrincipal || currentOutstanding === 0);
-        const isPartial = alreadyPaidForPeriod > 0 && monthlyPrincipalDue > 0;
+        const isPaidFull = monthlyPrincipalDue === 0 && monthlyInterestDue === 0 && (alreadyPaidForPeriod >= scheduledMonthlyPrincipal || currentOutstanding === 0);
+        const isPartial = (alreadyPaidForPeriod > 0 || interestPaidForPeriod > 0) && (monthlyPrincipalDue > 0 || monthlyInterestDue > 0);
         const status = isPaidFull ? 'PAID' : (isPartial ? 'PARTIAL' : 'PENDING');
 
         if (isPaidFull) paidLoansCount++;
@@ -1300,6 +1322,9 @@ export const loanService = {
         totalMonthlyPrincipalExpected += scheduledMonthlyPrincipal;
         totalAlreadyCollected += alreadyPaidForPeriod;
         totalRemainingPrincipalDue += monthlyPrincipalDue;
+        totalMonthlyInterestExpected += scheduledMonthlyInterest;
+        totalInterestAlreadyCollected += interestPaidForPeriod;
+        totalRemainingInterestDue += monthlyInterestDue;
 
         previewLoans.push({
           loanId: loan.id,
@@ -1312,10 +1337,18 @@ export const loanService = {
           totalPrincipalPaidSoFar,
           remainingPrincipal: currentOutstanding,
           installmentNumber,
+          openingPrincipal,
           scheduledMonthlyPrincipal,
           alreadyPaidForPeriod,
           monthlyPrincipalDue,
+          scheduledMonthlyInterest,
+          interestPaidForPeriod,
+          monthlyInterestDue,
+          totalDue,
+          suggestedPrincipal: monthlyPrincipalDue,
+          suggestedInterest: monthlyInterestDue,
           suggestedAmount: monthlyPrincipalDue,
+          suggestedTotal: totalDue,
           isPaidFull,
           isPartial,
           status,
@@ -1336,6 +1369,10 @@ export const loanService = {
         totalMonthlyPrincipalExpected,
         totalAlreadyCollected,
         totalRemainingPrincipalDue,
+        totalMonthlyInterestExpected,
+        totalInterestAlreadyCollected,
+        totalRemainingInterestDue,
+        totalCollectionExpected: totalRemainingPrincipalDue + totalRemainingInterestDue,
         paidLoansCount,
         partialLoansCount,
         pendingLoansCount,
@@ -1408,6 +1445,7 @@ export const loanService = {
         }
 
         let totalPrincipalCollected = 0;
+        let totalInterestCollected = 0;
         const skippedDuplicates = [];
         const processedItems = [];
 
@@ -1425,7 +1463,7 @@ export const loanService = {
           const memberName = item.memberName || loanData.memberName || loanData.member_name || 'Member';
           const loanNumber = loanData.loanNumber || loanData.loan_number || loanId;
 
-          if ((loanData.status || '').toUpperCase() === 'CLOSED' || currentPending <= 0) {
+          if ((loanData.status || '').toUpperCase() === 'CLOSED' && currentPending <= 0 && Number(item.interestAmount || 0) <= 0) {
             skippedDuplicates.push({
               loanId,
               loanNumber,
@@ -1435,16 +1473,19 @@ export const loanService = {
             continue;
           }
 
-          const requestedAmount = Number(item.amount);
+          const requestedPrincipal = Number(item.principalAmount ?? item.amount ?? 0);
+          const requestedInterest = Number(item.interestAmount ?? 0);
           const monthlyPrincipalDue = Number(item.monthlyPrincipalDue ?? item.suggestedAmount ?? currentPending);
-          const allowedPrincipal = Math.min(requestedAmount, monthlyPrincipalDue, currentPending);
+          const allowedPrincipal = Math.min(requestedPrincipal, monthlyPrincipalDue, currentPending);
+          const allowedInterest = Math.max(0, requestedInterest);
+          const totalItemAmount = Math.round((allowedPrincipal + allowedInterest) * 100) / 100;
 
-          if (allowedPrincipal <= 0) {
+          if (totalItemAmount <= 0) {
             skippedDuplicates.push({
               loanId,
               loanNumber,
               memberName,
-              reason: 'Principal installment already paid or zero balance due',
+              reason: 'Principal and interest collection amounts are both zero or already settled',
             });
             continue;
           }
@@ -1457,11 +1498,14 @@ export const loanService = {
           const newStatus = newPending === 0 ? 'CLOSED' : 'ACTIVE';
           const currentTotalPrincipalPaid = Number(loanData.totalPrincipalPaid ?? loanData.total_principal_paid ?? loanData.total_principal_repaid ?? 0);
           const newTotalPrincipalPaid = currentTotalPrincipalPaid + allowedPrincipal;
+          const currentTotalInterestPaid = Number(loanData.totalInterestPaid ?? loanData.total_interest_paid ?? 0);
+          const newTotalInterestPaid = currentTotalInterestPaid + allowedInterest;
 
           totalPrincipalCollected += allowedPrincipal;
+          totalInterestCollected += allowedInterest;
 
           const itemMode = item.paymentMode || paymentMode;
-          const itemRemarks = (item.remarks || remarks || `Bulk Monthly Loan Principal Collection (${month}/${year})`).trim();
+          const itemRemarks = (item.remarks || remarks || `Bulk Monthly Collection (${month}/${year})`).trim();
 
           // 1. Update Loan Document
           transaction.update(loanRef, {
@@ -1471,12 +1515,14 @@ export const loanService = {
             totalPrincipalPaid: newTotalPrincipalPaid,
             total_principal_paid: newTotalPrincipalPaid,
             total_principal_repaid: newTotalPrincipalPaid,
+            totalInterestPaid: newTotalInterestPaid,
+            total_interest_paid: newTotalInterestPaid,
             lastInstallmentPaid: targetInstallmentNumber,
             status: newStatus,
             updatedAt: effectiveDate,
           });
 
-          // 2. Create Repayment Record (strictly principal, 0 interest, 0 regular savings)
+          // 2. Create Repayment Record (Principal + 1% reducing interest)
           transaction.set(repayRef, {
             id: repaymentId,
             repaymentId,
@@ -1497,17 +1543,17 @@ export const loanService = {
             principal_amount: allowedPrincipal,
             principalRepaid: allowedPrincipal,
             principal_repayment_amount: allowedPrincipal,
-            interestAmount: 0,
-            interest_amount: 0,
+            interestAmount: allowedInterest,
+            interest_amount: allowedInterest,
             regularHaptaAmount: 0,
             regular_hafta_amount: 0,
             regularContribution: 0,
-            amount: allowedPrincipal,
-            loanRepaymentAmount: allowedPrincipal,
-            totalAmount: allowedPrincipal,
-            total_amount: allowedPrincipal,
-            totalPaid: allowedPrincipal,
-            total_payment: allowedPrincipal,
+            amount: totalItemAmount,
+            loanRepaymentAmount: totalItemAmount,
+            totalAmount: totalItemAmount,
+            total_amount: totalItemAmount,
+            totalPaid: totalItemAmount,
+            total_payment: totalItemAmount,
             openingPrincipal: currentPending,
             closingPrincipal: newPending,
             month,
@@ -1521,31 +1567,31 @@ export const loanService = {
             paymentMode: itemMode,
             payment_mode: itemMode,
             remarks: itemRemarks,
-            source: 'BULK_LOAN_PRINCIPAL_COLLECTION',
+            source: 'BULK_LOAN_COLLECTION',
             createdAt: effectiveDate,
           });
 
           // 3. Create Transaction Record
-          const actId = `ACT_${Date.now()}_${loanId}_bulk_principal`;
+          const actId = `ACT_${Date.now()}_${loanId}_bulk_collection`;
           const actRef = doc(db, 'transactions', actId);
           transaction.set(actRef, {
             id: actId,
             groupId: targetGroupId,
             type: 'repayment',
             type_flutter: 'loanRepayment',
-            amount: allowedPrincipal,
+            amount: totalItemAmount,
             principalAmount: allowedPrincipal,
             principal_amount: allowedPrincipal,
-            interestAmount: 0,
-            interest_amount: 0,
+            interestAmount: allowedInterest,
+            interest_amount: allowedInterest,
             regularHaptaAmount: 0,
             regular_hafta_amount: 0,
-            totalAmount: allowedPrincipal,
-            description: `Bulk monthly loan principal ₹${allowedPrincipal.toLocaleString('en-IN')} collected from ${memberName} (${loanNumber})`,
+            totalAmount: totalItemAmount,
+            description: `Bulk monthly collection ₹${totalItemAmount.toLocaleString('en-IN')} (Prin: ₹${allowedPrincipal.toLocaleString('en-IN')}, Int: ₹${allowedInterest.toLocaleString('en-IN')}) from ${memberName} (${loanNumber})`,
             memberId,
             memberName,
             referenceId: repaymentId,
-            source: 'BULK_LOAN_PRINCIPAL_COLLECTION',
+            source: 'BULK_LOAN_COLLECTION',
             date: effectiveDate,
             createdAt: effectiveDate,
           });
@@ -1555,21 +1601,25 @@ export const loanService = {
             loanNumber,
             memberId,
             memberName,
-            amountCollected: allowedPrincipal,
+            amountCollected: totalItemAmount,
+            principalCollected: allowedPrincipal,
+            interestCollected: allowedInterest,
             newPending,
             newStatus,
           });
         }
 
-        // 5. Update Group Financial Totals (Available Balance increases, Active Loans decreases, Total Fund constant, Savings & Interest untouched)
+        // 5. Update Group Financial Totals (Available Balance increases by Prin + Int, Active Loans decreases by Prin, Total Fund increases by Int)
         const currentActiveLoans = Number(groupData.activeLoans || groupData.active_loans || groupData.totalOutstandingLoans || 0);
         const newActiveLoans = Math.max(0, currentActiveLoans - totalPrincipalCollected);
         const currentAvailable = Number(groupData.availableBalance ?? groupData.available_balance ?? 0);
-        const newAvailableBalance = Math.round((currentAvailable + totalPrincipalCollected) * 100) / 100;
+        const newAvailableBalance = Math.round((currentAvailable + totalPrincipalCollected + totalInterestCollected) * 100) / 100;
         const newTotalFund = Math.round((newAvailableBalance + newActiveLoans) * 100) / 100;
+        const currentGroupInterest = Number(groupData.totalInterestPaid ?? groupData.total_interest_paid ?? 0);
+        const newGroupInterest = Math.round((currentGroupInterest + totalInterestCollected) * 100) / 100;
         const newMonthlyInterest = Math.round(newActiveLoans * 0.02 * 100) / 100;
 
-        if (totalPrincipalCollected > 0 && groupSnap.exists()) {
+        if ((totalPrincipalCollected > 0 || totalInterestCollected > 0) && groupSnap.exists()) {
           transaction.update(groupRef, {
             activeLoans: newActiveLoans,
             active_loans: newActiveLoans,
@@ -1579,6 +1629,8 @@ export const loanService = {
             rawAvailableBalance: newAvailableBalance,
             totalFund: newTotalFund,
             total_fund: newTotalFund,
+            totalInterestPaid: newGroupInterest,
+            total_interest_paid: newGroupInterest,
             currentMonthlyInterest: newMonthlyInterest,
             current_monthly_interest: newMonthlyInterest,
             updatedAt: effectiveDate,
@@ -1596,7 +1648,9 @@ export const loanService = {
           year,
           count: processedItems.length,
           skippedCount: skippedDuplicates.length,
-          totalCollected: totalPrincipalCollected,
+          totalCollected: totalPrincipalCollected + totalInterestCollected,
+          totalPrincipalCollected,
+          totalInterestCollected,
           skippedDuplicates,
           createdAt: effectiveDate,
         });
@@ -1604,12 +1658,15 @@ export const loanService = {
         return {
           isDuplicate: false,
           count: processedItems.length,
-          totalCollected: totalPrincipalCollected,
+          totalCollected: totalPrincipalCollected + totalInterestCollected,
+          totalPrincipalCollected,
+          totalInterestCollected,
           skippedDuplicates,
           processedItems,
           newActiveLoans,
           newAvailableBalance,
           newTotalFund,
+          newGroupInterest,
         };
       });
 
@@ -1617,12 +1674,14 @@ export const loanService = {
         success: true,
         isIdempotentReplay: Boolean(result.isDuplicate),
         message: result.isDuplicate
-          ? 'Bulk loan principal collection already recorded.'
+          ? 'Bulk loan collection already recorded.'
           : (result.count > 0
-              ? `Bulk monthly loan principal of ₹${result.totalCollected.toLocaleString('en-IN')} recorded for ${result.count} loan(s).`
-              : 'All selected loans already have principal recorded for this period. Duplicate writes prevented.'),
+              ? `Bulk monthly loan collection of ₹${result.totalCollected.toLocaleString('en-IN')} (Principal: ₹${result.totalPrincipalCollected.toLocaleString('en-IN')}, Interest: ₹${result.totalInterestCollected.toLocaleString('en-IN')}) recorded for ${result.count} loan(s).`
+              : 'All selected loans already have collection recorded for this period. Duplicate writes prevented.'),
         count: result.count,
         totalCollected: result.totalCollected,
+        totalPrincipalCollected: result.totalPrincipalCollected,
+        totalInterestCollected: result.totalInterestCollected,
         skippedDuplicates: result.skippedDuplicates || [],
         groupBalances: {
           activeLoans: result.newActiveLoans,
@@ -1633,6 +1692,293 @@ export const loanService = {
     } catch (err) {
       console.error('Failed to record bulk loan principal in Firestore:', err);
       throw new Error(err.message || 'Failed to record bulk loan principal.');
+    }
+  },
+
+  /**
+   * Get Pending Loan Interest Recovery preview across all loans (both active and closed)
+   * Evaluates unpaid/underpaid 1% monthly reducing-balance interest on past installments
+   */
+  getPendingInterestRecoveryPreview: async (groupId = DEFAULT_GROUP_ID) => {
+    try {
+      const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
+
+      const [loansSnap, repaymentsSnap, membersSnap] = await Promise.all([
+        getDocs(groupQuery('loans', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('repayments', targetGroupId)).catch(() => ({ docs: [] })),
+        getDocs(groupQuery('users', targetGroupId)).catch(() => ({ docs: [] })),
+      ]);
+
+      const membersMap = {};
+      membersSnap.docs.forEach((docSnap) => {
+        const d = docSnap.data();
+        const memberName = d.name || d.fullName || 'Member';
+        const memberCode = d.memberCode || d.member_code || docSnap.id;
+        membersMap[docSnap.id] = { name: memberName, code: memberCode, phone: d.phone || '' };
+        if (d.userId) membersMap[d.userId] = { name: memberName, code: memberCode, phone: d.phone || '' };
+        if (d.authUid) membersMap[d.authUid] = { name: memberName, code: memberCode, phone: d.phone || '' };
+      });
+
+      const allRepayments = repaymentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const allLoans = loansSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      const recoveryItems = [];
+      let totalPendingInterest = 0;
+
+      for (const loan of allLoans) {
+        if (loan.isDeleted) continue;
+        const mem = membersMap[loan.memberId || loan.member_id] || { name: loan.memberName || 'Member', code: loan.memberCode || '' };
+        const loanReps = allRepayments.filter((r) => String(r.loanId || r.loan_id) === String(loan.id));
+        const orig = Number(loan.originalPrincipal || loan.principalAmount || 0);
+        const pend = Number(loan.pendingPrincipal ?? loan.remainingAmount ?? 0);
+        const interestRate = Number(loan.interestRate || loan.interest_rate || LOAN_INTEREST_RATE);
+
+        let uncollectedForLoan = 0;
+        const unpaidInstallments = [];
+
+        loanReps.forEach((r) => {
+          const p = Number(r.principalAmount ?? r.principal_amount ?? 0);
+          const i = Number(r.interestAmount ?? r.interest_amount ?? 0);
+          const opening = Number(r.openingPrincipal ?? orig);
+          const expectedI = Math.round(((opening * interestRate) / 100) * 100) / 100;
+          const diff = Math.max(0, expectedI - i);
+          if (diff > 0 && p > 0) {
+            uncollectedForLoan += diff;
+            unpaidInstallments.push({
+              installmentNumber: r.installmentNumber || r.installment_number || 'N/A',
+              month: r.paymentMonth || r.month,
+              year: r.paymentYear || r.year,
+              principalPaid: p,
+              interestPaid: i,
+              interestDue: expectedI,
+              uncollectedInterest: diff,
+              source: r.source || 'REPAYMENT',
+            });
+          }
+        });
+
+        if (uncollectedForLoan > 0) {
+          totalPendingInterest += uncollectedForLoan;
+          recoveryItems.push({
+            loanId: loan.id,
+            loanNumber: loan.loanNumber || loan.id,
+            memberId: loan.memberId,
+            memberName: mem.name,
+            memberCode: mem.code,
+            phone: mem.phone || '',
+            status: (loan.status || '').toUpperCase(),
+            originalPrincipal: orig,
+            pendingPrincipal: pend,
+            uncollectedInterest: uncollectedForLoan,
+            suggestedAmount: uncollectedForLoan,
+            unpaidInstallments,
+          });
+        }
+      }
+
+      recoveryItems.sort((a, b) => a.memberName.localeCompare(b.memberName));
+
+      return {
+        success: true,
+        groupId: targetGroupId,
+        totalItems: recoveryItems.length,
+        totalPendingInterest: Math.round(totalPendingInterest * 100) / 100,
+        items: recoveryItems,
+      };
+    } catch (err) {
+      console.error('Failed to get pending interest recovery preview:', err);
+      throw err;
+    }
+  },
+
+  /**
+   * Record Pending Loan Interest Recovery atomically with strict financial safety
+   * - Credits Interest Income
+   * - Updates group.availableBalance and group.totalFund
+   * - Leaves loan pending principal and group active loans untouched
+   */
+  recordPendingInterestRecovery: async (
+    { items, paymentDate, paymentMode = 'UPI', remarks = '', clientRequestId },
+    groupId = DEFAULT_GROUP_ID
+  ) => {
+    const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error('Items array cannot be empty.');
+    }
+    const validItems = items.filter((item) => item && (item.loanId || item.loan_id) && Number(item.amount) > 0);
+    if (validItems.length === 0) {
+      throw new Error('No items with interest recovery amount greater than ₹0 selected.');
+    }
+
+    try {
+      const effectiveDate = paymentDate || new Date().toISOString().split('T')[0];
+      const requestId = clientRequestId || `INT_RECOV_REQ_${Date.now()}`;
+      const idempotencyRef = doc(db, 'transactions', `IDEM_${requestId}`);
+
+      const result = await runTransaction(db, async (transaction) => {
+        const idempotencySnap = await transaction.get(idempotencyRef);
+        if (idempotencySnap.exists()) {
+          return {
+            isDuplicate: true,
+            message: 'Interest recovery already recorded.',
+            data: idempotencySnap.data(),
+          };
+        }
+
+        const groupRef = doc(db, 'groups', targetGroupId);
+        const groupSnap = await transaction.get(groupRef);
+        const groupData = groupSnap.exists() ? groupSnap.data() : {};
+
+        const loanPlan = [];
+        for (const item of validItems) {
+          const loanId = item.loanId || item.loan_id;
+          const loanRef = doc(db, 'loans', loanId);
+          const loanSnap = await transaction.get(loanRef);
+          loanPlan.push({ item, loanId, loanRef, loanSnap });
+        }
+
+        let totalInterestRecovered = 0;
+        const processedItems = [];
+
+        for (const plan of loanPlan) {
+          const { item, loanId, loanRef, loanSnap } = plan;
+          if (!loanSnap.exists()) continue;
+
+          const loanData = loanSnap.data();
+          const memberId = loanData.memberId || item.memberId;
+          const memberName = item.memberName || loanData.memberName || 'Member';
+          const loanNumber = loanData.loanNumber || loanId;
+          const recoverAmount = Number(item.amount);
+
+          if (recoverAmount <= 0) continue;
+
+          const repaymentId = `REP_${loanId}_INT_RECOV_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          const repayRef = doc(db, 'repayments', repaymentId);
+
+          const currentTotalInterestPaid = Number(loanData.totalInterestPaid ?? loanData.total_interest_paid ?? 0);
+          const newTotalInterestPaid = currentTotalInterestPaid + recoverAmount;
+
+          totalInterestRecovered += recoverAmount;
+          const itemMode = item.paymentMode || paymentMode;
+          const itemRemarks = (item.remarks || remarks || 'Pending Interest Recovery').trim();
+
+          // 1. Update Loan Document (interest paid updated; principal untouched)
+          transaction.update(loanRef, {
+            totalInterestPaid: newTotalInterestPaid,
+            total_interest_paid: newTotalInterestPaid,
+            updatedAt: effectiveDate,
+          });
+
+          // 2. Create Repayment Document (type: INTEREST_REPAYMENT, principal: 0, interest: recoverAmount)
+          transaction.set(repayRef, {
+            id: repaymentId,
+            repaymentId,
+            groupId: targetGroupId,
+            loanId,
+            loanNumber,
+            memberId,
+            memberName,
+            type: 'INTEREST_REPAYMENT',
+            transactionType: 'INTEREST_REPAYMENT',
+            principalAmount: 0,
+            interestAmount: recoverAmount,
+            totalAmount: recoverAmount,
+            amount: recoverAmount,
+            paymentDate: effectiveDate,
+            paymentMode: itemMode,
+            remarks: itemRemarks,
+            source: 'PENDING_INTEREST_RECOVERY',
+            createdAt: effectiveDate,
+          });
+
+          // 3. Create Transaction Document (type: interestIncome)
+          const actId = `ACT_${Date.now()}_${loanId}_int_recov`;
+          const actRef = doc(db, 'transactions', actId);
+          transaction.set(actRef, {
+            id: actId,
+            groupId: targetGroupId,
+            type: 'interestIncome',
+            type_flutter: 'interestIncome',
+            amount: recoverAmount,
+            principalAmount: 0,
+            interestAmount: recoverAmount,
+            totalAmount: recoverAmount,
+            description: `Pending interest ₹${recoverAmount.toLocaleString('en-IN')} recovered from ${memberName} (${loanNumber})`,
+            memberId,
+            memberName,
+            referenceId: repaymentId,
+            source: 'PENDING_INTEREST_RECOVERY',
+            date: effectiveDate,
+            createdAt: effectiveDate,
+          });
+
+          processedItems.push({
+            loanId,
+            loanNumber,
+            memberId,
+            memberName,
+            amountRecovered: recoverAmount,
+          });
+        }
+
+        // 4. Update Group Financials (Available Balance increases, Total Fund increases, Active Loans untouched)
+        const currentAvailable = Number(groupData.availableBalance ?? groupData.available_balance ?? 0);
+        const newAvailableBalance = Math.round((currentAvailable + totalInterestRecovered) * 100) / 100;
+        const currentActiveLoans = Number(groupData.activeLoans || groupData.active_loans || 0);
+        const newTotalFund = Math.round((newAvailableBalance + currentActiveLoans) * 100) / 100;
+        const currentGroupTotalInterest = Number(groupData.totalInterestPaid ?? groupData.total_interest_paid ?? 0);
+        const newGroupTotalInterest = Math.round((currentGroupTotalInterest + totalInterestRecovered) * 100) / 100;
+
+        if (totalInterestRecovered > 0 && groupSnap.exists()) {
+          transaction.update(groupRef, {
+            availableBalance: newAvailableBalance,
+            available_balance: newAvailableBalance,
+            rawAvailableBalance: newAvailableBalance,
+            totalFund: newTotalFund,
+            total_fund: newTotalFund,
+            totalInterestPaid: newGroupTotalInterest,
+            total_interest_paid: newGroupTotalInterest,
+            updatedAt: effectiveDate,
+          });
+        }
+
+        // 5. Idempotency Marker
+        transaction.set(idempotencyRef, {
+          id: `IDEM_${requestId}`,
+          type: 'IDEMPOTENCY_MARKER',
+          feature: 'PENDING_INTEREST_RECOVERY',
+          requestId,
+          groupId: targetGroupId,
+          count: processedItems.length,
+          totalRecovered: totalInterestRecovered,
+          processedItems,
+          createdAt: effectiveDate,
+        });
+
+        return {
+          isDuplicate: false,
+          count: processedItems.length,
+          totalRecovered: totalInterestRecovered,
+          processedItems,
+          newAvailableBalance,
+          newTotalFund,
+          newGroupTotalInterest,
+        };
+      });
+
+      return {
+        success: true,
+        isIdempotentReplay: Boolean(result.isDuplicate),
+        message: result.isDuplicate
+          ? 'Pending interest recovery already recorded.'
+          : `Pending interest of ₹${result.totalRecovered.toLocaleString('en-IN')} recovered for ${result.count} loan(s).`,
+        count: result.count,
+        totalRecovered: result.totalRecovered,
+        processedItems: result.processedItems || [],
+      };
+    } catch (err) {
+      console.error('Failed to record pending interest recovery in Firestore:', err);
+      throw new Error(err.message || 'Failed to record pending interest recovery.');
     }
   },
 

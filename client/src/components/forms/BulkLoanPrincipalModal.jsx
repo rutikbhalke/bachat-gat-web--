@@ -35,8 +35,10 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
 
   // Row selection state: map of loanId -> boolean
   const [selectedMap, setSelectedMap] = useState({});
-  // Amount inputs state: map of loanId -> number/string
+  // Principal amount inputs state: map of loanId -> number/string
   const [amountMap, setAmountMap] = useState({});
+  // Interest amount inputs state: map of loanId -> number/string
+  const [interestMap, setInterestMap] = useState({});
   // Mode override state: map of loanId -> string
   const [modeMap, setModeMap] = useState({});
 
@@ -76,27 +78,30 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
       if (res && res.success) {
         setPreviewData(res);
 
-        // Pre-select all loans who have monthly principal due > 0
+        // Pre-select all loans who have monthly principal or interest due > 0
         const initialSelected = {};
         const initialAmounts = {};
+        const initialInterests = {};
         const initialModes = {};
 
         (res.loans || []).forEach((l) => {
-          const hasDue = (l.monthlyPrincipalDue || 0) > 0;
+          const hasDue = (l.monthlyPrincipalDue || 0) > 0 || (l.monthlyInterestDue || 0) > 0;
           initialSelected[l.loanId] = hasDue;
           initialAmounts[l.loanId] = (l.monthlyPrincipalDue || 0).toString();
+          initialInterests[l.loanId] = (l.monthlyInterestDue || 0).toString();
           initialModes[l.loanId] = 'UPI';
         });
 
         setSelectedMap(initialSelected);
         setAmountMap(initialAmounts);
+        setInterestMap(initialInterests);
         setModeMap(initialModes);
       }
     } catch (err) {
       console.error('Failed to load bulk loan principal preview:', err);
       showError({
         title: 'Error Loading Loan Dues',
-        message: err.message || 'Could not fetch active loan principal dues.',
+        message: err.message || 'Could not fetch active loan dues.',
       });
     } finally {
       setLoading(false);
@@ -127,17 +132,21 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
 
   // Compute selected totals live
   const selectedSummary = useMemo(() => {
-    if (!previewData?.loans) return { count: 0, totalAmount: 0, validItems: [] };
+    if (!previewData?.loans) return { count: 0, totalPrincipal: 0, totalInterest: 0, totalAmount: 0, validItems: [] };
     let count = 0;
-    let totalAmount = 0;
+    let totalPrincipal = 0;
+    let totalInterest = 0;
     const validItems = [];
 
     previewData.loans.forEach((l) => {
       if (selectedMap[l.loanId]) {
-        const amt = parseFloat(amountMap[l.loanId] || 0);
-        if (amt > 0) {
+        const prinAmt = parseFloat(amountMap[l.loanId] || 0);
+        const intAmt = parseFloat(interestMap[l.loanId] || 0);
+        const totalItem = Math.round((prinAmt + intAmt) * 100) / 100;
+        if (totalItem > 0) {
           count++;
-          totalAmount += amt;
+          totalPrincipal += prinAmt;
+          totalInterest += intAmt;
           validItems.push({
             loanId: l.loanId,
             loanNumber: l.loanNumber,
@@ -150,7 +159,12 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
             scheduledMonthlyPrincipal: l.scheduledMonthlyPrincipal,
             alreadyPaidForPeriod: l.alreadyPaidForPeriod,
             monthlyPrincipalDue: l.monthlyPrincipalDue,
-            amount: amt,
+            scheduledMonthlyInterest: l.scheduledMonthlyInterest,
+            interestPaidForPeriod: l.interestPaidForPeriod,
+            monthlyInterestDue: l.monthlyInterestDue,
+            principalAmount: prinAmt,
+            interestAmount: intAmt,
+            amount: totalItem,
             paymentMode: modeMap[l.loanId] || globalMode,
             remarks: remarks.trim(),
           });
@@ -158,8 +172,14 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
       }
     });
 
-    return { count, totalAmount, validItems };
-  }, [previewData, selectedMap, amountMap, modeMap, globalMode, remarks]);
+    return {
+      count,
+      totalPrincipal: Math.round(totalPrincipal * 100) / 100,
+      totalInterest: Math.round(totalInterest * 100) / 100,
+      totalAmount: Math.round((totalPrincipal + totalInterest) * 100) / 100,
+      validItems,
+    };
+  }, [previewData, selectedMap, amountMap, interestMap, modeMap, globalMode, remarks]);
 
   // Select all / Deselect all handlers
   const handleToggleSelectAll = () => {
@@ -174,17 +194,20 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
   const handleSelectOnlyPending = () => {
     const nextSelected = {};
     (previewData?.loans || []).forEach((l) => {
-      nextSelected[l.loanId] = (l.monthlyPrincipalDue || 0) > 0;
+      nextSelected[l.loanId] = (l.monthlyPrincipalDue || 0) > 0 || (l.monthlyInterestDue || 0) > 0;
     });
     setSelectedMap(nextSelected);
   };
 
   const handleAutoFillDues = () => {
     const nextAmounts = { ...amountMap };
+    const nextInterests = { ...interestMap };
     (previewData?.loans || []).forEach((l) => {
       nextAmounts[l.loanId] = (l.monthlyPrincipalDue || 0).toString();
+      nextInterests[l.loanId] = (l.monthlyInterestDue || 0).toString();
     });
     setAmountMap(nextAmounts);
+    setInterestMap(nextInterests);
   };
 
   const handleApplyGlobalMode = (mode) => {
@@ -214,16 +237,33 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
     setAmountMap((prev) => ({ ...prev, [loanId]: rawValue }));
   };
 
+  const handleInterestChange = (loanId, rawValue, maxAllowed) => {
+    if (rawValue === '') {
+      setInterestMap((prev) => ({ ...prev, [loanId]: '' }));
+      return;
+    }
+    const val = parseFloat(rawValue);
+    if (isNaN(val) || val < 0) {
+      setInterestMap((prev) => ({ ...prev, [loanId]: '0' }));
+      return;
+    }
+    if (val > maxAllowed) {
+      setInterestMap((prev) => ({ ...prev, [loanId]: maxAllowed.toString() }));
+      return;
+    }
+    setInterestMap((prev) => ({ ...prev, [loanId]: rawValue }));
+  };
+
   // Form submission with idempotency protection and double confirmation
   const handleSubmit = async () => {
     if (submitting) return;
 
-    const { count, totalAmount, validItems } = selectedSummary;
+    const { count, totalPrincipal, totalInterest, totalAmount, validItems } = selectedSummary;
 
     if (count === 0 || totalAmount <= 0) {
       showError({
         title: 'No Loans Selected',
-        message: 'Please select at least one loan with a principal collection amount greater than ₹0.',
+        message: 'Please select at least one loan with a collection amount greater than ₹0.',
       });
       return;
     }
@@ -232,17 +272,19 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
 
     // Confirmation Dialog
     const confirmed = await askConfirm({
-      title: 'Confirm Bulk Loan Principal Collection',
-      message: `Record bulk loan principal collection for ${monthName} ${selectedYear}?`,
+      title: 'Confirm Bulk Monthly Collection (Principal + 1% Interest)',
+      message: `Record bulk monthly loan collection for ${monthName} ${selectedYear}?`,
       details: [
         { label: 'Selected Loans', value: `${count} Loans` },
         { label: 'Period', value: `${monthName} ${selectedYear}` },
         { label: 'Collection Date', value: formatDate(collectionDate) },
-        { label: 'Total Principal Amount', value: formatCurrency(totalAmount), highlight: true },
+        { label: 'Principal to Collect', value: formatCurrency(totalPrincipal) },
+        { label: '1% Interest to Collect', value: formatCurrency(totalInterest) },
+        { label: 'Total Collection Amount', value: formatCurrency(totalAmount), highlight: true },
         { label: 'Primary Payment Mode', value: globalMode },
-        { label: 'Accounting Rule', value: 'Principal Only • 0% Interest • 0% Savings' },
+        { label: 'Accounting Rule', value: 'Principal reduces Active Loans • 1% Interest added to Available Balance' },
       ],
-      confirmText: `Collect ${formatCurrency(totalAmount)} Principal`,
+      confirmText: `Collect ${formatCurrency(totalAmount)} (Prin + Int)`,
       confirmVariant: 'primary',
     });
 
@@ -295,8 +337,8 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Bulk Monthly Loan Principal Collection"
-      maxWidth="1040px"
+      title="Bulk Monthly Loan Collection (Principal + 1% Interest)"
+      maxWidth="1100px"
       bodyPadding="20px"
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -383,15 +425,15 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
                 gap: '6px',
                 padding: '6px 10px',
                 borderRadius: 'var(--radius-full)',
-                background: '#FEF3C7',
-                border: '1px solid #FDE68A',
+                background: '#ECFDF5',
+                border: '1px solid #A7F3D0',
                 fontSize: '0.75rem',
-                color: '#92400E',
-                fontWeight: 700,
+                color: '#065F46',
+                fontWeight: 600,
               }}
             >
-              <Coins size={14} />
-              <span>Principal Only • 0% Interest</span>
+              <ShieldCheck size={14} color="#059669" />
+              <span>Principal + 1% Reducing Interest Collection</span>
             </div>
           </div>
         </div>
@@ -481,17 +523,37 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
           >
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Calendar size={14} color="#6366F1" />
-              MONTH EXPECTED
+              PRINCIPAL DUE
             </div>
             <div style={{ fontSize: '1.35rem', fontWeight: 800, marginTop: '4px', color: '#4F46E5' }}>
-              {previewData ? formatCurrency(previewData.totalMonthlyPrincipalExpected) : '—'}
+              {previewData ? formatCurrency(previewData.totalRemainingPrincipalDue ?? previewData.totalMonthlyPrincipalExpected) : '—'}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              Scheduled installment principal
+              Scheduled monthly principal
             </div>
           </div>
 
-          {/* Card 3: Already Collected */}
+          {/* Card 3: Monthly 1% Interest Expected */}
+          <div
+            className="card"
+            style={{
+              padding: '12px 14px',
+              borderLeft: '4px solid #F59E0B',
+            }}
+          >
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Coins size={14} color="#F59E0B" />
+              1% INTEREST DUE
+            </div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, marginTop: '4px', color: '#D97706' }}>
+              {previewData ? formatCurrency(previewData.totalRemainingInterestDue ?? previewData.totalMonthlyInterestExpected ?? 0) : '—'}
+            </div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              1% monthly reducing interest
+            </div>
+          </div>
+
+          {/* Card 4: Total Expected Collection */}
           <div
             className="card"
             style={{
@@ -501,33 +563,13 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
           >
             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <CheckCircle2 size={14} color="#0EA5E9" />
-              ALREADY COLLECTED
+              TOTAL PERIOD DUE
             </div>
             <div style={{ fontSize: '1.35rem', fontWeight: 800, marginTop: '4px', color: '#0284C7' }}>
-              {previewData ? formatCurrency(previewData.totalAlreadyCollected) : '—'}
+              {previewData ? formatCurrency((previewData.totalRemainingPrincipalDue || 0) + (previewData.totalRemainingInterestDue || 0)) : '—'}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              Collected for this period
-            </div>
-          </div>
-
-          {/* Card 4: Remaining Principal Due */}
-          <div
-            className="card"
-            style={{
-              padding: '12px 14px',
-              borderLeft: '4px solid #F59E0B',
-            }}
-          >
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <AlertCircle size={14} color="#F59E0B" />
-              REMAINING DUE
-            </div>
-            <div style={{ fontSize: '1.35rem', fontWeight: 800, marginTop: '4px', color: '#D97706' }}>
-              {previewData ? formatCurrency(previewData.totalRemainingPrincipalDue) : '—'}
-            </div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              Uncollected balance for period
+              Principal + 1% Interest
             </div>
           </div>
 
@@ -548,7 +590,7 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
               {formatCurrency(selectedSummary.totalAmount)}
             </div>
             <div style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 600 }}>
-              {selectedSummary.count} of {filteredLoans.length} loans checked
+              Prin: {formatCurrency(selectedSummary.totalPrincipal)} • Int: {formatCurrency(selectedSummary.totalInterest)}
             </div>
           </div>
         </div>
@@ -663,12 +705,12 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
                 </th>
                 <th>Member Name</th>
                 <th>Member Code</th>
-                <th>Loan ID</th>
-                <th style={{ textAlign: 'right' }}>Total Principal</th>
-                <th style={{ textAlign: 'right' }}>Already Paid</th>
-                <th style={{ textAlign: 'right' }}>Monthly Due</th>
-                <th style={{ width: '150px', textAlign: 'right' }}>Collect Amount</th>
-                <th style={{ width: '120px' }}>Payment Mode</th>
+                <th>Loan ID / Inst</th>
+                <th style={{ textAlign: 'right' }}>Bal Principal</th>
+                <th style={{ width: '130px', textAlign: 'right' }}>Principal Due (₹)</th>
+                <th style={{ width: '120px', textAlign: 'right' }}>1% Interest Due (₹)</th>
+                <th style={{ textAlign: 'right' }}>Total Inst (₹)</th>
+                <th style={{ width: '110px' }}>Mode</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
               </tr>
             </thead>
@@ -677,7 +719,7 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
                 <tr>
                   <td colSpan={10} style={{ textAlign: 'center', padding: '36px' }}>
                     <RefreshCw size={24} className="spin" style={{ margin: '0 auto 8px', color: 'var(--primary)' }} />
-                    <div style={{ color: 'var(--text-secondary)' }}>Calculating loan principal installments...</div>
+                    <div style={{ color: 'var(--text-secondary)' }}>Calculating loan principal and 1% interest installments...</div>
                   </td>
                 </tr>
               ) : filteredLoans.length === 0 ? (
@@ -700,7 +742,11 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
               ) : (
                 filteredLoans.map((loan) => {
                   const isSelected = Boolean(selectedMap[loan.loanId]);
-                  const maxAllowed = Math.min(loan.monthlyPrincipalDue, loan.remainingPrincipal);
+                  const maxAllowedPrin = Math.min(loan.monthlyPrincipalDue, loan.remainingPrincipal);
+                  const maxAllowedInt = loan.monthlyInterestDue ?? 0;
+                  const currentPrin = parseFloat(amountMap[loan.loanId] || 0);
+                  const currentInt = parseFloat(interestMap[loan.loanId] || 0);
+                  const currentTotal = Math.round((currentPrin + currentInt) * 100) / 100;
 
                   let statusBadge = (
                     <span className="badge badge-warning" style={{ fontSize: '0.7rem', padding: '2px 8px' }}>
@@ -761,51 +807,68 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
                         </div>
                       </td>
 
-                      {/* Total Loan Principal */}
+                      {/* Remaining Principal */}
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                        {formatCurrency(loan.totalLoanPrincipal)}
-                      </td>
-
-                      {/* Already Paid Principal */}
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {formatCurrency(loan.totalPrincipalPaidSoFar)}
-                        </div>
-                        {loan.alreadyPaidForPeriod > 0 && (
-                          <div style={{ fontSize: '0.7rem', color: 'var(--success-text)', fontWeight: 600 }}>
-                            +{formatCurrency(loan.alreadyPaidForPeriod)} this mo
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Monthly Principal Due */}
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: loan.monthlyPrincipalDue > 0 ? '#D97706' : 'var(--success-text)' }}>
-                        {formatCurrency(loan.monthlyPrincipalDue)}
+                        {formatCurrency(loan.remainingPrincipal)}
                       </td>
 
                       {/* Collect Principal Amount Input */}
                       <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>₹</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
                           <input
                             type="number"
                             min="0"
-                            max={maxAllowed}
+                            max={maxAllowedPrin}
                             step="1"
                             value={amountMap[loan.loanId] ?? ''}
-                            onChange={(e) => handleAmountChange(loan.loanId, e.target.value, maxAllowed)}
+                            onChange={(e) => handleAmountChange(loan.loanId, e.target.value, maxAllowedPrin)}
                             disabled={!isSelected || submitting}
                             className="form-input"
                             style={{
-                              width: '100px',
+                              width: '95px',
                               textAlign: 'right',
-                              padding: '4px 8px',
+                              padding: '4px 6px',
                               fontSize: '0.85rem',
                               fontWeight: 700,
                               borderColor: isSelected ? 'var(--primary)' : undefined,
                             }}
                           />
+                          <span style={{ fontSize: '0.68rem', color: '#64748B' }}>
+                            Due: {formatCurrency(loan.monthlyPrincipalDue)}
+                          </span>
                         </div>
+                      </td>
+
+                      {/* Collect 1% Interest Amount Input */}
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max={maxAllowedInt || undefined}
+                            step="1"
+                            value={interestMap[loan.loanId] ?? ''}
+                            onChange={(e) => handleInterestChange(loan.loanId, e.target.value, maxAllowedInt || 999999)}
+                            disabled={!isSelected || submitting}
+                            className="form-input"
+                            style={{
+                              width: '85px',
+                              textAlign: 'right',
+                              padding: '4px 6px',
+                              fontSize: '0.85rem',
+                              fontWeight: 700,
+                              borderColor: isSelected ? '#D97706' : undefined,
+                            }}
+                          />
+                          <span style={{ fontSize: '0.68rem', color: '#D97706', fontWeight: 600 }}>
+                            Due: {formatCurrency(loan.monthlyInterestDue)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Total Installment Calculated Live */}
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#1E293B', fontSize: '0.9rem' }}>
+                        {formatCurrency(currentTotal)}
                       </td>
 
                       {/* Row Payment Mode */}
