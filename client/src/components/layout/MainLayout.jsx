@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -17,34 +17,53 @@ const MainLayout = () => {
   const [isRecordRepaymentOpen, setIsRecordRepaymentOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const triggerRefresh = () => {
+  const triggerRefresh = useCallback(() => {
     setRefreshTrigger((prev) => prev + 1);
-  };
+  }, []);
+
+  const openAddMember = useCallback(() => setIsAddMemberOpen(true), []);
+  const openRecordSavings = useCallback(() => setIsRecordSavingsOpen(true), []);
+  const openBulkSavings = useCallback(() => setIsBulkSavingsOpen(true), []);
+  const openCreateLoan = useCallback(() => setIsCreateLoanOpen(true), []);
+  const openRecordRepayment = useCallback(() => setIsRecordRepaymentOpen(true), []);
+  const closeMobileSidebar = useCallback(() => setIsMobileSidebarOpen(false), []);
+  const openMobileSidebar = useCallback(() => setIsMobileSidebarOpen(true), []);
+
+  const outletContext = useMemo(
+    () => ({
+      refreshTrigger,
+      triggerRefresh,
+      openAddMember,
+      openRecordSavings,
+      openBulkSavings,
+      openCreateLoan,
+      openRecordRepayment,
+    }),
+    [
+      refreshTrigger,
+      triggerRefresh,
+      openAddMember,
+      openRecordSavings,
+      openBulkSavings,
+      openCreateLoan,
+      openRecordRepayment,
+    ]
+  );
 
   return (
     <div className="app-container">
-      <Sidebar isMobileOpen={isMobileSidebarOpen} onCloseMobile={() => setIsMobileSidebarOpen(false)} />
+      <Sidebar isMobileOpen={isMobileSidebarOpen} onCloseMobile={closeMobileSidebar} />
 
       <div className="main-content">
         <Header
-          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-          onOpenAddMember={() => setIsAddMemberOpen(true)}
-          onOpenRecordSavings={() => setIsRecordSavingsOpen(true)}
-          onOpenCreateLoan={() => setIsCreateLoanOpen(true)}
+          onOpenMobileSidebar={openMobileSidebar}
+          onOpenAddMember={openAddMember}
+          onOpenRecordSavings={openRecordSavings}
+          onOpenCreateLoan={openCreateLoan}
         />
 
         <main className="page-body">
-          <Outlet
-            context={{
-              refreshTrigger,
-              triggerRefresh,
-              openAddMember: () => setIsAddMemberOpen(true),
-              openRecordSavings: () => setIsRecordSavingsOpen(true),
-              openBulkSavings: () => setIsBulkSavingsOpen(true),
-              openCreateLoan: () => setIsCreateLoanOpen(true),
-              openRecordRepayment: () => setIsRecordRepaymentOpen(true),
-            }}
-          />
+          <Outlet context={outletContext} />
         </main>
       </div>
 

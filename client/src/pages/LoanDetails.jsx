@@ -46,7 +46,7 @@ const LoanDetails = () => {
     fetchLoan();
   }, [id]);
 
-  if (loading) return <Loader text="Loading loan profile..." />;
+  if (loading && !loan) return <Loader text="Loading loan profile..." />;
   if (!loan) return <EmptyState title="Loan not found" description="The requested loan record could not be found." />;
 
   const repaymentsList = loan.repayments || [];
@@ -106,7 +106,7 @@ const LoanDetails = () => {
   };
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', opacity: loading ? 0.75 : 1, transition: 'opacity 0.15s ease' }}>
       <div>
         <button
           onClick={() => navigate('/loans')}

@@ -217,11 +217,11 @@ const MemberDetails = () => {
     return <span className="badge badge-success">MEMBER</span>;
   };
 
-  if (loading) return <Loader text="Loading member details..." />;
+  if (loading && !member) return <Loader text="Loading member details..." />;
   if (!member) return <EmptyState title="Member not found" description="The requested member profile could not be located." />;
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', opacity: loading ? 0.75 : 1, transition: 'opacity 0.15s ease' }}>
       {/* Back Button */}
       <button
         onClick={() => navigate('/members')}

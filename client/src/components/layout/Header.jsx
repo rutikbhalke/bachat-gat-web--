@@ -377,27 +377,6 @@ const Header = ({ onOpenMobileSidebar, onOpenRecordSavings, onOpenCreateLoan }) 
 
       {/* Group Info Modal */}
       <GroupInfoModal isOpen={isGroupModalOpen} onClose={() => setIsGroupModalOpen(false)} />
-
-      <style>{`
-        @media (max-width: 992px) {
-          .mobile-menu-btn {
-            display: flex !important;
-          }
-          header {
-            padding: 0 16px !important;
-          }
-        }
-        @media (max-width: 768px) {
-          .header-profile-info {
-            display: none !important;
-          }
-        }
-        @media (max-width: 640px) {
-          .header-actions {
-            display: none !important;
-          }
-        }
-      `}</style>
     </>
   );
 };

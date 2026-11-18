@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
   doc,
@@ -205,7 +205,7 @@ export const AuthProvider = ({ children }) => {
   });
 
   const [token, setToken] = useState(localStorage.getItem('bachat_token') || null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !localStorage.getItem('bachat_token'));
 
   // 1. Listen for real-time changes to the active Group document in Firestore
   useEffect(() => {
@@ -216,9 +216,9 @@ export const AuthProvider = ({ children }) => {
         const data = docSnap.data();
         const liveName = data.name || data.groupName || data.group_name;
         if (liveName) {
-          setGroupName(liveName);
+          setGroupName((prev) => (prev !== liveName ? liveName : prev));
           setUser((prev) => {
-            if (!prev) return prev;
+            if (!prev || (prev.groupName === liveName && prev.groupId === activeGroupId)) return prev;
             const updated = { ...prev, groupName: liveName, groupId: prev.groupId || activeGroupId };
             localStorage.setItem('bachat_user', JSON.stringify(updated));
             return updated;
@@ -242,14 +242,19 @@ export const AuthProvider = ({ children }) => {
       if (currentFirebaseUser) {
         try {
           const userToken = await currentFirebaseUser.getIdToken();
-          setToken(userToken);
+          setToken((prev) => (prev !== userToken ? userToken : prev));
           localStorage.setItem('bachat_token', userToken);
 
           // Asynchronously resolve user profile before concluding loading state
           const resolved = await resolveUserProfile(currentFirebaseUser);
           if (resolved) {
-            setUser(resolved);
-            if (resolved.groupName) setGroupName(resolved.groupName);
+            setUser((prev) => {
+              if (prev && prev.uid === resolved.uid && prev.role === resolved.role && prev.name === resolved.name && prev.groupId === resolved.groupId) {
+                return prev;
+              }
+              return resolved;
+            });
+            if (resolved.groupName) setGroupName((prev) => (prev !== resolved.groupName ? resolved.groupName : prev));
             localStorage.setItem('bachat_user', JSON.stringify(resolved));
           }
 
@@ -260,14 +265,21 @@ export const AuthProvider = ({ children }) => {
               const uData = userSnap.data();
               const rawRole = (uData.role || 'member').toLowerCase();
               setUser((prev) => {
+                if (!prev) return prev;
+                const newFullName = uData.fullName || uData.name || prev?.fullName || currentFirebaseUser.displayName || 'Member';
+                const newRole = rawRole;
+                const newGroupId = uData.groupId || prev?.groupId || DEFAULT_GROUP_ID;
+                if (prev.fullName === newFullName && prev.role === newRole && prev.groupId === newGroupId) {
+                  return prev; // Stable reference avoids re-render cascade
+                }
                 const updated = {
                   ...prev,
                   ...uData,
-                  fullName: uData.fullName || uData.name || prev?.fullName || currentFirebaseUser.displayName || 'Member',
-                  name: uData.fullName || uData.name || prev?.name || currentFirebaseUser.displayName || 'Member',
-                  role: rawRole,
-                  role_name: rawRole.toUpperCase(),
-                  groupId: uData.groupId || prev?.groupId || DEFAULT_GROUP_ID,
+                  fullName: newFullName,
+                  name: newFullName,
+                  role: newRole,
+                  role_name: newRole.toUpperCase(),
+                  groupId: newGroupId,
                 };
                 localStorage.setItem('bachat_user', JSON.stringify(updated));
                 return updated;
@@ -297,7 +309,7 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  const login = async (email, password, expectedRole = null) => {
+  const login = useCallback(async (email, password, expectedRole = null) => {
     setLoading(true);
     try {
       const data = await authService.login(email, password, expectedRole);
@@ -316,9 +328,9 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const register = async (formData) => {
+  const register = useCallback(async (formData) => {
     setLoading(true);
     try {
       const data = await authService.register(formData);
@@ -337,16 +349,16 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await authService.logout();
     localStorage.removeItem('bachat_token');
     localStorage.removeItem('bachat_user');
     setToken(null);
     setUser(null);
     setFirebaseUser(null);
-  };
+  }, []);
 
   const refreshUser = useCallback(async () => {
     try {
@@ -363,21 +375,21 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const updateProfile = async (profileData) => {
+  const updateProfile = useCallback(async (profileData) => {
     await authService.updateProfile(profileData);
     await refreshUser();
-  };
+  }, [refreshUser]);
 
-  const updateGroupName = (newGroupName) => {
+  const updateGroupName = useCallback((newGroupName) => {
     if (!newGroupName) return;
     setGroupName(newGroupName);
     setUser((prev) => {
-      if (!prev) return prev;
+      if (!prev || prev.groupName === newGroupName) return prev;
       const updated = { ...prev, groupName: newGroupName };
       localStorage.setItem('bachat_user', JSON.stringify(updated));
       return updated;
     });
-  };
+  }, []);
 
   const normalizedRole = (user?.role || 'member').toLowerCase();
   const roleName = normalizedRole.toUpperCase();
@@ -392,7 +404,7 @@ export const AuthProvider = ({ children }) => {
   const canManageLoans = isAdmin || isTreasurer;
   const canManageGroup = isAdmin;
 
-  const value = {
+  const value = useMemo(() => ({
     firebaseUser,
     user,
     userProfile: user,
@@ -421,7 +433,29 @@ export const AuthProvider = ({ children }) => {
     canManageSavings,
     canManageLoans,
     canManageGroup,
-  };
+  }), [
+    firebaseUser,
+    user,
+    normalizedRole,
+    roleName,
+    isAdmin,
+    isTreasurer,
+    isSecretary,
+    isMember,
+    groupName,
+    token,
+    loading,
+    login,
+    register,
+    logout,
+    refreshUser,
+    updateProfile,
+    updateGroupName,
+    canManageMembers,
+    canManageSavings,
+    canManageLoans,
+    canManageGroup,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

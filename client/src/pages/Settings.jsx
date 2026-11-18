@@ -192,10 +192,10 @@ const Settings = () => {
     }
   };
 
-  if (loading) return <Loader text="Loading system settings..." />;
+  if (loading && !groupData.group_name && !profileData.name) return <Loader text="Loading system settings..." />;
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '800px' }}>
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '800px', opacity: loading ? 0.75 : 1, transition: 'opacity 0.15s ease' }}>
       <div>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800 }}>Settings & Configurations</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react';
 import StatusPopup from '../components/common/StatusPopup';
 
 const PopupContext = createContext(null);
@@ -357,19 +357,30 @@ export const PopupProvider = ({ children }) => {
     [closePopup]
   );
 
+  const value = useMemo(
+    () => ({
+      showError,
+      showWarning,
+      showWarningConfirm,
+      showSuccess,
+      showConfirm,
+      askConfirm,
+      closePopup,
+      formatErrorMessage,
+    }),
+    [
+      showError,
+      showWarning,
+      showWarningConfirm,
+      showSuccess,
+      showConfirm,
+      askConfirm,
+      closePopup,
+    ]
+  );
+
   return (
-    <PopupContext.Provider
-      value={{
-        showError,
-        showWarning,
-        showWarningConfirm,
-        showSuccess,
-        showConfirm,
-        askConfirm,
-        closePopup,
-        formatErrorMessage,
-      }}
-    >
+    <PopupContext.Provider value={value}>
       {children}
       <StatusPopup
         isOpen={popupState.isOpen}

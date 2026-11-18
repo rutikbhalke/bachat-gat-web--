@@ -196,7 +196,7 @@ const Savings = () => {
 
       {/* Savings Table */}
       <div className="card" style={{ padding: '0px', overflow: 'hidden' }}>
-        {loading ? (
+        {loading && savingsList.length === 0 ? (
           <Loader text="Loading savings records..." />
         ) : (!savingsList || savingsList.length === 0) ? (
           <EmptyState
@@ -207,7 +207,7 @@ const Savings = () => {
             onAction={openRecordSavings}
           />
         ) : (
-          <div className="table-responsive">
+          <div className="table-responsive" style={{ opacity: loading ? 0.75 : 1, transition: 'opacity 0.15s ease', pointerEvents: loading ? 'none' : 'auto' }}>
             <table className="custom-table">
               <thead>
                 <tr>

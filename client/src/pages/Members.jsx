@@ -728,9 +728,11 @@ const Members = () => {
       </div>
 
       {/* Main Content Area */}
-      {loading ? (
+      {loading && members.length === 0 ? (
         <Loader text="Fetching member records..." />
-      ) : activeTab === 'pending' ? (
+      ) : (
+        <div style={{ opacity: loading ? 0.75 : 1, transition: 'opacity 0.15s ease', pointerEvents: loading ? 'none' : 'auto' }}>
+          {activeTab === 'pending' ? (
         /* PENDING DUES TAB */
         searchedPendingMembers.length === 0 ? (
           <EmptyState
@@ -852,6 +854,8 @@ const Members = () => {
           </section>
         </div>
       )}
+    </div>
+  )}
 
       {/* Local Add Member Modal */}
       <AddMemberModal

@@ -214,7 +214,7 @@ const Loans = () => {
       </div>
 
       {/* Loans Grid */}
-      {loading ? (
+      {loading && loans.length === 0 ? (
         <Loader text="Loading loans..." />
       ) : (!loans || loans.length === 0) ? (
         <div className="card">
@@ -231,7 +231,7 @@ const Loans = () => {
           />
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px', opacity: loading ? 0.75 : 1, transition: 'opacity 0.15s ease', pointerEvents: loading ? 'none' : 'auto' }}>
           {loans.map((l) => {
             const principal = Number(l.principal_amount || l.principalAmount || 0);
             const repaid = Number(l.total_principal_repaid || l.total_principal_paid || 0);

@@ -27,6 +27,7 @@ const ProtectedRoute = ({ allowedRoles = ['ADMIN'] }) => {
     return <Navigate to="/login" replace />;
   }
 
+  // 4. Verify license before accessing admin features
   if (licenseLoading || license.status === 'loading') {
     return <Loader fullScreen text="Verifying shared organisation licence..." />;
   }

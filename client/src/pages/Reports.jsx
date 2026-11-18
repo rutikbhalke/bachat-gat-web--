@@ -131,6 +131,15 @@ const Reports = () => {
 
   const reportCacheRef = React.useRef(new Map());
 
+  const hasCurrentTabData = React.useMemo(() => {
+    if (activeTab === 'monthly') return Boolean(monthlyData);
+    if (activeTab === 'pending') return Boolean(pendingData);
+    if (activeTab === 'loans') return Boolean(loansData);
+    if (activeTab === 'bonus') return Boolean(bonusData);
+    if (activeTab === 'taaleband') return true;
+    return false;
+  }, [activeTab, monthlyData, pendingData, loansData, bonusData]);
+
   const fetchReports = async (force = false) => {
     const cacheKey = `${activeTab}_${selectedMonth}_${selectedYear}_${targetGroupId}_${search}`;
     if (!force && reportCacheRef.current.has(cacheKey)) {
@@ -462,77 +471,13 @@ const Reports = () => {
         </div>
       )}
 
-      {loading ? (
+      {loading && !hasCurrentTabData ? (
         <Loader text="Generating report data..." />
       ) : (
-        <>
+        <div style={{ opacity: loading ? 0.75 : 1, transition: 'opacity 0.15s ease', pointerEvents: loading ? 'none' : 'auto' }}>
           {/* TAB 1: MONTHLY REPORT */}
           {activeTab === 'monthly' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <style>{`
-                @media screen {
-                  .register-print-only {
-                    display: none !important;
-                  }
-                }
-                @media print {
-                  body * {
-                    visibility: hidden !important;
-                  }
-                  .no-print, .no-print *, .sidebar, .navbar, .tabs-container, header, button, .app-header {
-                    display: none !important;
-                    visibility: hidden !important;
-                  }
-                  body:not(.member-modal-open) .register-print-area,
-                  body:not(.member-modal-open) .register-print-area * {
-                    visibility: visible !important;
-                  }
-                  body:not(.member-modal-open) .register-print-area {
-                    display: block !important;
-                    position: absolute !important;
-                    left: 0 !important;
-                    top: 0 !important;
-                    width: 100% !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    border: 1.5px solid #000 !important;
-                    background: #fff !important;
-                    color: #000 !important;
-                    box-shadow: none !important;
-                  }
-                  body.member-modal-open .register-print-area {
-                    display: none !important;
-                    visibility: hidden !important;
-                  }
-                  .register-print-area table {
-                    display: table !important;
-                    width: 100% !important;
-                    border-collapse: collapse !important;
-                  }
-                  .register-print-area thead {
-                    display: table-header-group !important;
-                  }
-                  .register-print-area tbody {
-                    display: table-row-group !important;
-                  }
-                  .register-print-area tfoot {
-                    display: table-row-group !important;
-                  }
-                  .register-print-area tr {
-                    display: table-row !important;
-                    page-break-inside: avoid !important;
-                  }
-                  .register-print-area th,
-                  .register-print-area td {
-                    display: table-cell !important;
-                  }
-                  @page {
-                    size: A4 portrait;
-                    margin: 8mm;
-                  }
-                }
-              `}</style>
-
               {/* REGISTER PREVIEW BANNER (Screen only when previewing) */}
               {showRegisterPreview && (
                 <div
@@ -1237,7 +1182,7 @@ const Reports = () => {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* DIWALI BONUS DISTRIBUTION MODAL */}
