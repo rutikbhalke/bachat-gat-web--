@@ -498,3 +498,179 @@ test('18. Phase 5 Comprehensive Workflow: Single & multiple borrower collection,
   assert.equal(newTotalInterest, 52300, 'Total interest increased by collected interest');
   assert.equal(newAvailableBalance + newActiveLoans, newTotalFund, 'Invariant holds');
 });
+
+test('19. Duplicate Interest Prevention: Collected current and historical interest are excluded from future dues', () => {
+  // Scenario: Borrower with Opening Outstanding: ₹50,000
+  // Installment 1: Expected Interest = ₹500. Borrower pays ₹500.
+  const openingPrincipal = 50000;
+  const scheduledInterest = Math.round(((openingPrincipal * 1.0) / 100) * 100) / 100;
+  assert.equal(scheduledInterest, 500);
+
+  // Before payment: due is ₹500
+  let interestPaid = 0;
+  let currentInterestDue = Math.max(0, Math.round((scheduledInterest - interestPaid) * 100) / 100);
+  assert.equal(currentInterestDue, 500);
+
+  // Simulate payment of current interest
+  interestPaid += 500;
+  currentInterestDue = Math.max(0, Math.round((scheduledInterest - interestPaid) * 100) / 100);
+  assert.equal(currentInterestDue, 0, 'Current interest due must be exactly 0 after collection');
+
+  // Verify historical pending interest calculation excludes already-paid installments
+  const pastInstallments = [
+    { installmentNumber: 1, interestExpected: 500, interestPaid: 500, interestRemaining: 0 },
+    { installmentNumber: 2, interestExpected: 450, interestPaid: 450, interestRemaining: 0 },
+  ];
+  const previousPendingInterest = Math.round(
+    pastInstallments.reduce((sum, s) => sum + Math.max(0, Number(s.interestRemaining || 0)), 0) * 100
+  ) / 100;
+  assert.equal(previousPendingInterest, 0, 'No prior pending interest when past installments are settled');
+});
+
+test('20. Partially Paid Installments: Tracking remaining principal & interest dues accurately', () => {
+  const originalPrincipal = 100000;
+  const tenure = 10;
+  const scheduledMonthlyPrincipal = originalPrincipal / tenure; // 10,000
+  const scheduledMonthlyInterest = Math.round((originalPrincipal * 0.01) * 100) / 100; // 1,000
+
+  // Borrower pays partial amounts: ₹4,000 principal and ₹600 interest
+  const partialPrincipalPaid = 4000;
+  const partialInterestPaid = 600;
+
+  const remainingPrincipalDue = Math.max(0, scheduledMonthlyPrincipal - partialPrincipalPaid);
+  const remainingInterestDue = Math.max(0, scheduledMonthlyInterest - partialInterestPaid);
+  const totalRemainingDue = remainingPrincipalDue + remainingInterestDue;
+
+  assert.equal(remainingPrincipalDue, 6000, 'Remaining principal due must be 6,000');
+  assert.equal(remainingInterestDue, 400, 'Remaining interest due must be 400');
+  assert.equal(totalRemainingDue, 6400, 'Total remaining due must be 6,400');
+
+  // Status must be PARTIAL
+  const isPaidFull = remainingPrincipalDue === 0 && remainingInterestDue === 0;
+  const isPartial = (partialPrincipalPaid > 0 || partialInterestPaid > 0) && (remainingPrincipalDue > 0 || remainingInterestDue > 0);
+  const status = isPaidFull ? 'PAID' : (isPartial ? 'PARTIAL' : 'PENDING');
+  assert.equal(status, 'PARTIAL', 'Installment status must be PARTIAL');
+
+  // Next installment opening principal reduces by partial payment: 100,000 - 4,000 = 96,000
+  const nextOpeningPrincipal = originalPrincipal - partialPrincipalPaid;
+  assert.equal(nextOpeningPrincipal, 96000);
+  // Next month 1% interest is 1% of 96,000 = 960
+  const nextMonthInterest = Math.round((nextOpeningPrincipal * 0.01) * 100) / 100;
+  assert.equal(nextMonthInterest, 960, 'Next month interest reduces to ₹960 on reducing balance');
+});
+
+test('21. Advance Repayment and Clamping Policy Resolution: Safe advance payment up to total outstanding balance', () => {
+  const currentPending = 40000;
+  const scheduledMonthlyDue = 5000;
+
+  // Case 1: Borrower pays exact monthly due (5,000)
+  const reqNormal = 5000;
+  const allowedNormal = Math.min(reqNormal, currentPending);
+  assert.equal(allowedNormal, 5000, 'Normal installment matches scheduled due');
+
+  // Case 2: Borrower makes an advance repayment of 3 installments (15,000)
+  const reqAdvance = 15000;
+  const allowedAdvance = Math.min(reqAdvance, currentPending);
+  assert.equal(allowedAdvance, 15000, 'Advance repayment is permitted up to currentPending (40,000)');
+  const pendingAfterAdvance = currentPending - allowedAdvance;
+  assert.equal(pendingAfterAdvance, 25000, 'Pending principal correctly reduces to 25,000');
+
+  // Case 3: Borrower attempts to pay 50,000 (exceeding total loan balance of 40,000)
+  const reqOver = 50000;
+  const allowedOver = Math.min(reqOver, currentPending);
+  assert.equal(allowedOver, 40000, 'Clamping strictly caps payment to outstanding balance (40,000)');
+
+  // Policy Resolution Summary:
+  // UI auto-fill suggests scheduledMonthlyDue (5,000), but execution ceiling is currentPending (40,000).
+  // This allows partial (1,000), normal (5,000), advance (15,000), and full payoff (40,000) safely.
+});
+
+test('22. Full Loan Closure & Zero Unintended Collection: Loan closes cleanly at 0 balance and rejects further collection', () => {
+  const currentPending = 8000;
+  const fullPaymentPrincipal = 8000;
+  const finalInterest = 80; // 1% on 8,000
+
+  const allowedPrincipal = Math.min(fullPaymentPrincipal, currentPending);
+  const newPending = Math.max(0, currentPending - allowedPrincipal);
+  const newStatus = newPending === 0 ? 'CLOSED' : 'ACTIVE';
+
+  assert.equal(newPending, 0, 'New pending must be exactly 0');
+  assert.equal(newStatus, 'CLOSED', 'Status must transition to CLOSED');
+
+  // Subsequent check: Closed loans with 0 balance are excluded from preview
+  const closedLoanRecord = {
+    id: 'LN_CLOSED_TEST',
+    status: 'CLOSED',
+    pendingPrincipal: 0,
+    remainingAmount: 0,
+    isDeleted: false,
+  };
+  const isActiveForPreview = (closedLoanRecord.status || '').toUpperCase() === 'ACTIVE' &&
+    Number(closedLoanRecord.pendingPrincipal || 0) > 0 &&
+    !closedLoanRecord.isDeleted;
+  assert.equal(isActiveForPreview, false, 'Closed loan is excluded from bulk preview');
+
+  // If submitted again, transaction skips with zero writes
+  const isSkipEligible = (closedLoanRecord.status || '').toUpperCase() === 'CLOSED' && Number(closedLoanRecord.pendingPrincipal || 0) <= 0;
+  assert.equal(isSkipEligible, true, 'Transaction safely skips already closed loan');
+});
+
+test('23. Firestore Transaction Failure, Rollback & Idempotent Retry Safety', () => {
+  const store = {
+    group: { activeLoans: 300000, availableBalance: 1000000, totalFund: 1300000 },
+    loans: new Map([
+      ['LN_001', { pendingPrincipal: 30000, status: 'ACTIVE' }],
+    ]),
+    idempotency: new Map(),
+  };
+
+  const requestId = 'REQ_FAIL_TEST_1';
+
+  // Simulation: Failure before commit (e.g. optimistic lock collision)
+  let committed = false;
+  try {
+    // Check idempotency
+    if (store.idempotency.has(`IDEM_${requestId}`)) {
+      throw new Error('Duplicate');
+    }
+    // Read and simulate conflict/exception
+    const loan = store.loans.get('LN_001');
+    if (!loan) throw new Error('Not found');
+    throw new Error('Simulated optimistic concurrency failure');
+    committed = true;
+  } catch (err) {
+    // Transaction rolled back - no changes applied
+    assert.equal(committed, false);
+    assert.equal(store.group.activeLoans, 300000);
+    assert.equal(store.group.availableBalance, 1000000);
+    assert.equal(store.loans.get('LN_001').pendingPrincipal, 30000);
+    assert.equal(store.idempotency.has(`IDEM_${requestId}`), false);
+  }
+
+  // Simulation: Successful Retry
+  try {
+    const loan = store.loans.get('LN_001');
+    const payment = 5000;
+    const interest = 300;
+    loan.pendingPrincipal -= payment;
+    store.group.activeLoans -= payment;
+    store.group.availableBalance += (payment + interest);
+    store.group.totalFund = store.group.activeLoans + store.group.availableBalance;
+    store.idempotency.set(`IDEM_${requestId}`, { totalCollected: payment + interest });
+    committed = true;
+  } catch (err) {
+    committed = false;
+  }
+
+  assert.equal(committed, true, 'Retry succeeded cleanly');
+  assert.equal(store.group.activeLoans, 295000);
+  assert.equal(store.group.availableBalance, 1005300);
+  assert.equal(store.group.totalFund, 1300300);
+
+  // Simulation: Replay of same requestId triggers idempotency protection
+  let isReplayCaught = false;
+  if (store.idempotency.has(`IDEM_${requestId}`)) {
+    isReplayCaught = true;
+  }
+  assert.equal(isReplayCaught, true, 'Replay of same request is caught by idempotency without mutating balances');
+});

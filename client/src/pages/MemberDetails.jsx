@@ -8,7 +8,7 @@ import EmptyState from '../components/common/EmptyState';
 import RecordSavingsModal from '../components/forms/RecordSavingsModal';
 import CreateLoanModal from '../components/forms/CreateLoanModal';
 import RecordRepaymentModal from '../components/forms/RecordRepaymentModal';
-import EditMemberLoginModal from '../components/forms/EditMemberLoginModal';
+import EditMemberModal from '../components/forms/EditMemberModal';
 import {
   formatCurrency,
   formatNumber,
@@ -30,8 +30,6 @@ import {
   Plus,
   Shield,
   Edit2,
-  Save,
-  KeyRound,
   Trash2,
 } from 'lucide-react';
 
@@ -44,16 +42,11 @@ const MemberDetails = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('savings'); // 'savings' | 'loans' | 'repayments'
 
-  // Role edit state
-  const [isEditingRole, setIsEditingRole] = useState(false);
-  const [selectedRole, setSelectedRole] = useState('MEMBER');
-  const [updatingRole, setUpdatingRole] = useState(false);
-
   // Modal triggers
   const [isSavingsOpen, setIsSavingsOpen] = useState(false);
   const [isLoanOpen, setIsLoanOpen] = useState(false);
   const [isRepayOpen, setIsRepayOpen] = useState(false);
-  const [isMemberLoginOpen, setIsMemberLoginOpen] = useState(false);
+  const [isEditMemberOpen, setIsEditMemberOpen] = useState(false);
   const [selectedLoanId, setSelectedLoanId] = useState(null);
 
   const fetchMember = async () => {
@@ -167,48 +160,6 @@ const MemberDetails = () => {
     }
   };
 
-  const handleUpdateRole = async () => {
-    const confirmed = await askConfirm({
-      title: 'Confirm Role Change',
-      message: `Are you sure you want to change role for "${member.name}" to ${selectedRole}?`,
-      details: [
-        { label: 'Member', value: member.name },
-        { label: 'New Role', value: selectedRole, highlight: true },
-      ],
-      confirmText: 'Update Role',
-      confirmVariant: 'primary',
-    });
-    if (!confirmed) return;
-
-    try {
-      setUpdatingRole(true);
-      const res = await memberService.manageMemberAccess(id, {
-        name: member.name,
-        phone: member.phone || '',
-        memberCode: member.member_code || member.memberCode || id,
-        email: member.email,
-        role: selectedRole,
-        isActive: member.isActive !== false && member.is_active !== false && member.is_active !== 0,
-      });
-      if (res.success) {
-        setIsEditingRole(false);
-        showSuccess({
-          title: 'Role Updated',
-          message: `Role for "${member.name}" changed to ${selectedRole}.`,
-        });
-        await fetchMember();
-      }
-    } catch (err) {
-      console.error('Failed to update role:', err);
-      showError({
-        title: 'Failed to Update Role',
-        error: err,
-      });
-    } finally {
-      setUpdatingRole(false);
-    }
-  };
-
   const getRoleBadge = (role) => {
     const r = (role || 'MEMBER').toUpperCase();
     if (r === 'ADMIN') return <span className="badge badge-pink">ADMIN</span>;
@@ -285,49 +236,9 @@ const MemberDetails = () => {
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                 Assigned Role:
               </span>
-              {isEditingRole ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <select
-                    value={selectedRole}
-                    onChange={(e) => setSelectedRole(e.target.value)}
-                    className="form-select"
-                    style={{ padding: '4px 10px', fontSize: '0.8rem' }}
-                  >
-                    <option value="MEMBER">MEMBER</option>
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="TREASURER">TREASURER</option>
-                    <option value="SECRETARY">SECRETARY</option>
-                  </select>
-                  <button
-                    onClick={handleUpdateRole}
-                    className="btn-primary"
-                    style={{ padding: '4px 10px', fontSize: '0.75rem' }}
-                    disabled={updatingRole}
-                  >
-                    <Save size={12} /> Save
-                  </button>
-                  <button
-                    onClick={() => setIsEditingRole(false)}
-                    className="btn-secondary"
-                    style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {getRoleBadge(member.role_name)}
-                  {isAdmin && (
-                    <button
-                      onClick={() => setIsEditingRole(true)}
-                      style={{ background: 'none', color: 'var(--primary)', padding: '2px', display: 'flex', alignItems: 'center' }}
-                      title="Change user role"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {getRoleBadge(member.role_name)}
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '16px', marginTop: '8px', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -362,8 +273,8 @@ const MemberDetails = () => {
             </button>
           )}
           {isAdmin && (
-            <button onClick={() => setIsMemberLoginOpen(true)} className="btn-outline">
-              <KeyRound size={16} /> Edit / Add Login
+            <button onClick={() => setIsEditMemberOpen(true)} className="btn-outline">
+              <Edit2 size={16} /> Edit Member
             </button>
           )}
           {isAdmin && (
@@ -643,9 +554,9 @@ const MemberDetails = () => {
         initialLoanId={selectedLoanId}
       />
 
-      <EditMemberLoginModal
-        isOpen={isMemberLoginOpen}
-        onClose={() => setIsMemberLoginOpen(false)}
+      <EditMemberModal
+        isOpen={isEditMemberOpen}
+        onClose={() => setIsEditMemberOpen(false)}
         onSuccess={fetchMember}
         member={member}
       />

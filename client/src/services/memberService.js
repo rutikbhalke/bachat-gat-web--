@@ -628,58 +628,73 @@ export const memberService = {
   },
 
   /**
-   * Update existing member in Firestore
+   * Update existing member in Backend API & Firestore.
+   * Strictly restricted to Member Name and Mobile Number only.
    */
   updateMember: async (memberId, updateData, groupId = DEFAULT_GROUP_ID) => {
     try {
-      const targetGroupId = (groupId === 'group_001' || !groupId) ? DEFAULT_GROUP_ID : groupId;
-      const memberDocRef = doc(db, 'users', memberId);
+      const cleanName = String(updateData?.name || updateData?.fullName || '').trim();
+      const rawPhone = updateData?.mobileNumber ?? updateData?.phone ?? '';
+      let cleanPhone = String(rawPhone).replace(/\D/g, '');
+      if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) cleanPhone = cleanPhone.slice(2);
+      else if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) cleanPhone = cleanPhone.slice(1);
+
+      if (!cleanName) {
+        throw new Error('Member Name is required.');
+      }
+      if (cleanName.length < 2) {
+        throw new Error('Member Name must be at least 2 characters.');
+      }
+      if (cleanPhone.length !== 10) {
+        throw new Error('A valid 10-digit mobile number is required.');
+      }
 
       const payload = {
-        updatedAt: new Date().toISOString(),
+        name: cleanName,
+        fullName: cleanName,
+        phone: cleanPhone,
+        mobileNumber: cleanPhone,
       };
 
-      if (updateData.name || updateData.fullName) {
-        const n = (updateData.name || updateData.fullName).trim();
-        payload.name = n;
-        payload.fullName = n;
-      }
-      if (updateData.phone !== undefined) payload.phone = updateData.phone.trim();
-      if (updateData.email !== undefined) payload.email = updateData.email.trim().toLowerCase();
-      if (updateData.monthly_contribution !== undefined || updateData.monthlyContribution !== undefined) {
-        const mc = parseFloat(updateData.monthly_contribution || updateData.monthlyContribution);
-        payload.monthlyContribution = mc;
-        payload.monthlyContributionPerShare = mc;
-        payload.monthlyHaftaAmount = mc;
-      }
-      if (updateData.status) {
-        payload.status = updateData.status.toLowerCase();
-      }
-      if (updateData.role_name || updateData.role) {
-        const roleName = (updateData.role_name || updateData.role).trim().toUpperCase();
-        if (!['ADMIN', 'MEMBER', 'TREASURER', 'SECRETARY'].includes(roleName)) {
-          throw new Error('Invalid member role.');
+      // Try Backend API first
+      try {
+        const response = await api.put(`/members/${encodeURIComponent(memberId)}`, payload);
+        if (response.data) {
+          return response.data;
         }
-        payload.role = roleName.toLowerCase();
-        payload.roleName = roleName;
-        payload.role_name = roleName;
+      } catch (apiErr) {
+        const status = apiErr.response?.status;
+        // If client validation error or forbidden, re-throw immediately
+        if (status && status !== 503 && status !== 502 && status !== 504 && status !== 404) {
+          throw new Error(apiErr.response?.data?.message || apiErr.message || 'Failed to update member.');
+        }
       }
 
-      await setDoc(memberDocRef, payload, { merge: true });
-
+      // Offline / Firestore Direct Fallback:
+      // Strictly write ONLY name and phone to Firestore. Restricted fields are never touched.
+      const memberDocRef = doc(db, 'users', memberId);
       const memberSnap = await getDoc(memberDocRef);
-      const linkedUid = memberSnap.data()?.authUid || memberSnap.data()?.userId || memberSnap.data()?.firebaseUid;
-      if (linkedUid && (updateData.role_name || updateData.role)) {
-        await setDoc(doc(db, 'users', linkedUid), {
-          role: payload.role,
-          role_name: payload.role_name,
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
+      if (!memberSnap.exists()) {
+        throw new Error('Member record not found.');
+      }
+
+      const firestorePayload = {
+        ...payload,
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(memberDocRef, firestorePayload, { merge: true });
+
+      const memberData = memberSnap.data();
+      const linkedUid = memberData?.authUid || memberData?.userId || memberData?.firebaseUid;
+      if (linkedUid && linkedUid !== memberId) {
+        await setDoc(doc(db, 'users', linkedUid), firestorePayload, { merge: true });
       }
 
       return {
         success: true,
-        message: 'Member profile updated successfully',
+        message: 'Member details updated successfully.',
+        member: { id: memberId, ...payload },
       };
     } catch (err) {
       console.error('Failed to update member:', err);

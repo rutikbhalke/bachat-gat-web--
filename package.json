@@ -13,6 +13,7 @@
     "test:license": "npm test --prefix functions && npm run test:license --prefix client",
     "test:reset": "node --test test/adminResetService.test.js",
     "test:bulk-loan": "node --test test/bulkLoanPrincipalService.test.js",
+    "test:member-edit": "node --test test/adminMemberEdit.test.js",
     "test:vercel-license": "node --test test/vercelLicenseRoutes.test.js",
     "firebase:test:license": "npx firebase-tools emulators:exec --project demo-shared-licence --only firestore \"npm test --prefix functions\"",
     "demo:record": "node client/e2e/demo_recording.mjs"
