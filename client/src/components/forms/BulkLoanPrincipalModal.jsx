@@ -258,7 +258,7 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
       setAmountMap((prev) => ({ ...prev, [loanId]: '0' }));
       return;
     }
-    if (val > maxAllowed) {
+    if (maxAllowed !== undefined && maxAllowed > 0 && val > maxAllowed) {
       setAmountMap((prev) => ({ ...prev, [loanId]: maxAllowed.toString() }));
       return;
     }
@@ -275,7 +275,7 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
       setCurrentInterestMap((prev) => ({ ...prev, [loanId]: '0' }));
       return;
     }
-    if (val > maxAllowed) {
+    if (maxAllowed !== undefined && maxAllowed > 0 && val > maxAllowed) {
       setCurrentInterestMap((prev) => ({ ...prev, [loanId]: maxAllowed.toString() }));
       return;
     }
@@ -292,7 +292,7 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
       setPreviousInterestMap((prev) => ({ ...prev, [loanId]: '0' }));
       return;
     }
-    if (val > maxAllowed) {
+    if (maxAllowed !== undefined && maxAllowed > 0 && val > maxAllowed) {
       setPreviousInterestMap((prev) => ({ ...prev, [loanId]: maxAllowed.toString() }));
       return;
     }
@@ -303,55 +303,72 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
   const handleSubmit = async () => {
     if (submitting) return;
 
-    const { count, totalPrincipal, totalInterest, totalAmount, validItems } = selectedSummary;
-
-    if (count === 0 || totalAmount <= 0) {
-      showError({
-        title: 'No Loans Selected',
-        message: 'Please select at least one loan with a collection amount greater than ₹0.',
-      });
-      return;
-    }
-
-    const monthName = months.find((m) => m.value === selectedMonth)?.label || selectedMonth;
-
-    // Confirmation Dialog
-    const confirmed = await askConfirm({
-      title: 'Confirm Bulk Loan Repayment (Principal + Interest)',
-      message: `Record bulk monthly loan collection for ${monthName} ${selectedYear}?`,
-      details: [
-        { label: 'Selected Loans', value: `${count} Loans` },
-        { label: 'Period', value: `${monthName} ${selectedYear}` },
-        { label: 'Collection Date', value: formatDate(collectionDate) },
-        { label: 'Principal to Collect', value: formatCurrency(totalPrincipal) },
-        { label: 'Current 1% Interest', value: formatCurrency(totalCurrentInterest) },
-        ...(totalPreviousInterest > 0
-          ? [{ label: 'Previous Pending Interest', value: formatCurrency(totalPreviousInterest) }]
-          : []),
-        { label: 'Total Interest', value: formatCurrency(totalInterest) },
-        { label: 'Total Collection Amount', value: formatCurrency(totalAmount), highlight: true },
-        { label: 'Primary Payment Mode', value: globalMode },
-        { label: 'Accounting Rule', value: 'Principal reduces Active Loans • Total Interest credited as Interest Income' },
-      ],
-      confirmText: `Collect ${formatCurrency(totalAmount)} (Prin + Int)`,
-      confirmVariant: 'primary',
-    });
-
-    if (!confirmed) return;
-
     try {
+      const {
+        count,
+        totalPrincipal,
+        totalCurrentInterest,
+        totalPreviousInterest,
+        totalInterest,
+        totalAmount,
+        validItems,
+      } = selectedSummary;
+
+      if (count === 0 || totalAmount <= 0) {
+        showError({
+          title: 'No Loans Selected',
+          message: 'Please select at least one loan with a collection amount greater than ₹0.',
+        });
+        return;
+      }
+
+      const monthName = months.find((m) => m.value === selectedMonth)?.label || selectedMonth;
+
+      // Confirmation Dialog
+      const confirmed = await askConfirm({
+        title: 'Confirm Bulk Loan Repayment (Principal + Interest)',
+        message: `Record bulk monthly loan collection for ${monthName} ${selectedYear}?`,
+        details: [
+          { label: 'Selected Loans', value: `${count} Loans` },
+          { label: 'Period', value: `${monthName} ${selectedYear}` },
+          { label: 'Collection Date', value: formatDate(collectionDate) },
+          { label: 'Principal to Collect', value: formatCurrency(totalPrincipal) },
+          { label: 'Current 1% Interest', value: formatCurrency(totalCurrentInterest) },
+          ...(totalPreviousInterest > 0
+            ? [{ label: 'Previous Pending Interest', value: formatCurrency(totalPreviousInterest) }]
+            : []),
+          { label: 'Total Interest', value: formatCurrency(totalInterest) },
+          { label: 'Total Collection Amount', value: formatCurrency(totalAmount), highlight: true },
+          { label: 'Primary Payment Mode', value: globalMode },
+          { label: 'Accounting Rule', value: 'Principal reduces Active Loans • Total Interest credited as Interest Income' },
+        ],
+        confirmText: `Collect ${formatCurrency(totalAmount)} (Prin + Int)`,
+        confirmVariant: 'primary',
+      });
+
+      if (!confirmed) return;
+
       setSubmitting(true);
+
+      // Fresh unique requestId for this submission attempt
+      const submissionRequestId = `BULK_LOAN_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
       const res = await loanService.recordBulkLoanPrincipal({
         month: selectedMonth,
         year: selectedYear,
         items: validItems,
-        clientRequestId: sessionRequestIdRef.current,
+        clientRequestId: submissionRequestId,
         paymentMode: globalMode,
         remarks: remarks.trim(),
         paymentDate: collectionDate,
       });
 
       if (res && res.success) {
+        const collectedTotal = res.totalCollected ?? totalAmount;
+        const collectedPrincipal = res.totalPrincipalCollected ?? totalPrincipal;
+        const collectedInterest = res.totalInterestCollected ?? totalInterest;
+        const collectedCount = res.count ?? count;
+
         if (res.isIdempotentReplay) {
           showSuccess({
             title: 'Already Recorded',
@@ -360,14 +377,17 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
         } else if (res.skippedDuplicates && res.skippedDuplicates.length > 0) {
           showSuccess({
             title: 'Loan Repayments Recorded',
-            message: `Successfully collected ${formatCurrency(res.totalCollected ?? totalAmount)} (Principal: ${formatCurrency(totalPrincipal)}, Interest: ${formatCurrency(totalInterest)}) from ${res.count ?? count} loans. ${res.skippedDuplicates.length} loans were skipped because their installment was already fully settled.`,
+            message: `Successfully collected ${formatCurrency(collectedTotal)} (Principal: ${formatCurrency(collectedPrincipal)}, Interest: ${formatCurrency(collectedInterest)}) from ${collectedCount} loans. ${res.skippedDuplicates.length} loans were skipped because their installment was already fully settled.`,
           });
         } else {
           showSuccess({
             title: 'Loan Repayments Recorded',
-            message: `Successfully collected ${formatCurrency(res.totalCollected ?? totalAmount)} (Principal: ${formatCurrency(totalPrincipal)}, Interest: ${formatCurrency(totalInterest)}) from ${res.count ?? count} loans for ${monthName} ${selectedYear}.`,
+            message: `Successfully collected ${formatCurrency(collectedTotal)} (Principal: ${formatCurrency(collectedPrincipal)}, Interest: ${formatCurrency(collectedInterest)}) from ${collectedCount} loans for ${monthName} ${selectedYear}.`,
           });
         }
+
+        // Refresh preview data and notify parent
+        await fetchPreview(selectedMonth, selectedYear);
         if (onSuccess) onSuccess();
         onClose();
       }
@@ -812,7 +832,7 @@ const BulkLoanPrincipalModal = ({ isOpen, onClose, onSuccess }) => {
               ) : (
                 filteredLoans.map((loan) => {
                   const isSelected = Boolean(selectedMap[loan.loanId]);
-                  const maxAllowedPrin = Math.min(loan.monthlyPrincipalDue, loan.remainingPrincipal);
+                  const maxAllowedPrin = loan.remainingPrincipal;
                   const maxAllowedCurInt = loan.currentInterestDue !== undefined ? loan.currentInterestDue : (loan.monthlyInterestDue ?? 0);
                   const maxAllowedPrevInt = loan.previousPendingInterest ?? 0;
 

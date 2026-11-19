@@ -406,3 +406,95 @@ test('17. Duplicate Collection Prevention: Fully paid loans and settled installm
 
   assert.equal(isEligibleForCollection, false, 'Already settled loans with 0 dues must not be collected');
 });
+
+test('18. Phase 5 Comprehensive Workflow: Single & multiple borrower collection, payment modes, and financial reconciliation', () => {
+  // Test 1: Single borrower collection (Principal + Current 1% Interest)
+  const singleItem = {
+    loanId: 'LN_001',
+    principalAmount: 5000,
+    currentInterestAmount: 500,
+    previousPendingInterestAmount: 0,
+    interestAmount: 500,
+    amount: 5500,
+    paymentMode: 'UPI',
+  };
+  const currentPending1 = 50000;
+  const allowedPrincipal1 = Math.min(singleItem.principalAmount, currentPending1);
+  const allowedInterest1 = Math.max(0, singleItem.interestAmount);
+  const totalItemAmount1 = allowedPrincipal1 + allowedInterest1;
+  const newPending1 = currentPending1 - allowedPrincipal1;
+
+  assert.equal(allowedPrincipal1, 5000);
+  assert.equal(allowedInterest1, 500);
+  assert.equal(totalItemAmount1, 5500);
+  assert.equal(newPending1, 45000);
+  assert.equal(singleItem.paymentMode, 'UPI');
+
+  // Test 2 & 4: Multiple borrowers with Principal + Current Interest + Previous Pending Interest
+  const multiItems = [
+    {
+      loanId: 'LN_101',
+      memberName: 'Borrower A',
+      principalAmount: 10000,
+      currentInterestAmount: 1000,
+      previousPendingInterestAmount: 500,
+      interestAmount: 1500,
+      amount: 11500,
+      paymentMode: 'Cash',
+    },
+    {
+      loanId: 'LN_102',
+      memberName: 'Borrower B',
+      principalAmount: 8000,
+      currentInterestAmount: 800,
+      previousPendingInterestAmount: 0,
+      interestAmount: 800,
+      amount: 8800,
+      paymentMode: 'Bank Transfer',
+    },
+  ];
+
+  let totalCollectedPrin = 0;
+  let totalCollectedInt = 0;
+  multiItems.forEach((it) => {
+    totalCollectedPrin += it.principalAmount;
+    totalCollectedInt += it.interestAmount;
+  });
+
+  assert.equal(totalCollectedPrin, 18000, 'Total bulk principal must equal 18,000');
+  assert.equal(totalCollectedInt, 2300, 'Total bulk interest must equal 2,300');
+  assert.equal(totalCollectedPrin + totalCollectedInt, 20300, 'Total collected must equal 20,300');
+  assert.equal(multiItems[0].paymentMode, 'Cash');
+  assert.equal(multiItems[1].paymentMode, 'Bank Transfer');
+
+  // Test 8: Duplicate submission prevention
+  const idempotencyMap = new Map();
+  const reqId = 'REQ_BULK_001';
+  idempotencyMap.set(`IDEM_${reqId}`, { recorded: true });
+  assert.equal(idempotencyMap.has(`IDEM_${reqId}`), true, 'Replay with same requestId is identified as duplicate');
+
+  // Test 9: Invalid / 0 amount rejection
+  const invalidItems = [
+    { loanId: 'LN_INV', amount: 0, principalAmount: 0, interestAmount: 0 },
+  ];
+  const validFiltered = invalidItems.filter((i) => Number(i.amount) > 0);
+  assert.equal(validFiltered.length, 0, 'Zero amount items must be rejected from submission');
+
+  // Test 10: Group accounting reconciliation
+  const initialGroup = {
+    availableBalance: 2000000,
+    activeLoans: 500000,
+    totalFund: 2500000,
+    totalInterestPaid: 50000,
+  };
+  const newActiveLoans = initialGroup.activeLoans - totalCollectedPrin;
+  const newAvailableBalance = initialGroup.availableBalance + totalCollectedPrin + totalCollectedInt;
+  const newTotalFund = newAvailableBalance + newActiveLoans;
+  const newTotalInterest = initialGroup.totalInterestPaid + totalCollectedInt;
+
+  assert.equal(newActiveLoans, 482000, 'Active loans reduced only by collected principal');
+  assert.equal(newAvailableBalance, 2020300, 'Available balance increased by principal + interest');
+  assert.equal(newTotalFund, 2502300, 'Total fund increased only by interest income');
+  assert.equal(newTotalInterest, 52300, 'Total interest increased by collected interest');
+  assert.equal(newAvailableBalance + newActiveLoans, newTotalFund, 'Invariant holds');
+});

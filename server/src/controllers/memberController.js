@@ -135,6 +135,108 @@ async function manageMemberAccess(req, res, next) {
   }
 }
 
+async function updateMember(req, res, next) {
+  try {
+    const found = await findMember(req.params.id);
+    if (!found) {
+      return res.status(404).json({ success: false, message: 'Member record not found.' });
+    }
+
+    const member = found.snap.data();
+
+    // 1. Validate Member Name: required, non-empty string, trimmed
+    const rawName = req.body.name ?? req.body.fullName;
+    if (rawName === undefined || rawName === null || typeof rawName !== 'string' || !rawName.trim()) {
+      return res.status(400).json({ success: false, message: 'Member Name is required.' });
+    }
+    const cleanName = rawName.trim();
+    if (cleanName.length < 2) {
+      return res.status(400).json({ success: false, message: 'Member Name must be at least 2 characters.' });
+    }
+
+    // 2. Validate Mobile Number: required, 10 digits
+    const rawPhone = req.body.mobileNumber ?? req.body.phone;
+    if (rawPhone === undefined || rawPhone === null) {
+      return res.status(400).json({ success: false, message: 'Mobile Number is required.' });
+    }
+    let digitsOnly = String(rawPhone).replace(/\D/g, '');
+    if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
+      digitsOnly = digitsOnly.slice(2);
+    } else if (digitsOnly.length === 11 && digitsOnly.startsWith('0')) {
+      digitsOnly = digitsOnly.slice(1);
+    }
+
+    if (digitsOnly.length !== 10) {
+      return res.status(400).json({ success: false, message: 'A valid 10-digit mobile number is required.' });
+    }
+    const cleanPhone = digitsOnly;
+
+    // 3. Backend & Security:
+    // Strictly whitelist ONLY name and mobileNumber.
+    // Explicitly reject/drop any attempt to modify email, password, role, status, etc.
+    // Existing values of restricted fields remain untouched.
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const allowedUpdate = {
+      name: cleanName,
+      fullName: cleanName,
+      phone: cleanPhone,
+      mobileNumber: cleanPhone,
+      updatedAt: now,
+    };
+
+    const batch = db.batch();
+    batch.set(found.ref, allowedUpdate, { merge: true });
+
+    const authUid = member.authUid || member.firebaseUid || member.userId;
+    if (authUid && found.ref.path !== `users/${authUid}`) {
+      const loginRef = db.collection('users').doc(authUid);
+      batch.set(loginRef, allowedUpdate, { merge: true });
+    }
+
+    // Audit log transaction
+    const groupId = member.groupId || req.user?.groupId || DEFAULT_GROUP_ID;
+    const activityRef = db.collection('transactions').doc();
+    batch.set(activityRef, {
+      id: activityRef.id,
+      groupId,
+      type: 'member_updated',
+      memberId: found.snap.id,
+      memberName: cleanName,
+      referenceId: found.snap.id,
+      description: `Member details updated: ${cleanName} (${cleanPhone})`,
+      recordedBy: req.user?.uid || 'admin',
+      date: new Date().toISOString(),
+      createdAt: now,
+    });
+
+    await batch.commit();
+
+    // If linked Firebase Auth account exists, update displayName only
+    if (authUid) {
+      try {
+        await auth.updateUser(authUid, { displayName: cleanName });
+      } catch (authErr) {
+        console.warn('Firebase Auth displayName update skipped:', authErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Member details updated successfully.',
+      member: {
+        id: found.snap.id,
+        name: cleanName,
+        fullName: cleanName,
+        phone: cleanPhone,
+        mobileNumber: cleanPhone,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function deleteMember(req, res, next) {
   try {
     const found = await findMember(req.params.id);
@@ -291,7 +393,7 @@ module.exports = {
   getAllMembers: legacyController.getAllMembers,
   getMemberById: legacyController.getMemberById,
   createMember: legacyController.createMember,
-  updateMember: legacyController.updateMember,
+  updateMember,
   manageMemberAccess,
   deleteMember,
 };

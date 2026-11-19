@@ -1430,7 +1430,7 @@ export const loanService = {
 
     const validItems = items.filter((item) => item && (item.loanId || item.loan_id) && Number(item.amount) > 0);
     if (validItems.length === 0) {
-      throw new Error('No items with principal collection amount greater than ₹0 selected.');
+      throw new Error('No items with repayment collection amount greater than ₹0 selected.');
     }
 
     // Direct Firestore runTransaction implementation matching recordRepayment
@@ -1503,8 +1503,7 @@ export const loanService = {
           const prevPendingIntPart = Number(item.previousPendingInterestAmount ?? 0);
           const requestedInterest = Number(item.interestAmount !== undefined ? item.interestAmount : (currentIntPart + prevPendingIntPart));
 
-          const monthlyPrincipalDue = Number(item.monthlyPrincipalDue ?? item.suggestedAmount ?? currentPending);
-          const allowedPrincipal = Math.min(requestedPrincipal, monthlyPrincipalDue, currentPending);
+          const allowedPrincipal = Math.min(requestedPrincipal, currentPending);
           const allowedInterest = Math.max(0, requestedInterest);
           const totalItemAmount = Math.round((allowedPrincipal + allowedInterest) * 100) / 100;
 
@@ -1598,7 +1597,7 @@ export const loanService = {
             payment_mode: itemMode,
             remarks: itemRemarks,
             source: 'BULK_LOAN_COLLECTION',
-            createdAt: effectiveDate,
+            createdAt: new Date().toISOString(),
           });
 
           // 3. Create Transaction Record
@@ -1625,7 +1624,7 @@ export const loanService = {
             referenceId: repaymentId,
             source: 'BULK_LOAN_COLLECTION',
             date: effectiveDate,
-            createdAt: effectiveDate,
+            createdAt: new Date().toISOString(),
           });
 
           processedItems.push({
@@ -1651,8 +1650,8 @@ export const loanService = {
         const newGroupInterest = Math.round((currentGroupInterest + totalInterestCollected) * 100) / 100;
         const newMonthlyInterest = Math.round(newActiveLoans * 0.02 * 100) / 100;
 
-        if ((totalPrincipalCollected > 0 || totalInterestCollected > 0) && groupSnap.exists()) {
-          transaction.update(groupRef, {
+        if (totalPrincipalCollected > 0 || totalInterestCollected > 0) {
+          const groupUpdatePayload = {
             activeLoans: newActiveLoans,
             active_loans: newActiveLoans,
             totalOutstandingLoans: newActiveLoans,
@@ -1665,15 +1664,21 @@ export const loanService = {
             total_interest_paid: newGroupInterest,
             currentMonthlyInterest: newMonthlyInterest,
             current_monthly_interest: newMonthlyInterest,
-            updatedAt: effectiveDate,
-          });
+            updatedAt: new Date().toISOString(),
+          };
+
+          if (groupSnap.exists()) {
+            transaction.update(groupRef, groupUpdatePayload);
+          } else {
+            transaction.set(groupRef, { id: targetGroupId, ...groupUpdatePayload }, { merge: true });
+          }
         }
 
         // 6. Record Idempotency Marker
         transaction.set(idempotencyRef, {
           id: `IDEM_${requestId}`,
           type: 'IDEMPOTENCY_MARKER',
-          feature: 'BULK_LOAN_PRINCIPAL_COLLECTION',
+          feature: 'BULK_LOAN_COLLECTION',
           requestId,
           groupId: targetGroupId,
           month,
@@ -1684,7 +1689,7 @@ export const loanService = {
           totalPrincipalCollected,
           totalInterestCollected,
           skippedDuplicates,
-          createdAt: effectiveDate,
+          createdAt: new Date().toISOString(),
         });
 
         return {

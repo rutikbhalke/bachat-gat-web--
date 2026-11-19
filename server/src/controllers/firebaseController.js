@@ -98,7 +98,23 @@ async function getMemberById(req, res) {
 }
 
 async function createMember(req, res, next) { try { const ref = db.collection('users').doc(); const member = { id: ref.id, ...req.body, groupId: groupIdOf(req), status: 'ACTIVE', isActive: true, createdAt: new Date().toISOString() }; await ref.set(member); res.status(201).json({ success: true, memberId: ref.id }); } catch (err) { next(err); } }
-async function updateMember(req, res, next) { try { await db.collection('users').doc(req.params.id).set({ ...req.body, updatedAt: new Date().toISOString() }, { merge: true }); res.json({ success: true, message: 'Member updated successfully.' }); } catch (err) { next(err); } }
+async function updateMember(req, res, next) {
+  try {
+    const rawName = String(req.body.name || req.body.fullName || '').trim();
+    const rawPhone = String(req.body.mobileNumber ?? req.body.phone ?? '').replace(/\D/g, '').slice(-10);
+    if (!rawName) return res.status(400).json({ success: false, message: 'Member Name is required.' });
+    if (rawPhone.length !== 10) return res.status(400).json({ success: false, message: 'A valid 10-digit mobile number is required.' });
+    const payload = {
+      name: rawName,
+      fullName: rawName,
+      phone: rawPhone,
+      mobileNumber: rawPhone,
+      updatedAt: new Date().toISOString()
+    };
+    await db.collection('users').doc(req.params.id).set(payload, { merge: true });
+    res.json({ success: true, message: 'Member updated successfully.', member: { id: req.params.id, ...payload } });
+  } catch (err) { next(err); }
+}
 async function deleteMember(req, res, next) { try { await db.collection('users').doc(req.params.id).set({ status: 'INACTIVE', isActive: false }, { merge: true }); res.json({ success: true, message: 'Member deleted successfully.' }); } catch (err) { next(err); } }
 
 async function getAllSavings(req, res) { let savings = await getCollection('monthlyContributions', groupIdOf(req)); const { month, year, memberId, search } = req.query; if (month) savings = savings.filter((s) => number(s.month) === number(month)); if (year) savings = savings.filter((s) => number(s.year) === number(year)); if (memberId) savings = savings.filter((s) => s.memberId === memberId); if (search) { const members = await getCollection('users', groupIdOf(req)); const ids = members.filter((m) => `${m.fullName || m.name} ${m.memberCode}`.toLowerCase().includes(search.toLowerCase())).map((m) => m.id); savings = savings.filter((s) => ids.includes(s.memberId)); } res.json({ success: true, count: savings.length, totalAmount: savings.reduce((sum, s) => sum + number(s.amount), 0), savings }); }
